@@ -79,6 +79,25 @@ def test_points_sit_on_a_fixed_global_grid():
     assert LatLon(32.875, -96.875) in grid
 
 
+def test_single_point_route_still_gets_cells_around_it():
+    assert LatLon(32.875, -96.875) in build_grid([[DALLAS]], max_points=NO_CAP)
+
+
+def test_output_is_sorted_without_duplicates_and_ignores_route_order():
+    routes = [TEXAS, polyline(DALLAS, TYLER)]
+    grid = build_grid(routes, max_points=NO_CAP)
+    assert grid == sorted(grid, key=lambda p: (p.lat, p.lon))
+    assert len(set(grid)) == len(grid)
+    assert build_grid([list(reversed(r)) for r in reversed(routes)], max_points=NO_CAP) == grid
+    assert build_grid([TEXAS, TEXAS], max_points=NO_CAP) == build_grid([TEXAS], max_points=NO_CAP)
+
+
+def test_centres_carry_no_float_noise():
+    grid = build_grid([TEXAS], cell_deg=0.1, max_points=NO_CAP)
+    assert all(p.lat == round(p.lat, 6) and p.lon == round(p.lon, 6) for p in grid)
+    assert LatLon(32.75, -96.75) in grid
+
+
 @pytest.mark.parametrize(
     "route",
     [TEXAS, ALASKA, SVALBARD, NEAR_POLE],
@@ -134,27 +153,8 @@ def test_small_cap_on_a_short_route():
     assert 0 < len(grid) <= 10
 
 
-def test_rejects_a_grid_that_could_never_fit():
+def test_rejects_a_zero_cell_size_or_cap():
     with pytest.raises(ValueError):
         build_grid([TEXAS], cell_deg=0)
     with pytest.raises(ValueError):
         build_grid([TEXAS], max_points=0)
-
-
-def test_single_point_route_still_gets_cells_around_it():
-    assert LatLon(32.875, -96.875) in build_grid([[DALLAS]], max_points=NO_CAP)
-
-
-def test_output_is_sorted_without_duplicates_and_ignores_route_order():
-    routes = [TEXAS, polyline(DALLAS, TYLER)]
-    grid = build_grid(routes, max_points=NO_CAP)
-    assert grid == sorted(grid, key=lambda p: (p.lat, p.lon))
-    assert len(set(grid)) == len(grid)
-    assert build_grid([list(reversed(r)) for r in reversed(routes)], max_points=NO_CAP) == grid
-    assert build_grid([TEXAS, TEXAS], max_points=NO_CAP) == build_grid([TEXAS], max_points=NO_CAP)
-
-
-def test_centres_carry_no_float_noise():
-    grid = build_grid([TEXAS], cell_deg=0.1, max_points=NO_CAP)
-    assert all(p.lat == round(p.lat, 6) and p.lon == round(p.lon, 6) for p in grid)
-    assert LatLon(32.75, -96.75) in grid
