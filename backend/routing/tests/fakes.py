@@ -2,14 +2,14 @@
 
 Two levels:
 - install_service_fakes replaces TomTom's route requests, the route top-up and the weather
-  functions. What still runs is the planner's own glue, and the step that sends the first
-  route requests together.
+  functions. What still runs is the planner's own glue.
 - FakeUpstream answers HTTP requests the way TomTom and Open-Meteo do, so the real clients,
   route fallbacks, weather sampling and heatmap grid run too. install_fake_http sends every
   httpx.Client through it and makes any other real request fail.
 """
 
 from datetime import datetime, timedelta, timezone
+import json
 import math
 import threading
 from urllib.parse import unquote
@@ -127,14 +127,16 @@ def upstream_rain_in_hr(lat: float) -> float:
 class FakeUpstream:
     """Answers TomTom and Open-Meteo requests the way the real services do, from made-up data.
 
-    Roads run straight between the requested stops, with a point every 500 m, at 55 mph.
-    TomTom offers no alternatives, so the planner has to ask for via-point fallbacks. The
-    weather is the same every hour: wind from upstream_wind_mph, rain from upstream_rain_in_hr.
+    Roads run straight, with a point every 500 m, at 55 mph. TomTom offers no alternatives, so
+    the planner has to ask for routes round the one it has. A road asked to keep out of some
+    boxes bends through a point beside the middle of the trip that keeps it clear of them all
+    (see bend_round). The weather is the same every hour: wind from upstream_wind_mph, rain
+    from upstream_rain_in_hr.
     """
 
     def __init__(self):
         self.no_route = False  # answer route requests like TomTom does when nothing connects
-        self.no_direct_route = False  # the same, but only for requests with no via point
+        self.no_direct_route = False  # the same, but only for the request for the trip itself
         self.requests: list[httpx.Request] = []
         self._lock = threading.Lock()  # fallbacks and weather chunks arrive from worker threads
 
@@ -154,19 +156,24 @@ class FakeUpstream:
     def _route(self, request: httpx.Request) -> httpx.Response:
         locations = unquote(request.url.path.split("/")[4])
         stops = [LatLon(*(float(v) for v in stop.split(","))) for stop in locations.split(":")]
-        if self.no_route or (self.no_direct_route and len(stops) == 2):
-            return httpx.Response(
-                400,
-                json={
-                    "formatVersion": "0.0.12",
-                    "detailedError": {"message": "NO_ROUTE_FOUND: No valid route found", "code": "NO_ROUTE_FOUND"},
-                },
-            )
-        legs = []  # one leg per pair of stops, each including both ends, like TomTom's
-        for a, b in zip(stops, stops[1:]):
-            n = max(2, round(haversine_m(a, b) / POINT_SPACING_M))
-            dlat, dlon = (b.lat - a.lat) / n, (b.lon - a.lon) / n
-            legs.append([LatLon(a.lat + dlat * i, a.lon + dlon * i) for i in range(n + 1)])
+        if self.no_route or (self.no_direct_route and request.method == "GET"):
+            return no_route_found()
+        if request.method == "POST":
+            rectangles = json.loads(request.content)["avoidAreas"]["rectangles"]
+            boxes = [
+                tomtom.Box(
+                    r["southWestCorner"]["latitude"],
+                    r["southWestCorner"]["longitude"],
+                    r["northEastCorner"]["latitude"],
+                    r["northEastCorner"]["longitude"],
+                )
+                for r in rectangles
+            ]
+            bend = bend_round(stops[0], stops[-1], boxes)
+            if bend is None:
+                return no_route_found()
+            stops = [stops[0], bend, stops[-1]]
+        legs = straight_legs(stops)
         points = [p for i, leg in enumerate(legs) for p in (leg if i == 0 else leg[1:])]
         offsets = cumulative_m(points)
         length = round(offsets[-1])
@@ -221,6 +228,40 @@ class FakeUpstream:
                 }
             )
         return httpx.Response(200, json=items if len(items) > 1 else items[0])
+
+
+def no_route_found() -> httpx.Response:
+    return httpx.Response(
+        400,
+        json={
+            "formatVersion": "0.0.12",
+            "detailedError": {"message": "NO_ROUTE_FOUND: No valid route found", "code": "NO_ROUTE_FOUND"},
+        },
+    )
+
+
+def straight_legs(stops: list[LatLon]) -> list[list[LatLon]]:
+    """One straight leg per pair of stops, a point every ~500 m, each including both ends like TomTom's."""
+    legs = []
+    for a, b in zip(stops, stops[1:]):
+        n = max(2, round(haversine_m(a, b) / POINT_SPACING_M))
+        dlat, dlon = (b.lat - a.lat) / n, (b.lon - a.lon) / n
+        legs.append([LatLon(a.lat + dlat * i, a.lon + dlon * i) for i in range(n + 1)])
+    return legs
+
+
+def bend_round(a: LatLon, b: LatLon, boxes: list[tomtom.Box]) -> LatLon | None:
+    """A point beside the middle of the a -> b line that a road through it keeps clear of every
+    box: 10% of the trip to the left, then right, then 20% left and so on. None past 40%."""
+    mid = LatLon((a.lat + b.lat) / 2, (a.lon + b.lon) / 2)
+    k = math.cos(math.radians(mid.lat))
+    east, north = (b.lon - a.lon) * k, b.lat - a.lat  # flat, in degrees of latitude
+    for share in (0.1, 0.2, 0.3, 0.4):
+        for side in (1, -1):  # driving (east, north), (-north, east) points to the left
+            bend = LatLon(mid.lat + side * share * east, mid.lon - side * share * north / k)
+            if not any(box.contains(p) for leg in straight_legs([a, bend, b]) for p in leg for box in boxes):
+                return bend
+    return None
 
 
 def install_fake_http(monkeypatch, upstream: FakeUpstream) -> None:

@@ -137,26 +137,42 @@ so Route A is always the recommended one.
 
 ### Routes
 
-- TomTom's own truck alternatives come first. It often returns fewer than three, so two extra
-  routes are requested through points 15% of the trip to the left and right of the straight
-  origin -> destination line's midpoint.
-- **Those two go out at the same time as the main request, not after it.** Live, the main
-  request (with alternatives) took 6-10 s and a via-point request 2-3 s, so sending them one
-  after the other added 2-3 s to every plan that needed a fallback. On Dallas -> Denver the
-  fallback step went from 2.3-3.3 s to 0.1 s. Once the main request is back, a via-point
-  request still out gets 2 s more, then it is ignored; any via-point request gives up after
-  10 s.
-- If that still isn't three, more routes are requested through points off the fastest route's
-  midpoint, 15% then 25%. A point within 1% of the trip of one already asked is skipped, and a
-  plan never asks for more than 6 via-point routes.
-- Any candidate that takes over 1.5 times as long as the fastest route, or overlaps a route
-  already kept by more than 90%, is dropped. If that leaves fewer than three, the app shows what
-  it has rather than padding with a silly detour.
-- If TomTom has no route for the trip itself, the answer is "no route", even when a via-point
-  request found one.
-- **The cost is TomTom requests.** Every plan now makes at least 3, even when TomTom's own
-  three routes were enough (that used to be 1), and at most 7. The free tier's 2,500 requests a
-  day covers about 830 plans, or 350 if every plan needed every fallback.
+- **TomTom's own truck alternatives come first.** It often returns fewer than three.
+- **More routes come from asking TomTom for the best route that keeps out of the middle of the
+  ones already found.** The stretch of each route from 30% to 70% of the way is covered with up
+  to 10 boxes (TomTom's `avoidAreas`), reaching 5 miles past the road. Nothing forces the truck
+  through a point, so TomTom picks its own road round them: a different corridor, never a detour
+  to some spot on the map. When two routes are missing, the same request asks for an alternative
+  too. A request that adds nothing ends the top-up, so a plan makes at most 3 TomTom requests.
+- **Why not via points, as before:** on Dallas -> Denver, Chicago -> Atlanta, LA -> Phoenix and
+  Seattle -> Salt Lake City, 17 of 21 routes through a point 15% or 25% to the side of the
+  midpoint drove out to it and back or looped round it, from a 4 mile spur off I-40 near
+  Amarillo to 138 miles of road driven twice in Idaho. None of the routes round avoided areas
+  did. On Dallas -> Denver the third route is now 853 mi / 13.2 h through western Oklahoma and
+  Kansas, where it was 821 mi with the spur near Amarillo.
+- **Dropped:** any route, TomTom's own alternatives included, that takes over 1.35 times the
+  fastest route's time or is over 1.35 times as long, that runs over 90% along a route already
+  kept, or that doubles back on itself. If that leaves fewer than three, the app shows what it
+  has rather than padding with a silly detour.
+- **1.35x, not 1.5x:** live, the alternatives worth showing took up to 1.29x the fastest time
+  and 1.22x its length (LA -> Phoenix by Indio and I-8). The ones now dropped took 1.43x-1.45x
+  the time (LA -> Phoenix by Kingman, Seattle -> Salt Lake City by central Oregon and I-80), and
+  a Dallas -> Denver detour seen live was 1,237 mi / 18 h, about 1.4x the length and 1.5x the
+  time. LA -> Phoenix and Seattle -> Salt Lake City now show 2 routes.
+- **Doubling back** means that over more than a quarter mile of the route, it is back within
+  0.3 mile of road it drove at least 3 miles earlier. A cloverleaf ramp loops back within a mile
+  and a parallel road is further than 0.3 mile away, so neither counts. None of the 15 TomTom
+  routes on these trips, nor the 14 it sent back round avoided areas, had a single quarter mile
+  like that. Where the fastest route itself turns round (at an exit near the start, say), every
+  route does, so that part doesn't count.
+- **The top-up waits for TomTom's own routes.** The via-point requests used to go out alongside
+  the main one to save 2-3 s, but 6 of the 7 routes they brought back doubled back. Boxes round
+  the straight line's middle, all an early request could use, would have added a route on none
+  of the four trips (on Dallas -> Denver they brought back the fastest route itself). Waiting
+  costs 2.2-3.8 s on a plan that needs more routes (Dallas -> Denver: 9.4 s for TomTom's routes,
+  then 3.8 s), nothing on one that doesn't, and every plan saves the 2 early requests: 1 to 3
+  TomTom requests per plan, down from 3 to 7.
+- If TomTom has no route for the trip itself, the answer is "no route" and nothing more is asked.
 
 ### Weather requests
 

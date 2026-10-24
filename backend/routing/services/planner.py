@@ -57,16 +57,14 @@ def build_plan(
     clock = _Stopwatch()
 
     try:
-        found = tomtom.calculate_routes_and_fallbacks(o, d, departure, load_weight_lb, key)
+        found = tomtom.calculate_routes(o, d, departure, load_weight_lb, key)
     except tomtom.NoRouteError as exc:
         raise NoRouteFound(NO_ROUTE_MESSAGE) from exc
-    if not found.routes:
+    if not found:
         raise NoRouteFound(NO_ROUTE_MESSAGE)
-    clock.lap("routing")  # the main request, with the early fallbacks alongside it
-    routes = tomtom.ensure_three_routes(
-        found.routes, o, d, departure, load_weight_lb, key, early=found.early, asked=found.asked
-    )
-    clock.lap("fallback routes")  # only the top-up, when the early fallbacks weren't enough
+    clock.lap("routing")
+    routes = tomtom.ensure_three_routes(found, o, d, departure, load_weight_lb, key)
+    clock.lap("fallback routes")  # only when TomTom's own routes weren't enough
     # Every lookup below is keyed by route id, so number them here rather than trust the
     # routing client to keep TomTom's routes and the fallbacks apart. Top-up fallbacks are
     # requested a few seconds after the first call, so their "now" is reset to the plan's too.
