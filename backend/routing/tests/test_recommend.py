@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from routing.services.recommend import rank_routes, summarize_route
+from routing.services.recommend import rank_routes, ranking_key, summarize_route
 from routing.services.types import Assessment, Checkpoint, LatLon, Level, RouteSummary
 
 T0 = datetime(2026, 10, 24, 12, tzinfo=timezone.utc)
@@ -68,6 +68,16 @@ def test_summarize_route_all_low():
     assert all(s.miles_by_level[level] == 0.0 for level in Level if level != Level.LOW)
     assert s.avg_risk == 0.0
     assert s.max_level == Level.LOW
+
+
+def test_ranking_key_order():
+    s = summary("a", nt=1.24, severe=2.26, high=3.0, avg=1.5, duration=9000)
+    assert ranking_key(s) == (1.2, 2.3, 3.0, 1.5, 9000)
+
+
+def test_ranking_key_treats_missing_levels_as_zero():
+    s = RouteSummary(route_id="a", distance_miles=10, duration_s=600)
+    assert ranking_key(s) == (0.0, 0.0, 0.0, 0.0, 600)
 
 
 def test_fewest_severe_miles_wins_over_high_miles():

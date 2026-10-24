@@ -43,7 +43,14 @@ def summarize_route(
 
 def ranking_key(summary: RouteSummary) -> tuple:
     """Sort key implementing the order above. Lower sorts first."""
-    raise NotImplementedError("ranking_key")
+    miles = summary.miles_by_level
+    return (
+        round(miles.get(Level.NO_TRAVEL, 0.0), 1),
+        round(miles.get(Level.SEVERE, 0.0), 1),
+        round(miles.get(Level.HIGH, 0.0), 1),
+        round(summary.avg_risk, 1),
+        summary.duration_s,
+    )
 
 
 def rank_routes(summaries: list[RouteSummary]) -> tuple[list[str], str]:
