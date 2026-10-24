@@ -98,6 +98,19 @@ Where the brief left room for interpretation, and what I chose.
 - **Load weight is cargo weight.** The truck weight sent to TomTom is cargo plus an assumed
   35,000 lb empty tractor-trailer.
 
+### Checkpoints and ETAs
+
+- **Checkpoints sit at mile 0, every interval, and the destination.** The destination is skipped
+  when the last interval checkpoint is within half a mile of it.
+- **Each checkpoint owns the road centred on it**, from halfway back to the previous checkpoint to
+  halfway on to the next. "Severe miles" is the sum of the miles owned by Severe checkpoints, and
+  the owned miles of a route add up to its length.
+- **ETA comes from TomTom's own timing along the route**, interpolated between its turn-by-turn
+  instructions, not from an average speed. Slow city miles and fast interstate miles keep their
+  real speeds.
+- **Forecast hour.** Wind uses the nearest forecast hour. Rain and snow use the first hour at or
+  after the ETA, because Open-Meteo reports precipitation as the total over the preceding hour.
+
 ## Tests
 
 `cd backend && pytest` covers every threshold boundary, the load rules, ranking order,
