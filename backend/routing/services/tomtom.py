@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from bisect import bisect_left
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import cached_property
@@ -35,6 +36,7 @@ LB_TO_KG = 0.45359237
 
 MAX_SLOWDOWN = 1.5  # drop a route taking over 1.5x the fastest route's time
 MAX_OVERLAP = 0.9  # drop a route when over 90% of it runs along a route already kept
+FALLBACK_OFFSETS = (0.15, 0.25)  # via point distance from the route, as a share of the straight-line trip
 
 METERS_PER_MILE = 1609.344
 OVERLAP_STEP_M = 5 * METERS_PER_MILE  # sample spacing along the candidate route
@@ -167,7 +169,12 @@ def ensure_three_routes(
 
     The fastest route is always kept. Any other route, TomTom's own alternatives included,
     is dropped when it takes over 1.5x the fastest route's time, or when over 90% of it runs
-    along a route already kept. If fewer than 3 survive, the caller gets what is left.
+    along a route already kept.
+
+    While fewer than 3 are kept, ask TomTom for a route through a point left and one right of
+    the fastest route's midpoint, 15% of the straight-line trip away, then 25%. That is at most
+    4 extra calls, sent two at a time. A fallback that fails is skipped. If fewer than 3
+    survive, the caller gets what is left.
     """
     lat0 = (origin.lat + destination.lat) / 2
     kept: list[tuple[RouteOption, _Trace]] = []
@@ -182,8 +189,28 @@ def ensure_three_routes(
             return
         kept.append((route, trace))
 
+    def fetch(via: LatLon, id_prefix: str) -> list[RouteOption]:
+        try:
+            return calculate_routes(
+                origin, destination, departure, load_lb, api_key,
+                via=[via], source="via-fallback", id_prefix=id_prefix, client=client,
+            )
+        except RoutingError:
+            return []  # e.g. no road near the via point
+
     for route in sorted(routes, key=_duration):
         consider(route)
+
+    for share in FALLBACK_OFFSETS:
+        if not kept or len(kept) >= 3:
+            break
+        vias = offset_via_points(kept[0][0].points, origin, destination, share)
+        prefixes = [f"via{round(share * 100)}{side}-" for side in "LR"]
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            candidates = [r for found in pool.map(fetch, vias, prefixes) for r in found]
+        for route in sorted(candidates, key=_duration):
+            consider(route)
+
     return sorted((route for route, _ in kept), key=_duration)
 
 

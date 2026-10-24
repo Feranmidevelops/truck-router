@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import math
+import threading
 import time
 
 import httpx
@@ -223,3 +224,84 @@ def test_exactly_one_and_a_half_times_slower_is_kept():
     slow = drive("r1", NORTHERN)
     slow.duration_s = fast.duration_s * 1.5
     assert [r.id for r in ensure([fast, slow], FakeTomTom())] == ["r0", "r1"]
+
+
+def attempt(via: LatLon) -> str:
+    """Which fallback a via point is: "L15", "R15", "L25" or "R25"."""
+    share = haversine_m(MIDDLE, via) / haversine_m(WEST, EAST)
+    return f"{'L' if via.lat > 35.0 else 'R'}{round(share * 100)}"
+
+
+def fallbacks(**special: str):
+    """A FakeTomTom answer: a plain route through each via point, except for the attempts
+    named, which "fail" (HTTP 400), come back as a "copy" of the fastest route, or are "slow"."""
+
+    def answer(via: LatLon):
+        through = line(WEST, via, 500) + line(via, EAST, 500)[1:]
+        kind = special.get(attempt(via), "ok")
+        if kind == "fail":
+            return None
+        if kind == "copy":
+            return shifted(FASTEST, 0.2), 1.01
+        if kind == "slow":
+            return through, 2.0
+        return through, 1.0
+
+    return answer
+
+
+def test_one_tomtom_route_is_topped_up_to_three():
+    fake = FakeTomTom(fallbacks())
+    routes = ensure([drive("r0", FASTEST)], fake)
+    # The northern fallback is a little shorter: degrees of longitude shrink going north.
+    assert [r.id for r in routes] == ["r0", "via15L-0", "via15R-0"]
+    assert [r.source for r in routes] == ["tomtom", "via-fallback", "via-fallback"]
+    assert sorted(map(attempt, fake.vias)) == ["L15", "R15"]
+
+
+def test_two_tomtom_routes_take_the_faster_of_two_fallbacks():
+    fake = FakeTomTom(fallbacks())
+    routes = ensure([drive("r0", FASTEST), drive("r1", SOUTHERN)], fake)
+    assert [r.id for r in routes] == ["r0", "r1", "via15L-0"]
+    assert len(fake.vias) == 2
+
+
+def test_a_fallback_on_the_same_road_as_the_fastest_route_is_dropped():
+    fake = FakeTomTom(fallbacks(L15="copy", L25="copy"))
+    routes = ensure([drive("r0", FASTEST)], fake)
+    assert [r.id for r in routes] == ["r0", "via15R-0", "via25R-0"]
+    assert sorted(map(attempt, fake.vias)) == ["L15", "L25", "R15", "R25"]
+
+
+def test_a_slow_detour_is_dropped():
+    fake = FakeTomTom(fallbacks(R15="slow", R25="slow"))
+    routes = ensure([drive("r0", FASTEST)], fake)
+    assert [r.id for r in routes] == ["r0", "via15L-0", "via25L-0"]
+
+
+def test_a_failed_fallback_is_skipped():
+    fake = FakeTomTom(fallbacks(L15="fail"))
+    routes = ensure([drive("r0", FASTEST)], fake)
+    assert [r.id for r in routes] == ["r0", "via15R-0", "via25L-0"]
+
+
+def test_when_every_fallback_fails_the_fastest_route_comes_back_alone():
+    fake = FakeTomTom(fallbacks(L15="fail", R15="fail", L25="fail", R25="fail"))
+    assert [r.id for r in ensure([drive("r0", FASTEST)], fake)] == ["r0"]
+    assert len(fake.vias) == 4  # never more than two pairs
+
+
+def test_no_routes_means_no_fallbacks():
+    fake = FakeTomTom(fallbacks())
+    assert ensure([], fake) == []
+    assert fake.vias == []
+
+
+def test_both_sides_are_requested_at_the_same_time():
+    both_in_flight = threading.Barrier(2, timeout=5)
+
+    def answer(via: LatLon):
+        both_in_flight.wait()  # raises if the other side is not requested meanwhile
+        return fallbacks()(via)
+
+    assert len(ensure([drive("r0", FASTEST)], FakeTomTom(answer))) == 3
