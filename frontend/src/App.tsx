@@ -3,6 +3,7 @@ import { isAbortError, planTrip } from './api/client'
 import type { Plan, PlanRequest } from './api/types'
 import { MapView } from './components/MapView'
 import { RouteList } from './components/RouteList'
+import { SampleDataBanner } from './components/SampleDataBanner'
 import { TripForm } from './components/TripForm'
 
 export default function App() {
@@ -37,6 +38,7 @@ export default function App() {
           <h1>Truck Route Weather</h1>
           <p>Compare three truck routes by the weather you'll drive into, then pick the safest.</p>
         </header>
+        <SampleDataBanner />
         <TripForm loading={loading} onSubmit={handlePlan} />
         {error && (
           <p className="error" role="alert">

@@ -1,5 +1,5 @@
 import type { Plan } from '../api/types'
-import { LEVELS, LEVEL_COLOR, LEVEL_LABEL, formatDuration, formatTime } from '../lib/risk'
+import { LEVELS, LEVEL_COLOR, LEVEL_LABEL, formatDuration, formatMiles, formatTime } from '../lib/risk'
 
 interface Props {
   plan: Plan
@@ -9,8 +9,24 @@ interface Props {
 
 // TODO(day 2): checkpoint table for the selected route (mile, ETA, conditions, level).
 export function RouteList({ plan, selectedRouteId, onSelect }: Props) {
+  const best = plan.routes.find((r) => r.id === plan.recommended_route_id)
+  // No Travel miles are the first ranking key, so if the best route has any, every route does
+  const noSafeRoute = (best?.summary.miles_by_level.NO_TRAVEL ?? 0) > 0
+
   return (
     <section className="routes" aria-label="Route options">
+      {noSafeRoute && (
+        <p key={plan.plan_id} className="banner banner-danger" role="alert">
+          Every route crosses No Travel conditions. Consider a later departure.
+        </p>
+      )}
+      {plan.routes.length < 3 && (
+        <p className="routes-note">
+          {plan.routes.length === 1
+            ? 'TomTom found only one route for this trip.'
+            : `TomTom found only ${plan.routes.length} distinct routes for this trip.`}
+        </p>
+      )}
       {plan.routes.map((r) => {
         const recommended = r.id === plan.recommended_route_id
         const total = LEVELS.reduce((sum, l) => sum + r.summary.miles_by_level[l], 0) || 1
@@ -24,7 +40,11 @@ export function RouteList({ plan, selectedRouteId, onSelect }: Props) {
           >
             <div className="route-head">
               <strong>{r.label}</strong>
-              {recommended && <span className="badge">Recommended</span>}
+              {recommended && (
+                <span className={noSafeRoute ? 'badge badge-danger' : 'badge'}>
+                  {noSafeRoute ? 'Least risky' : 'Recommended'}
+                </span>
+              )}
             </div>
             <div className="route-stats">
               <span>{r.distance_miles.toFixed(0)} mi</span>
@@ -44,7 +64,7 @@ export function RouteList({ plan, selectedRouteId, onSelect }: Props) {
             <div className="route-risk">
               {LEVELS.filter((l) => l !== 'LOW' && r.summary.miles_by_level[l] > 0).map((l) => (
                 <span key={l}>
-                  {LEVEL_LABEL[l]}: {r.summary.miles_by_level[l].toFixed(0)} mi
+                  {LEVEL_LABEL[l]}: {formatMiles(r.summary.miles_by_level[l])}
                 </span>
               ))}
               <span>Avg risk {r.summary.avg_risk.toFixed(2)}</span>

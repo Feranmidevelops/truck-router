@@ -7,6 +7,11 @@
   --accent: #1f5fbf;
   --danger: #b42318;
   --on-accent: #ffffff;
+  --danger-bg: #fdeceb;
+  --danger-border: #f4c4bf;
+  --sample-bg: #fff6dd;
+  --sample-border: #eed58f;
+  --sample-text: #6b4e00;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -172,6 +177,26 @@ button[type='submit']:disabled {
   font-size: 0.9rem;
 }
 
+.banner {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid;
+  border-radius: var(--radius);
+  font-size: var(--text-md);
+}
+
+.banner-sample {
+  background: var(--sample-bg);
+  border-color: var(--sample-border);
+  color: var(--sample-text);
+}
+
+.banner-danger {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+  color: var(--danger);
+}
+
 .button {
   font: inherit;
   font-weight: 600;
@@ -204,6 +229,12 @@ button[type='submit']:disabled {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.routes-note {
+  margin: 0;
+  font-size: var(--text-md);
+  color: var(--muted);
 }
 
 .route-card {
@@ -240,6 +271,11 @@ button[type='submit']:disabled {
   background: #e3edfb;
   color: var(--accent);
   white-space: nowrap;
+}
+
+.badge-danger {
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .route-stats,
