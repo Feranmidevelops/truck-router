@@ -1,8 +1,4 @@
 .map-wrap {
-  --map-ui-bg: rgb(255 255 255 / 0.96);
-  --map-ui-text: var(--text, #1b2330);
-  --map-ui-muted: var(--muted, #5b6678);
-  --map-ui-border: var(--border, #dde2ea);
   --map-ui-shadow: 0 2px 10px rgb(0 0 0 / 0.12);
   --map-ui-radius: 8px;
   --map-ui-inset: 12px;
@@ -10,7 +6,6 @@
   --map-ui-pad-y: 8px;
   --map-ui-pad-x: 12px;
   --map-ui-font: 0.85rem;
-  --map-ui-font-small: 0.75rem;
   --map-ui-warn-bg: #fff4e5;
   --map-ui-warn-text: #8a4b00;
   --map-ui-warn-border: #f5c98b;

@@ -2,7 +2,6 @@
   --heat-bg: rgb(255 255 255 / 0.95);
   --heat-text: var(--text, #1b2330);
   --heat-muted: var(--muted, #5b6678);
-  --heat-border: var(--border, #dde2ea);
   --heat-accent: var(--accent, #1f5fbf);
   --heat-error: var(--danger, #b42318);
   --heat-track: var(--border, #dde2ea);
