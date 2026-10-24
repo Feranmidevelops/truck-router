@@ -111,6 +111,36 @@ Where the brief left room for interpretation, and what I chose.
 - **Forecast hour.** Wind uses the nearest forecast hour. Rain and snow use the first hour at or
   after the ETA, because Open-Meteo reports precipitation as the total over the preceding hour.
 
+### Recommendation
+
+Routes are sorted on these keys, in order:
+
+0. **Fewest No Travel miles.** Not in the brief, but a route with No Travel segments should never
+   beat one without. If every route has some, the least bad is still recommended and the UI warns.
+1. **Fewest Severe miles**, then 2. **fewest High miles** (both compared to 0.1 mile).
+3. **Lowest average risk**: the distance-weighted mean of the level scores (Low 0 to No Travel 4).
+   Compared at 2 decimals only to remove floating-point noise, so a lower average wins even when
+   it is slower. That keeps the brief's order exactly.
+4. **Shortest travel time**, which only decides true ties.
+
+The reason shown under the recommended route names the first key that separates it from the
+runner-up, for example "Fewest severe miles (0.0 vs 25.0)".
+
+### Routes
+
+- TomTom's own truck alternatives come first. When it returns fewer than three, extra routes are
+  requested through points offset to the left and right of the trip's midpoint.
+- Any candidate that takes over 1.5 times as long as the fastest route, or overlaps a route
+  already kept by more than 90%, is dropped. If that leaves fewer than three, the app shows what
+  it has rather than padding with a silly detour.
+
+### Weather requests
+
+- Open-Meteo's free tier allows 600 locations a minute. Coordinates are rounded to 0.1 degrees and
+  de-duplicated before the request, so checkpoints on shared road cost one lookup.
+- Responses are cached for 30 minutes, and a rate-limited request is retried once before the app
+  shows a clear "try again in a minute".
+
 ## Tests
 
 `cd backend && pytest` covers every threshold boundary, the load rules, ranking order,
