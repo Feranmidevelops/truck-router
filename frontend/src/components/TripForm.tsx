@@ -32,6 +32,24 @@ function wallClock(date: Date, timeZone?: string) {
   return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`
 }
 
+// The zone's short name at the typed departure: "CDT", or "CST" once the clocks have gone back.
+// Which offset applies depends on the instant being looked for, so read the time as UTC first
+// and correct it by the zone's offset twice.
+function zoneNameAt(local: string, timeZone: string) {
+  const asUtc = Date.parse(`${local}Z`)
+  let at = asUtc
+  if (Number.isNaN(asUtc)) at = Date.now() // the field is empty or half typed
+  else for (let i = 0; i < 2; i++) at = asUtc - offsetMs(at, timeZone)
+  const parts = new Intl.DateTimeFormat(undefined, { timeZone, timeZoneName: 'short' }).formatToParts(at)
+  return parts.find((p) => p.type === 'timeZoneName')?.value ?? timeZone
+}
+
+// How far the zone's clock is ahead of UTC at that instant (negative west of Greenwich)
+function offsetMs(at: number, timeZone: string) {
+  const minute = at - (at % 60_000) // wallClock drops the seconds
+  return Date.parse(`${wallClock(new Date(minute), timeZone)}Z`) - minute
+}
+
 // Pounds as typed ("42350", "42,350"), rounded to a whole number. null if not a number in range.
 function parseLoad(text: string): number | null {
   const clean = text.replace(/[,\s]/g, '')
@@ -52,6 +70,10 @@ export function TripForm({ loading, onSubmit }: Props) {
   const loadError =
     load !== null ? null : loadText.trim() ? 'Enter a whole number from 0 to 80,000.' : 'Enter the load in pounds.'
   const ready = origin && destination && departure && load !== null
+  // "Dallas" from "Dallas, TX"
+  const departureLabel = origin?.timezone
+    ? `Departure (local time in ${origin.label.split(',')[0]}, ${zoneNameAt(departure, origin.timezone)})`
+    : 'Departure (local time at the origin)'
 
   // Until the driver sets a departure, the default follows the origin's clock
   function chooseOrigin(place: Place | null) {
@@ -78,7 +100,7 @@ export function TripForm({ loading, onSubmit }: Props) {
       <PlaceInput label="Destination" value={destination} onChange={setDestination} />
       {(!origin || !destination) && <p className="hint">Pick a place from the suggestions</p>}
       <div className="field">
-        <label htmlFor="departure">Departure (local time at the origin)</label>
+        <label htmlFor="departure">{departureLabel}</label>
         <input
           id="departure"
           type="datetime-local"
