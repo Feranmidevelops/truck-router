@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from django.test import override_settings
 from django.utils import timezone
+from rest_framework.settings import api_settings as drf_settings
 from rest_framework.test import APIClient
 import pytest
 
@@ -65,3 +66,41 @@ def test_plan_rejects_bad_input(api, overrides):
 @override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="")
 def test_geocode_without_key_is_503(api):
     assert api.get("/api/geocode?q=dallas").status_code == 503
+
+
+def post_plan(api, **extra):
+    return api.post("/api/plan", plan_body(), format="json", **extra)
+
+
+@override_settings(USE_FIXTURES=True)
+def test_eleventh_plan_in_a_minute_is_throttled(api):
+    for _ in range(10):
+        assert post_plan(api).status_code == 200
+    res = post_plan(api)
+    assert res.status_code == 429
+    assert res.json()["detail"].startswith("Request was throttled.")
+    assert 0 < int(res["Retry-After"]) <= 60
+
+
+@override_settings(USE_FIXTURES=True)
+@pytest.mark.parametrize(
+    "path, limit",
+    [("/api/geocode?q=dallas", 120), ("/api/heatmap?plan_id=fixture", 30)],
+)
+def test_geocode_and_heatmap_allow_more_than_plan(api, path, limit):
+    for _ in range(limit):
+        assert api.get(path).status_code == 200
+    assert api.get(path).status_code == 429
+
+
+@override_settings(USE_FIXTURES=True)
+def test_plan_limit_does_not_block_geocode(api):
+    for _ in range(11):
+        post_plan(api)
+    assert api.get("/api/geocode?q=dallas").status_code == 200
+
+
+def test_health_is_never_throttled(api):
+    busiest = max(int(rate.split("/")[0]) for rate in drf_settings.DEFAULT_THROTTLE_RATES.values())
+    for _ in range(busiest + 10):
+        assert api.get("/api/health").status_code == 200
