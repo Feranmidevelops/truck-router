@@ -14,6 +14,7 @@ import '../lib/maplibre'
 import './MapView.css'
 import type { FeatureCollection, LineString, Point } from 'geojson'
 import type { Plan } from '../api/types'
+import { checkpointKey, type Channel } from '../lib/channel'
 import { NARROW_SCREEN } from '../lib/layout'
 import { levelColorExpression } from '../lib/risk'
 import { checkpointPopup } from './CheckpointPopup'
@@ -33,6 +34,7 @@ const CASING_COLOR = '#ffffff'
 // Selection lives in feature-state, so changing it restyles on the GPU without
 // sending any geometry back to the map's worker.
 const SELECTED: ExpressionSpecification = ['boolean', ['feature-state', 'selected'], false]
+const HOVER_SOURCE = 'checkpoint-keys'
 // Checkpoint dots shrink when zoomed out so they don't bury the route line.
 const byZoom = (zoomedOut: Radius, zoomedIn: Radius): ExpressionSpecification => [
   'interpolate',
@@ -52,9 +54,10 @@ interface Props {
   onSelectRoute: (id: string) => void
   heatmap: HeatmapState
   coverRef?: RefObject<HTMLElement | null> // the results panel or sheet floating over the map
+  hoverChannel?: Channel<string | null> // the checkpoint hovered in the list, as checkpointKey()
 }
 
-export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap, coverRef }: Props) {
+export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap, coverRef, hoverChannel }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const onSelectRef = useRef(onSelectRoute)
@@ -130,6 +133,9 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
       // share their route's id, so one call restyles every checkpoint on a route.
       map.addSource('routes', { type: 'geojson', data: EMPTY, promoteId: 'id' })
       map.addSource('checkpoints', { type: 'geojson', data: EMPTY, promoteId: 'routeId' })
+      // The same points keyed one by one ("r1:12"), for the ring round the one hovered in
+      // the list. Selection keeps its one-call-per-route ids on the source above.
+      map.addSource(HOVER_SOURCE, { type: 'geojson', data: EMPTY, promoteId: 'key' })
 
       addHeatmapLayer(map)
       // Invisible and wide, so a route is easy to hover and tap.
@@ -197,6 +203,18 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
           'circle-stroke-width': 1.5,
         },
       })
+      map.addLayer({
+        id: 'checkpoints-hover',
+        type: 'circle',
+        source: HOVER_SOURCE,
+        paint: {
+          'circle-color': 'rgba(0, 0, 0, 0)',
+          'circle-radius': byZoom(9, 13),
+          'circle-stroke-color': SELECTED_ROUTE_COLOR,
+          'circle-stroke-width': 3,
+          'circle-stroke-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 1, 0],
+        },
+      })
 
       bindCheckpointPopup(map, popup, planRef, selectedRef, onSelectRef, loadingRef)
       setReady(true)
@@ -218,9 +236,30 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
     const map = mapRef.current
     if (!map || !ready) return
     popupRef.current?.remove()
+    const checkpoints = checkpointsGeoJSON(plan)
     ;(map.getSource('routes') as GeoJSONSource).setData(routesGeoJSON(plan))
-    ;(map.getSource('checkpoints') as GeoJSONSource).setData(checkpointsGeoJSON(plan))
+    ;(map.getSource('checkpoints') as GeoJSONSource).setData(checkpoints)
+    ;(map.getSource(HOVER_SOURCE) as GeoJSONSource).setData(checkpoints)
   }, [plan, ready])
+
+  // A checkpoint hovered or focused in the list gets a ring. The list talks to the map
+  // through the channel, so a hover is one setFeatureState here and no React render.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !hoverChannel) return
+    let ringed: string | null = null
+    const ring = (key: string | null) => {
+      if (ringed) map.setFeatureState({ source: HOVER_SOURCE, id: ringed }, { hover: false })
+      if (key) map.setFeatureState({ source: HOVER_SOURCE, id: key }, { hover: true })
+      ringed = key
+    }
+    ring(hoverChannel.get())
+    const unsubscribe = hoverChannel.subscribe(ring)
+    return () => {
+      unsubscribe()
+      ring(null)
+    }
+  }, [hoverChannel, ready])
 
   useEffect(() => {
     const map = mapRef.current
@@ -428,7 +467,7 @@ function checkpointsGeoJSON(plan: Plan | null): FeatureCollection<Point> {
     features: plan.routes.flatMap((r) =>
       r.checkpoints.map((c) => ({
         type: 'Feature' as const,
-        properties: { routeId: r.id, index: c.index, level: c.risk.level },
+        properties: { routeId: r.id, index: c.index, level: c.risk.level, key: checkpointKey(r.id, c.index) },
         geometry: { type: 'Point' as const, coordinates: [c.lon, c.lat] },
       })),
     ),

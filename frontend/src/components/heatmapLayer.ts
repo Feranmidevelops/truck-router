@@ -2,7 +2,7 @@ import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl'
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec'
 import type { FeatureCollection, Point } from 'geojson'
 import type { Heatmap } from '../api/types'
-import { LEVELS, LEVEL_COLOR } from '../lib/risk'
+import { LEVELS, levelTint } from '../lib/risk'
 
 export const HEAT_LAYER = 'heat'
 const EMPTY: FeatureCollection<Point> = { type: 'FeatureCollection', features: [] }
@@ -11,7 +11,7 @@ const EMPTY: FeatureCollection<Point> = { type: 'FeatureCollection', features: [
 // its real level. (A density heatmap blends neighbours: a lone Severe cell next to Low
 // ones came out green, and Low cells showed nothing at all.) Low is kept faint so
 // risk stands out.
-const HEAT_FILL = LEVELS.flatMap((level, score) => [score, withAlpha(LEVEL_COLOR[level], level === 'LOW' ? 0.2 : 0.55)])
+const HEAT_FILL = LEVELS.flatMap((level, score) => [score, levelTint(level, level === 'LOW' ? 0.2 : 0.55)])
 
 function heatColor(hour: number) {
   return ['match', ['get', `h${hour}`], ...HEAT_FILL, 'rgba(0, 0, 0, 0)'] as unknown as ExpressionSpecification
@@ -83,9 +83,4 @@ function smallestGap(values: number[]) {
   let gap = Infinity
   for (let i = 1; i < sorted.length; i++) gap = Math.min(gap, sorted[i] - sorted[i - 1])
   return gap
-}
-
-function withAlpha(hex: string, alpha: number) {
-  const n = parseInt(hex.slice(1), 16)
-  return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`
 }

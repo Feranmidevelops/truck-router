@@ -1,7 +1,7 @@
 import type { Plan } from '../api/types'
-import { formatDuration } from '../lib/risk'
-import { CheckpointTable } from './CheckpointTable'
-import { RouteList } from './RouteList'
+import type { Channel } from '../lib/channel'
+import { AlongRoute } from './AlongRoute'
+import { RiskBar, RouteFigures, RouteList } from './RouteList'
 
 interface Props {
   plan: Plan | null
@@ -11,16 +11,29 @@ interface Props {
   onSelect: (id: string) => void
   onRetry?: () => void // only when the same request again could work
   onPlanTrip: () => void // back to the form
+  hoverChannel?: Channel<string | null> // the checkpoint hovered in the list, for the map
 }
 
 // The results panel (the bottom sheet on phones): loading and error states, route cards,
 // checkpoints. Each part is a section with its own heading, so more can slot in.
-export function PlanResults({ plan, loading, error, selectedRouteId, onSelect, onRetry, onPlanTrip }: Props) {
+export function PlanResults({
+  plan,
+  loading,
+  error,
+  selectedRouteId,
+  onSelect,
+  onRetry,
+  onPlanTrip,
+  hoverChannel,
+}: Props) {
   const selectedRoute = plan?.routes.find((r) => r.id === selectedRouteId)
 
   return (
     <div className="results">
-      <h2 className="results-title">Routes</h2>
+      <div className="results-head">
+        <h2 className="results-title">Routes</h2>
+        {plan && <span className="results-meta">{plan.routes.length} compared, safest first</span>}
+      </div>
       {loading && <LoadingNote />}
       {error && <PlanError message={error} onRetry={onRetry} />}
       {loading && !plan && <RouteSkeleton />}
@@ -29,7 +42,14 @@ export function PlanResults({ plan, loading, error, selectedRouteId, onSelect, o
         // The previous plan stays on screen, dimmed and inert, until the new one arrives
         <div className={loading ? 'results-body stale' : 'results-body'} inert={loading}>
           <RouteList plan={plan} selectedRouteId={selectedRouteId} onSelect={onSelect} />
-          {selectedRoute && <CheckpointTable route={selectedRoute} timeZone={plan.input.timezone} />}
+          {selectedRoute && (
+            <AlongRoute
+              route={selectedRoute}
+              timeZone={plan.input.timezone}
+              intervalMiles={plan.input.interval_miles}
+              hoverChannel={hoverChannel}
+            />
+          )}
         </div>
       )}
     </div>
@@ -44,16 +64,18 @@ export function PlanPeek({ plan, loading, error, selectedRouteId, onRetry }: Pee
   if (error) return <PlanError message={error} onRetry={onRetry} />
   if (loading && !plan) return <LoadingNote />
   if (!plan || !route) return <p className="peek-note">No trip yet. Plan one above and the routes show up here.</p>
+  const recommended = route.id === plan.recommended_route_id
+  // As on the cards: with No Travel on every route, the best one is only the least risky
+  const noSafeRoute = route.summary.miles_by_level.NO_TRAVEL > 0
   return (
     <div className={loading ? 'peek-route stale' : 'peek-route'}>
       <p className="peek-label">
         <strong>{route.label}</strong>
-        {route.id === plan.recommended_route_id && <span className="badge">Recommended</span>}
+        {recommended && <span className="tag tag-dark">{noSafeRoute ? 'Least risky' : 'Recommended'}</span>}
+        <span className="peek-hint">{loading ? 'Planning the new trip…' : 'Swipe up for details'}</span>
       </p>
-      <p className="peek-numbers">
-        {formatDuration(route.duration_s)} · {route.distance_miles.toFixed(0)} mi
-      </p>
-      <p className="peek-hint">{loading ? 'Planning the new trip…' : 'Swipe up for every route and checkpoint'}</p>
+      <RouteFigures route={route} />
+      <RiskBar route={route} />
     </div>
   )
 }
@@ -99,10 +121,13 @@ function RouteSkeleton() {
     <div className="routes" aria-hidden>
       {[0, 1, 2].map((i) => (
         <div key={i} className="skeleton-card">
-          <span className="skeleton-line wide" />
+          <span className="skeleton-line short" />
+          <span className="skeleton-figures">
+            <span className="skeleton-line figure" />
+            <span className="skeleton-line figure narrow" />
+          </span>
           <span className="skeleton-line" />
           <span className="skeleton-line bar" />
-          <span className="skeleton-line short" />
         </div>
       ))}
     </div>

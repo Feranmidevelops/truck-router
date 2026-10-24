@@ -1,5 +1,5 @@
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec'
-import type { RiskLevel } from '../api/types'
+import type { CheckpointWeather, RiskLevel } from '../api/types'
 
 export const LEVELS: RiskLevel[] = ['LOW', 'MODERATE', 'HIGH', 'SEVERE', 'NO_TRAVEL']
 
@@ -36,11 +36,27 @@ export function formatMiles(miles: number) {
 
 // Round to the minute before splitting, so 59.5 min is "1 h 0 min", never "60 min".
 // Same half-up rule as the backend's recommendation reason, so the two always agree.
-export function formatDuration(seconds: number) {
+export function durationParts(seconds: number) {
   const minutes = Math.round(seconds / 60)
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
+  return { h: Math.floor(minutes / 60), m: minutes % 60 }
+}
+
+export function formatDuration(seconds: number) {
+  const { h, m } = durationParts(seconds)
   return h ? `${h} h ${m} min` : `${m} min`
+}
+
+// The sky and temperature, shown but not scored: "Heavy snow, 28°F". Empty when neither is known.
+export function formatSky(weather: CheckpointWeather) {
+  const sky = weather.weather_code === null ? '' : weather.conditions
+  const temp = weather.temp_f === null ? '' : `${Math.round(weather.temp_f)}°F`
+  return [sky, temp].filter(Boolean).join(', ')
+}
+
+// A level's colour, see-through: for tinted badges and the map's weather shading
+export function levelTint(level: RiskLevel, alpha: number) {
+  const n = parseInt(LEVEL_COLOR[level].slice(1), 16)
+  return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`
 }
 
 // Plan times show in the plan's zone (the origin's), not the viewer's: "Mon 9:49 PM CDT".
@@ -76,9 +92,11 @@ export function timeFormatter(timeZone?: string) {
   const day = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'short', day: 'numeric', timeZone })
   const clock = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone })
   const zone = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short', timeZone })
+  const dayClock = new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit', timeZone })
   return {
     day: (iso: string) => day.format(nearestMinute(iso)),
     clock: (iso: string) => clock.format(nearestMinute(iso)),
+    dayClock: (iso: string) => dayClock.format(nearestMinute(iso)), // "Mon 5:44 PM"
     zone: (iso: string) => zone.formatToParts(nearestMinute(iso)).find((p) => p.type === 'timeZoneName')?.value ?? '',
   }
 }

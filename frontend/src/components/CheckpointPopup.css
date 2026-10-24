@@ -94,6 +94,10 @@
   color: var(--cp-muted);
 }
 
+.cp-sky {
+  font-weight: var(--weight-medium);
+}
+
 .cp-rows {
   display: grid;
   grid-template-columns: auto 1fr;
