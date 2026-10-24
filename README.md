@@ -108,6 +108,9 @@ Where the brief left room for interpretation, and what I chose.
 - **ETA comes from TomTom's own timing along the route**, interpolated between its turn-by-turn
   instructions, not from an average speed. Slow city miles and fast interstate miles keep their
   real speeds.
+- **A departure in the past starts now.** The form accepts a time up to an hour ago, but TomTom
+  can only route from now, so the whole plan (ETAs, arrival, the departure shown and the
+  heatmap's hour 0) starts at the later of the typed time and now.
 - **Forecast hour.** Wind uses the nearest forecast hour. Rain and snow use the first hour at or
   after the ETA, because Open-Meteo reports precipitation as the total over the preceding hour.
 
