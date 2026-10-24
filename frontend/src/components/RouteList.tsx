@@ -72,14 +72,6 @@ function RouteCard({ route, tag, reason, selected, timeZone, onSelect }: CardPro
       <span className="route-head">
         <span className="route-name">{route.label}</span>
         {tag && <span className="tag tag-dark">{tag}</span>}
-        {route.source === 'via-fallback' && (
-          <span
-            className="tag"
-            title="A detour through a point off the direct line, added because TomTom found fewer than three routes"
-          >
-            Fallback
-          </span>
-        )}
       </span>
       {/* The units say which is which: no labels, so three cards fit a laptop's panel */}
       <span className="route-figures">
