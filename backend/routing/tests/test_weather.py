@@ -107,13 +107,18 @@ def test_nearby_positions_share_one_location_and_keep_their_own_position():
     assert [s.wind_mph[0] for s in series] == [10.0, 40.0, 10.0, 10.0, 40.0]
 
 
-def echo_client(calls: list):
-    """Answers each requested location with wind = its latitude and gust = its longitude."""
+def echo_client(calls: list, rate_limited_lat: float | None = None):
+    """Answers each requested location with wind = its latitude and gust = its longitude.
+
+    Any request that includes `rate_limited_lat` gets a 429 every time.
+    """
 
     def handler(request: httpx.Request):
         calls.append(request)
         lats = [float(x) for x in request.url.params["latitude"].split(",")]
         lons = [float(x) for x in request.url.params["longitude"].split(",")]
+        if rate_limited_lat in lats:
+            return httpx.Response(429, json=RATE_LIMITED)
         body = []
         for lat, lon in zip(lats, lons):
             payload = location_payload(hours=1)
@@ -208,6 +213,16 @@ def test_other_http_errors_are_not_retried(sleeps):
         weather.fetch_hourly([LatLon(39.7, -105.0)], T0, T0, client=client)
     assert len(calls) == 1
     assert sleeps == []
+
+
+def test_one_rate_limited_chunk_fails_the_whole_lookup_with_the_friendly_message():
+    calls: list = []
+    positions = [LatLon(30 + i * 0.1, -97) for i in range(weather.CHUNK_SIZE + 1)]
+    client = echo_client(calls, rate_limited_lat=positions[-1].lat)  # only the second chunk
+    with pytest.raises(weather.WeatherError) as exc_info:
+        weather.fetch_hourly(positions, T0, T0, client=client)
+    assert len(calls) == 3  # the first chunk once, the rate-limited one twice
+    assert str(exc_info.value) == weather.RATE_LIMITED_MESSAGE
 
 
 def test_unknown_unit_is_an_error():
