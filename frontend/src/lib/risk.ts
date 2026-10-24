@@ -46,7 +46,7 @@ export function formatDuration(seconds: number) {
 // Plan times show in the plan's zone (the origin's), not the viewer's: "Mon 9:49 PM CDT".
 // timeZone undefined means the viewer's own zone.
 export function formatTime(iso: string, timeZone?: string) {
-  return new Date(iso).toLocaleString(undefined, {
+  return nearestMinute(iso).toLocaleString(undefined, {
     weekday: 'short',
     hour: 'numeric',
     minute: '2-digit',
@@ -63,10 +63,16 @@ export function timeFormatter(timeZone?: string) {
   const clock = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone })
   const zone = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short', timeZone })
   return {
-    day: (iso: string) => day.format(new Date(iso)),
-    clock: (iso: string) => clock.format(new Date(iso)),
-    zone: (iso: string) => zone.formatToParts(new Date(iso)).find((p) => p.type === 'timeZoneName')?.value ?? '',
+    day: (iso: string) => day.format(nearestMinute(iso)),
+    clock: (iso: string) => clock.format(nearestMinute(iso)),
+    zone: (iso: string) => zone.formatToParts(nearestMinute(iso)).find((p) => p.type === 'timeZoneName')?.value ?? '',
   }
+}
+
+// Times print to the minute, rounded like formatDuration, so a 12:00 PM departure plus
+// "5 h 59 min" arrives at 5:59 PM. Intl would drop the seconds and print 5:58:59 as 5:58.
+function nearestMinute(iso: string) {
+  return new Date(Math.round(Date.parse(iso) / 60_000) * 60_000)
 }
 
 export type TimeFormatter = ReturnType<typeof timeFormatter>
