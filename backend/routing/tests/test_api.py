@@ -117,6 +117,33 @@ def test_geocode_results_carry_their_time_zone(api, monkeypatch):
     ]
 
 
+@override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")
+def test_the_same_place_search_is_answered_from_the_cache(api, monkeypatch):
+    asked = []
+
+    def geocode(query, key, **kwargs):
+        asked.append(query)
+        return [SimpleNamespace(label="Salt Lake City, UT", lat=40.7608, lon=-111.891)]
+
+    monkeypatch.setattr(tomtom, "geocode", geocode)
+    first = api.get("/api/geocode?q=salt lake").json()
+    # Case and extra spaces don't make it a different search
+    again = api.get("/api/geocode?q=Salt%20%20Lake").json()
+    assert first == again
+    assert first["results"][0]["timezone"] == "America/Denver"
+    assert asked == ["salt lake"]
+    api.get("/api/geocode?q=salt lake city")
+    assert asked == ["salt lake", "salt lake city"]
+
+
+@override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")
+def test_a_failed_place_search_is_not_cached(api, monkeypatch):
+    monkeypatch.setattr(tomtom, "geocode", raise_(tomtom.RoutingError("TomTom 503")))
+    assert api.get("/api/geocode?q=denver").status_code == 502
+    monkeypatch.setattr(tomtom, "geocode", lambda query, key, **kwargs: [SimpleNamespace(label="Denver, CO", lat=39.74, lon=-104.99)])
+    assert api.get("/api/geocode?q=denver").json()["results"][0]["label"] == "Denver, CO"
+
+
 @override_settings(USE_FIXTURES=True)
 def test_fixture_places_and_plan_carry_time_zones(api):
     for p in load_fixture("places.json"):
