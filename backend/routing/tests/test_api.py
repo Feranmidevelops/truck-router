@@ -94,6 +94,14 @@ def test_geocode_and_heatmap_allow_more_than_plan(api, path, limit):
 
 
 @override_settings(USE_FIXTURES=True)
+def test_each_ip_has_its_own_plan_limit(api):
+    for _ in range(10):
+        post_plan(api, REMOTE_ADDR="203.0.113.1")
+    assert post_plan(api, REMOTE_ADDR="203.0.113.1").status_code == 429
+    assert post_plan(api, REMOTE_ADDR="203.0.113.2").status_code == 200
+
+
+@override_settings(USE_FIXTURES=True)
 def test_plan_limit_does_not_block_geocode(api):
     for _ in range(11):
         post_plan(api)
