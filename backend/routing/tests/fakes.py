@@ -1,8 +1,8 @@
 """Stand-ins for TomTom and Open-Meteo, so planner tests never touch the network.
 
 Two levels:
-- install_service_fakes replaces TomTom's route requests, the route top-up and the weather
-  functions. What still runs is the planner's own glue.
+- install_service_fakes replaces TomTom's route requests, the route top-up, the place names
+  and the weather functions. What still runs is the planner's own glue.
 - FakeUpstream answers HTTP requests the way TomTom and Open-Meteo do, so the real clients,
   route fallbacks, weather sampling and heatmap grid run too. install_fake_http sends every
   httpx.Client through it and makes any other real request fail.
@@ -87,9 +87,14 @@ def fake_sample_at(series, when):
     )
 
 
+def fake_place_names(positions, *args, **kwargs):
+    return [f"Town {p.lat:.1f} {p.lon:.1f}" for p in positions]
+
+
 def install_service_fakes(monkeypatch, routes: list[RouteOption]) -> None:
     monkeypatch.setattr(tomtom, "calculate_routes", lambda *a, **k: list(routes))
     monkeypatch.setattr(tomtom, "ensure_three_routes", lambda found, *a, **k: found)
+    monkeypatch.setattr(tomtom, "place_names", fake_place_names)
     monkeypatch.setattr(weather, "fetch_hourly", fake_fetch_hourly)
     monkeypatch.setattr(weather, "sample_at", fake_sample_at)
     monkeypatch.setattr(corridor, "build_grid", lambda lines: [line[0] for line in lines])
@@ -139,6 +144,11 @@ def upstream_weather_code(lat: float) -> int:
     return 65 if upstream_rain_in_hr(lat) else 1  # heavy rain in the rain band, mostly clear elsewhere
 
 
+def upstream_town(lat: float, lon: float) -> str:
+    """The town the fake reverse geocoding finds at a point, named after it."""
+    return f"Town {lat:.1f} {lon:.1f}, XX"
+
+
 class FakeUpstream:
     """Answers TomTom and Open-Meteo requests the way the real services do, from made-up data.
 
@@ -147,12 +157,13 @@ class FakeUpstream:
     boxes bends through a point beside the middle of the trip that keeps it clear of them all
     (see bend_round). The weather is the same every hour: wind from upstream_wind_mph, rain
     from upstream_rain_in_hr, temperature from upstream_temp_f and the weather code from
-    upstream_weather_code.
+    upstream_weather_code. Every point is in a town, named by upstream_town.
     """
 
     def __init__(self):
         self.no_route = False  # answer route requests like TomTom does when nothing connects
         self.no_direct_route = False  # the same, but only for the request for the trip itself
+        self.no_place_names = False  # fail every reverse geocoding request
         self.requests: list[httpx.Request] = []
         self._lock = threading.Lock()  # fallbacks and weather chunks arrive from worker threads
 
@@ -162,6 +173,8 @@ class FakeUpstream:
         host, path = request.url.host, request.url.path
         if host == "api.tomtom.com" and path.startswith("/routing/1/calculateRoute/"):
             return self._route(request)
+        if host == "api.tomtom.com" and path.startswith("/search/2/reverseGeocode/"):
+            return self._town(request)
         if host == "api.open-meteo.com" and path == "/v1/forecast":
             return self._forecast(request)
         return httpx.Response(404, json={"error": f"no fake for {host}{path}"})
@@ -216,6 +229,16 @@ class FakeUpstream:
             "guidance": {"instructions": instructions},
         }
         return httpx.Response(200, json={"formatVersion": "0.0.12", "routes": [route]})
+
+    def _town(self, request: httpx.Request) -> httpx.Response:
+        if self.no_place_names:
+            return httpx.Response(503, json={"detailedError": {"code": "ServiceUnavailable"}})
+        position = unquote(request.url.path.split("/")[-1]).removesuffix(".json")
+        lat, lon = (float(v) for v in position.split(","))
+        municipality, state = upstream_town(lat, lon).split(", ")
+        address = {"countryCode": "US", "municipality": municipality, "countrySubdivisionCode": state}
+        result = {"address": address, "position": position, "entityType": "Municipality"}
+        return httpx.Response(200, json={"summary": {"numResults": 1}, "addresses": [result]})
 
     def _forecast(self, request: httpx.Request) -> httpx.Response:
         q = request.url.params

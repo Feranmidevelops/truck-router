@@ -15,8 +15,8 @@ import uuid
 from django.conf import settings
 from django.core.cache import cache
 
-from . import conditions, corridor, geometry, recommend, risk, tomtom, weather
-from .types import Checkpoint, LatLon, Level, RouteOption, RouteSummary
+from . import conditions, corridor, geometry, recommend, report, risk, tomtom, weather
+from .types import Checkpoint, LatLon, Level, RouteOption, RouteSummary, Stretch, WeatherSample
 
 PLAN_TTL_S = 60 * 60
 HEATMAP_HOURS = 48
@@ -100,7 +100,13 @@ def build_plan(
         r.id: recommend.summarize_route(r.id, r.distance_m, r.duration_s, checkpoints[r.id]) for r in routes
     }
     order, reason = recommend.rank_routes(list(summaries.values()))
+    stretches = {rid: report.build_stretches(checkpoints[rid]) for rid in order}
     clock.lap("risk + ranking")
+
+    # In rank order, so when there are more places than lookups allowed, the best routes keep their names
+    starts = [s.start for rid in order for s in stretches[rid]]
+    names = dict(zip(starts, tomtom.place_names(starts, key, cache=cache)))
+    clock.lap("place names")
 
     # Checkpoints above were sampled on the full line; the map and the heatmap only need its shape
     shapes = {r.id: geometry.simplify(r.points, SIMPLIFY_TOLERANCE_M) for r in routes}
@@ -121,6 +127,10 @@ def build_plan(
     by_id = {r.id: r for r in routes}
     # Lettered in the order shown, so Route A is always the recommended one
     labels = {rid: f"Route {chr(65 + i)}" for i, rid in enumerate(order)}
+    reports = {
+        rid: _report_json(by_id[rid], checkpoints[rid], stretches[rid], names, origin, destination)
+        for rid in order
+    }
     return {
         "plan_id": plan_id,
         "input": {
@@ -134,7 +144,9 @@ def build_plan(
         "recommended_route_id": order[0],
         "recommendation_reason": reason,
         "routes": [
-            _route_json(by_id[rid], shapes[rid], labels[rid], rank, summaries[rid], checkpoints[rid])
+            _route_json(
+                by_id[rid], shapes[rid], labels[rid], rank, summaries[rid], checkpoints[rid], reports[rid]
+            )
             for rank, rid in enumerate(order, 1)
         ],
     }
@@ -176,6 +188,7 @@ def _route_json(
     rank: int,
     summary: RouteSummary,
     checkpoints: list[Checkpoint],
+    journey_report: dict,
 ) -> dict:
     return {
         "id": route.id,
@@ -193,6 +206,55 @@ def _route_json(
             "max_level": summary.max_level.name,
         },
         "checkpoints": [_checkpoint_json(cp) for cp in checkpoints],
+        "report": journey_report,
+    }
+
+
+def _report_json(
+    route: RouteOption,
+    checkpoints: list[Checkpoint],
+    stretches: list[Stretch],
+    names: dict[LatLon, str | None],
+    origin: dict,
+    destination: dict,
+) -> dict:
+    """Leaving the origin, each stretch of bad weather in driving order, then arriving."""
+    first, last = checkpoints[0], checkpoints[-1]
+    return {
+        "departure": _report_stop(origin["label"], route.departure_time, first),
+        "stretches": [_stretch_json(s, names.get(s.start)) for s in stretches],
+        "arrival": _report_stop(destination["label"], route.arrival_time, last),
+    }
+
+
+def _report_stop(place: str, when: datetime, cp: Checkpoint) -> dict:
+    assert cp.weather is not None and cp.assessment is not None
+    return {
+        "place": place,
+        "time": when.isoformat(),
+        "level": cp.assessment.level.name,
+        "weather": _weather_json(cp.weather),
+    }
+
+
+def _stretch_json(s: Stretch, place: str | None) -> dict:
+    return {
+        "where": report.where(s, place),
+        "first_index": s.first_index,
+        "last_index": s.last_index,
+        "start_mile": round(s.start_mile, 1),
+        "end_mile": round(s.end_mile, 1),
+        "start_eta": s.start_eta.isoformat(),
+        "end_eta": s.end_eta.isoformat(),
+        "miles": round(s.miles, 1),
+        "level": s.level.name,
+        "drivers": list(s.drivers),
+        "max_wind_mph": round(s.max_wind_mph, 1),
+        "max_gust_mph": round(s.max_gust_mph, 1),
+        "max_rain_in_hr": round(s.max_rain_in_hr, 3),
+        "max_snow_in_hr": round(s.max_snow_in_hr, 3),
+        "min_temp_f": _temp_f(s.min_temp_f),
+        "max_temp_f": _temp_f(s.max_temp_f),
     }
 
 
@@ -206,16 +268,7 @@ def _checkpoint_json(cp: Checkpoint) -> dict:
         "lon": round(cp.position.lon, 5),
         "segment_miles": round(cp.segment_miles, 2),
         "eta": cp.eta.isoformat(),
-        "weather": {
-            "wind_mph": round(w.wind_mph, 1),
-            "gust_mph": round(w.gust_mph, 1),
-            "rain_in_hr": round(w.rain_in_hr, 3),
-            "snow_in_hr": round(w.snow_in_hr, 3),
-            "temp_f": None if w.temp_f is None else round(w.temp_f, 1),
-            "conditions": conditions.describe(w.weather_code),
-            "weather_code": w.weather_code,
-            "forecast_time": w.forecast_time.isoformat(),
-        },
+        "weather": _weather_json(w),
         "risk": {
             "level": a.level.name,
             "wind": a.wind_level.name,
@@ -225,6 +278,23 @@ def _checkpoint_json(cp: Checkpoint) -> dict:
             "drivers": list(a.drivers),
         },
     }
+
+
+def _weather_json(w: WeatherSample) -> dict:
+    return {
+        "wind_mph": round(w.wind_mph, 1),
+        "gust_mph": round(w.gust_mph, 1),
+        "rain_in_hr": round(w.rain_in_hr, 3),
+        "snow_in_hr": round(w.snow_in_hr, 3),
+        "temp_f": _temp_f(w.temp_f),
+        "conditions": conditions.describe(w.weather_code),
+        "weather_code": w.weather_code,
+        "forecast_time": w.forecast_time.isoformat(),
+    }
+
+
+def _temp_f(value: float | None) -> float | None:
+    return None if value is None else round(value, 1)
 
 
 class _Stopwatch:

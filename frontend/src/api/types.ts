@@ -61,6 +61,39 @@ export interface RouteSummary {
   max_level: RiskLevel
 }
 
+export interface ReportStop {
+  place: string // the origin's or destination's label, as entered
+  time: string // departure, or this route's arrival
+  level: RiskLevel
+  weather: CheckpointWeather // the first or last checkpoint's: what the place is like then
+}
+
+// A run of consecutive checkpoints at Moderate or worse. A Low checkpoint in between splits it.
+export interface ReportStretch {
+  where: string // "near Amarillo, TX", or "at mile 412" when the place has no name
+  first_index: number // checkpoints[first_index..last_index], both included, make up the stretch
+  last_index: number
+  start_mile: number // the first and last checkpoint's mile and ETA
+  end_mile: number
+  start_eta: string
+  end_eta: string
+  miles: number // road its checkpoints own, as counted in summary.miles_by_level
+  level: RiskLevel // the worst level in the stretch, never LOW
+  drivers: Array<'wind' | 'rain' | 'snow'> // factors at that level, at any of its checkpoints
+  max_wind_mph: number
+  max_gust_mph: number
+  max_rain_in_hr: number
+  max_snow_in_hr: number
+  min_temp_f: number | null // null when no checkpoint in it has a temperature
+  max_temp_f: number | null
+}
+
+export interface JourneyReport {
+  departure: ReportStop
+  stretches: ReportStretch[] // in driving order; empty when the route is Low all the way
+  arrival: ReportStop
+}
+
 export interface Route {
   id: string // "r0", "r1", "r2": unique within a plan
   label: string // "Route A" is always the recommended route, then B, C in rank order
@@ -73,8 +106,9 @@ export interface Route {
   geometry: Array<[number, number]> // [lon, lat]
   summary: RouteSummary
   // The first is the origin at departure and the last the destination at this route's arrival,
-  // so their weather is what each place is like when the truck is there.
+  // so their weather is what each place is like when the truck is there (as in report).
   checkpoints: Checkpoint[]
+  report: JourneyReport
 }
 
 export interface Plan {
