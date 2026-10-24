@@ -3,6 +3,7 @@ import { ApiError, getHeatmap, isAbortError, planTrip } from './api/client'
 import type { Plan, PlanRequest } from './api/types'
 import type { HeatmapState } from './components/HeatmapSlider'
 import { Hero } from './components/Hero'
+import { HowItWorks } from './components/HowItWorks'
 import { MapView } from './components/MapView'
 import { PlanResults } from './components/PlanResults'
 import { SampleDataBanner } from './components/SampleDataBanner'
@@ -88,6 +89,7 @@ export default function App() {
             />
           </div>
         </section>
+        <HowItWorks />
       </main>
     </>
   )
