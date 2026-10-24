@@ -405,6 +405,13 @@ def test_a_reply_that_is_not_json_is_a_routing_error():
         tomtom.calculate_routes(WEST, EAST, T0, 20_000, "test-key", client=client)
 
 
+@pytest.mark.parametrize("body", [{"routes": []}, {}])
+def test_a_200_reply_without_routes_is_a_routing_error(body):
+    client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, json=body)))
+    with pytest.raises(tomtom.RoutingError, match="No truck route found"):
+        tomtom.calculate_routes(WEST, EAST, T0, 20_000, "test-key", client=client)
+
+
 def test_when_every_fallback_fails_the_fastest_route_comes_back_alone():
     fake = FakeTomTom(fallbacks(L15="fail", R15="fail", L25="fail", R25="fail"))
     assert [r.id for r in ensure([drive("r0", FASTEST)], fake)] == ["r0"]

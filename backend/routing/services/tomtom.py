@@ -107,7 +107,10 @@ def calculate_routes(
         "instructionsType": "coded",
     }
     payload = _get(url, params, client)
-    return parse_routes(payload, departure, source=source, id_prefix=id_prefix)
+    routes = parse_routes(payload, departure, source=source, id_prefix=id_prefix)
+    if not routes:
+        raise RoutingError("No truck route found between these places.")
+    return routes
 
 
 def parse_routes(payload: dict, departure: datetime, *, source: str, id_prefix: str) -> list[RouteOption]:
