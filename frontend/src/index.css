@@ -6,6 +6,7 @@
   --border: #dde2ea;
   --accent: #1f5fbf;
   --danger: #b42318;
+  --on-accent: #ffffff;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -17,6 +18,7 @@
   --text-sm: 0.8rem;
   --text-md: 0.85rem;
   --text-base: 0.9rem;
+  --text-lg: 1.25rem;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
   background: var(--bg);
@@ -168,6 +170,34 @@ button[type='submit']:disabled {
   margin: 0;
   color: var(--danger);
   font-size: 0.9rem;
+}
+
+.button {
+  font: inherit;
+  font-weight: 600;
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+}
+
+.crash {
+  max-width: 28rem;
+  margin: 15vh auto 0;
+  padding: var(--space-4);
+  text-align: center;
+}
+
+.crash h1 {
+  font-size: var(--text-lg);
+  margin: 0 0 var(--space-2);
+}
+
+.crash p {
+  margin: 0 0 var(--space-4);
+  color: var(--muted);
 }
 
 .routes {
