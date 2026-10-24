@@ -9,6 +9,9 @@ Calculate Route: https://docs.tomtom.com/routing-api/documentation/tomtom-maps/v
 - avoidAreas go in a POST body (the query stays the same): up to 10 rectangles, each a
   southWestCorner and northEastCorner, at most about 160 x 160 km.
 Fuzzy Search: https://docs.tomtom.com/search-api/documentation/search-service/fuzzy-search/
+Reverse Geocode: https://docs.tomtom.com/search-api/documentation/reverse-geocoding-service/reverse-geocode
+- entityType=Municipality answers with the town the point lies in ("Capulin, NM" in open
+  country), not the nearest street address. At most one result.
 
 A real route response, trimmed, is in routing/tests/data/tomtom_dallas_denver.json.
 """
@@ -49,6 +52,8 @@ REQUEST_TIMEOUT_S = 20
 # A fallback request answered in 1.3-3.3 s live. One still silent after 10 s is skipped like any
 # failed fallback, so it can't hold the plan up for the full 20 s.
 FALLBACK_TIMEOUT_S = 10
+# A town name only decorates the journey report, so a slow answer is not worth waiting for
+PLACE_TIMEOUT_S = 3
 
 OVERLAP_STEP_M = 5 * METERS_PER_MILE  # sample spacing along the candidate route
 OVERLAP_NEAR_M = 0.5 * METERS_PER_MILE  # a sample this close to the other route counts as shared road
@@ -127,6 +132,21 @@ def geocode(
         )
         for r in payload.get("results", [])
     ]
+
+
+def reverse_geocode(
+    position: LatLon, api_key: str, *, client: httpx.Client | None = None, timeout: float = PLACE_TIMEOUT_S
+) -> str | None:
+    """The town at `position`, as "Amarillo, TX", or None when TomTom has no town there."""
+    url = f"{BASE_URL}/search/2/reverseGeocode/{position.lat:.6f},{position.lon:.6f}.json"
+    payload = _request(url, {"key": api_key, "entityType": "Municipality"}, client, timeout)
+    for result in payload.get("addresses", []):
+        address = result["address"]
+        town = address.get("municipality")
+        state = address.get("countrySubdivisionCode") or address.get("countrySubdivision")
+        if town:
+            return f"{town}, {state}" if state else town
+    return None
 
 
 def calculate_routes(

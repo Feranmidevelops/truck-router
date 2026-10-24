@@ -1,3 +1,4 @@
+import copy
 from datetime import datetime, timedelta, timezone
 import json
 import math
@@ -59,6 +60,74 @@ def test_place_search_leaves_out_points_of_interest():
     assert [p.label for p in places] == ["Salt Lake City, UT"]
     assert seen[0].url.params["idxSet"] == "Geo,Addr,PAD,Str"
     assert seen[0].url.params["countrySet"] == "US"
+
+
+# A live reverse geocode with entityType=Municipality in open country in New Mexico, trimmed
+CAPULIN = {
+    "summary": {"queryTime": 11, "numResults": 1},
+    "addresses": [
+        {
+            "address": {
+                "routeNumbers": [],
+                "countryCode": "US",
+                "countrySubdivision": "NM",
+                "countrySecondarySubdivision": "Union",
+                "municipality": "Capulin",
+                "country": "United States",
+                "countryCodeISO3": "USA",
+                "freeformAddress": "Capulin, NM",
+                "countrySubdivisionName": "New Mexico",
+                "countrySubdivisionCode": "NM",
+            },
+            "position": "36.700001,-104.000000",
+            "entityType": "Municipality",
+        }
+    ],
+}
+
+
+def reverse_client(respond, seen: list | None = None) -> httpx.Client:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if seen is not None:
+            seen.append(request)
+        return respond(request)
+
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def test_reverse_geocode_asks_for_the_town_and_names_it_with_the_state():
+    seen: list[httpx.Request] = []
+    client = reverse_client(lambda r: httpx.Response(200, json=CAPULIN), seen)
+    assert tomtom.reverse_geocode(LatLon(36.7, -104.0), "test-key", client=client) == "Capulin, NM"
+    [request] = seen
+    assert request.url.path == "/search/2/reverseGeocode/36.700000,-104.000000.json"
+    assert request.url.params["entityType"] == "Municipality"
+    assert request.url.params["key"] == "test-key"
+
+
+def test_reverse_geocode_falls_back_to_the_state_name_without_a_code():
+    payload = copy.deepcopy(CAPULIN)
+    del payload["addresses"][0]["address"]["countrySubdivisionCode"]
+    payload["addresses"][0]["address"]["countrySubdivision"] = "New Mexico"
+    client = reverse_client(lambda r: httpx.Response(200, json=payload))
+    assert tomtom.reverse_geocode(LatLon(36.7, -104.0), "test-key", client=client) == "Capulin, New Mexico"
+
+
+@pytest.mark.parametrize(
+    "addresses",
+    [[], [{"address": {"countryCode": "US", "countrySubdivision": "NM", "freeformAddress": "NM"}}]],
+    ids=["no result", "no town in the result"],
+)
+def test_reverse_geocode_without_a_town_is_none(addresses):
+    payload = {"summary": {"numResults": len(addresses)}, "addresses": addresses}
+    client = reverse_client(lambda r: httpx.Response(200, json=payload))
+    assert tomtom.reverse_geocode(LatLon(36.7, -104.0), "test-key", client=client) is None
+
+
+def test_reverse_geocode_errors_are_routing_errors():
+    client = reverse_client(lambda r: httpx.Response(403, json={"detailedError": {"code": "Forbidden"}}))
+    with pytest.raises(tomtom.RoutingError, match="403"):
+        tomtom.reverse_geocode(LatLon(36.7, -104.0), "test-key", client=client)
 
 
 def test_vehicle_weight_adds_tare_and_converts_to_kg():
