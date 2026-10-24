@@ -83,9 +83,7 @@ export function PlaceInput({ label, value, onChange }: Props) {
 
   return (
     <div className="field place-input">
-      <label id={`${id}-label`} htmlFor={id}>
-        {label}
-      </label>
+      <label htmlFor={id}>{label}</label>
       <input
         id={id}
         role="combobox"
@@ -107,7 +105,7 @@ export function PlaceInput({ label, value, onChange }: Props) {
         onKeyDown={handleKeyDown}
       />
       {showOptions && (
-        <ul id={listId} className="suggestions" role="listbox" aria-labelledby={`${id}-label`}>
+        <ul id={listId} className="suggestions" role="listbox" aria-label={`${label} suggestions`}>
           {search.places.map((p, i) => (
             <li
               key={`${p.lat},${p.lon}`}
