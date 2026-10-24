@@ -34,7 +34,11 @@ BASE_URL = "https://api.tomtom.com"
 TRUCK_TARE_LB = 35_000  # assumed empty tractor-trailer weight; the user enters cargo weight
 LB_TO_KG = 0.45359237
 
-MAX_SLOWDOWN = 1.5  # drop a route taking over 1.5x the fastest route's time
+# Drop a route taking over 1.35x the fastest route's time or over 1.35x its length. Live,
+# TomTom's own alternatives that drivers would consider came in at up to 1.29x the time and
+# 1.22x the length; the detours worth dropping at 1.40x and more of either.
+MAX_SLOWDOWN = 1.35
+MAX_LONGER = 1.35
 MAX_OVERLAP = 0.9  # drop a route when over 90% of it runs along a route already kept
 AVOID_SPAN = (0.3, 0.7)  # the middle of a route, as shares of its length, for the next one to keep out of
 AVOID_MARGIN_M = 5 * METERS_PER_MILE  # how far the boxes over it reach past the road
@@ -221,8 +225,9 @@ def ensure_three_routes(
     """Up to 3 distinct routes, fastest first, topped up with routes around the ones found.
 
     TomTom's fastest route is kept first. Any other route, TomTom's own alternatives included,
-    is dropped when it takes over 1.5x the fastest route's time, when over 90% of it runs
-    along a route already kept, or when it doubles back on itself (see _Trace.doubles_back).
+    is dropped when it takes over 1.35x the fastest route's time or is over 1.35x as long, when
+    over 90% of it runs along a route already kept, or when it doubles back on itself (see
+    _Trace.doubles_back).
 
     While fewer than 3 are kept, TomTom is asked for the trip again, this time keeping out of
     boxes over the middle of every route kept so far (see avoid_boxes), with an alternative
@@ -232,8 +237,8 @@ def ensure_three_routes(
     there. Each request either adds a route or ends the top-up, so a plan makes 2 at most. A
     request that fails is skipped. If fewer than 3 survive, the caller gets what is left.
 
-    A fallback can, rarely, beat TomTom's fastest route. The 1.5x limit is then checked again
-    against it at the end, so a route kept earlier, even TomTom's fastest, can still drop out.
+    A fallback can, rarely, beat TomTom's fastest route. The 1.35x limits are then checked
+    again against it at the end, so a route kept earlier, even TomTom's fastest, can drop out.
     """
     lat0 = (origin.lat + destination.lat) / 2
     kept: list[RouteOption] = []  # kept[0] is the fastest route TomTom gave us
@@ -242,7 +247,7 @@ def ensure_three_routes(
     def consider(route: RouteOption) -> None:
         if len(kept) >= 3:
             return
-        if kept and route.duration_s > MAX_SLOWDOWN * kept[0].duration_s:
+        if kept and _too_far(route, kept[0]):
             return
         trace = _Trace(route.points, lat0)
         if any(trace.overlap(other) > MAX_OVERLAP for other in traces):
@@ -275,7 +280,13 @@ def ensure_three_routes(
             client.close()
 
     kept.sort(key=_duration)
-    return [r for r in kept if r.duration_s <= MAX_SLOWDOWN * kept[0].duration_s]
+    return [r for r in kept if not _too_far(r, kept[0])]
+
+
+def _too_far(route: RouteOption, fastest: RouteOption) -> bool:
+    """Whether `route` takes over 1.35x the fastest route's time or is over 1.35x as long."""
+    slower = route.duration_s > MAX_SLOWDOWN * fastest.duration_s
+    return slower or route.distance_m > MAX_LONGER * fastest.distance_m
 
 
 def _fallback(

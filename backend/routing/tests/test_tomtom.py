@@ -489,18 +489,25 @@ def test_a_route_exactly_90_percent_along_a_kept_one_is_kept():
     assert [r.id for r in kept] == ["r0", "r1"]
 
 
-def test_a_tomtom_alternative_over_one_and_a_half_times_slower_is_dropped():
-    fast = drive("r0", FASTEST)
-    slow = drive("r1", NORTHERN)
-    slow.duration_s = fast.duration_s * 1.5 + 1
-    assert [r.id for r in ensure([fast, slow], FakeTomTom())] == ["r0"]
+@pytest.mark.parametrize("field", ["duration_s", "distance_m"])
+def test_a_tomtom_alternative_over_1_35_times_slower_or_longer_is_dropped(field):
+    fast, other = drive("r0", FASTEST), drive("r1", NORTHERN)
+    setattr(other, field, getattr(fast, field) * 1.35 + 1)
+    assert [r.id for r in ensure([fast, other], FakeTomTom())] == ["r0"]
 
 
-def test_exactly_one_and_a_half_times_slower_is_kept():
-    fast = drive("r0", FASTEST)
-    slow = drive("r1", NORTHERN)
-    slow.duration_s = fast.duration_s * 1.5
-    assert [r.id for r in ensure([fast, slow], FakeTomTom())] == ["r0", "r1"]
+@pytest.mark.parametrize("field", ["duration_s", "distance_m"])
+def test_exactly_1_35_times_slower_or_longer_is_kept(field):
+    fast, other = drive("r0", FASTEST), drive("r1", NORTHERN)
+    setattr(other, field, getattr(fast, field) * 1.35)
+    assert [r.id for r in ensure([fast, other], FakeTomTom())] == ["r0", "r1"]
+
+
+def test_a_shorter_but_slower_alternative_is_kept():
+    # Like Dallas -> Denver through Amarillo: 798 miles against 882, but 12.4 h against 11.9 h
+    fast, other = drive("r0", FASTEST), drive("r1", NORTHERN, 1.05)
+    other.distance_m = fast.distance_m * 0.9
+    assert [r.id for r in ensure([fast, other], FakeTomTom())] == ["r0", "r1"]
 
 
 FAR_NORTH = through(LatLon(37.0, -95.0))
@@ -512,7 +519,7 @@ ROADS = roads_round((FASTEST, 1.0), (NORTHERN, 1.0), (SOUTHERN, 1.0), (FAR_NORTH
 def test_the_time_limit_is_against_the_fastest_route_not_the_last_kept():
     fast, slower, slowest = drive("r0", FASTEST), drive("r1", NORTHERN), drive("r2", SOUTHERN)
     slower.duration_s = fast.duration_s * 1.2  # 12 h against 10 h
-    slowest.duration_s = fast.duration_s * 1.6  # 16 h: within 1.5x of 12 h, not of 10 h
+    slowest.duration_s = fast.duration_s * 1.6  # 16 h: within 1.35x of 12 h, not of 10 h
     routes = ensure([fast, slower, slowest], FakeTomTom(roads_round((FAR_SOUTH, 1.0))))
     assert [r.id for r in routes] == ["r0", "around2-0", "r1"]
 
@@ -573,7 +580,7 @@ BAD_TIME = {"lengthInMeters": 1000, "travelTimeInSeconds": 60, "departureTime": 
     [
         None,  # HTTP 400: no road round the boxes
         [(shifted(FASTEST, 0.2), 1.01)],  # the boxes ignored, so the same road again
-        [(NORTHERN, 2.0)],  # over 1.5x the fastest route's time
+        [(NORTHERN, 2.0)],  # over 1.35x the fastest route's time
         [(with_spur(NORTHERN), 1.0)],  # doubles back
         httpx.Response(200, text="<html>Bad gateway</html>"),
         httpx.Response(200, json={"routes": [{"legs": []}]}),  # no summary
@@ -670,9 +677,9 @@ def test_a_fallback_faster_than_tomtoms_route_comes_first():
 
 
 def test_a_fallback_faster_than_tomtoms_route_sets_the_time_limit():
-    # TomTom gives 10 h and 14.9 h, then a fallback takes 9.3 h: 14.9 h is now over 1.5x that.
+    # TomTom gives 10 h and 13.4 h, then a fallback takes 9.3 h: 13.4 h is now over 1.35x that.
     fast, slow = drive("r0", FASTEST), drive("r1", NORTHERN)
-    slow.duration_s = fast.duration_s * 1.49
+    slow.duration_s = fast.duration_s * 1.34
     fake = FakeTomTom(roads_round((SOUTHERN, 0.9)))
     assert [r.id for r in ensure([fast, slow], fake)] == ["around2-0", "r0"]
 
