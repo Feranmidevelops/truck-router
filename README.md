@@ -261,12 +261,13 @@ so Route A is always the recommended one.
 - **Forecast detail.** Open-Meteo blends weather models on grids of a few kilometres, and
   lookups are rounded to 0.1 degrees (about 7 miles), so very local storms can be missed or
   smeared.
-- **Routes depend on TomTom.** It often returns two truck alternatives, so the third is usually
-  a fallback that's slower, and with live traffic the routes can change between runs.
+- **Sometimes only two routes.** TomTom often returns fewer than three distinct truck routes,
+  and when the route found round them is over 1.35x the fastest, the app shows two rather than a
+  detour no driver would take. With live traffic the routes can change between runs.
 - **One clock per trip.** Every time is shown on the origin's clock, even after the truck
   crosses into another time zone.
 - **US only.** Place search is limited to the US (`GEOCODE_COUNTRY_SET`), and the thresholds are
   in mph and inches.
-- **Free tiers.** TomTom allows 2,500 requests a day (about 830 plans), Open-Meteo 600 locations
+- **Free tiers.** TomTom allows 2,500 requests a day (830 to 2,500 plans, at 1-3 requests each), Open-Meteo 600 locations
   a minute, and a free Render instance sleeps when idle, so the first request after a quiet
   spell is slow.
