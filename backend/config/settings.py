@@ -73,12 +73,9 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "UNAUTHENTICATED_USER": None,
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
-    # Limits per client IP (there are no user accounts). A view opts in by setting
-    # throttle_scope; views without one, like health, are never throttled. Request history
-    # lives in the default cache, so every gunicorn worker counts against the same limit.
-    # The IP is REMOTE_ADDR when NUM_PROXIES is 0, otherwise the X-Forwarded-For entry that
-    # many places from the end, which our own proxies wrote. Left unset, DRF keys on the whole
-    # header, so a client could get a fresh limit by sending a new value each time.
+    # Limits per client IP, for views that set throttle_scope (health doesn't). History lives in
+    # the shared cache so all gunicorn workers count together. The IP is REMOTE_ADDR, or with
+    # NUM_PROXIES > 0 the X-Forwarded-For entry that many places from the end.
     "NUM_PROXIES": env_int("NUM_PROXIES", 0),
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
     "DEFAULT_THROTTLE_RATES": {"plan": "10/min", "geocode": "120/min", "heatmap": "30/min"},
