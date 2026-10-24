@@ -15,13 +15,14 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterable
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import cached_property, partial
 from itertools import accumulate
 import math
 from operator import attrgetter
+import threading
 from urllib.parse import quote
 
 import httpx
@@ -43,6 +44,11 @@ REQUEST_TIMEOUT_S = 20
 # A via-point request answered in 2-3 s live. One still silent after 10 s is skipped like any
 # failed fallback, so it can't hold the plan up for the full 20 s.
 FALLBACK_TIMEOUT_S = 10
+# How much longer to wait for the early fallbacks once the main request is back. Live, the main
+# request took 6-10 s and a via-point request 2-3 s, so sent together the fallbacks are normally
+# back first. One that isn't has already taken twice its usual time, and a fresh pair from the
+# top-up takes 2-3 s, so waiting more than 2 s for it is rarely worth it.
+EARLY_GRACE_S = 2
 
 OVERLAP_STEP_M = 5 * METERS_PER_MILE  # sample spacing along the candidate route
 OVERLAP_NEAR_M = 0.5 * METERS_PER_MILE  # a sample this close to the other route counts as shared road
@@ -170,6 +176,73 @@ def _timing_profile(instructions: list[dict], length: float, duration: float) ->
         if t.meters > profile[-1].meters and t.seconds >= profile[-1].seconds:
             profile.append(t)
     return profile
+
+
+@dataclass(frozen=True)
+class Candidates:
+    """TomTom's routes for the trip, and the early fallbacks asked for alongside them."""
+
+    routes: list[RouteOption]
+    early: list[RouteOption]  # through the early via points, from those that answered in time
+    asked: list[LatLon]  # every via point asked for, answered or not
+
+
+def calculate_routes_and_fallbacks(
+    origin: LatLon,
+    destination: LatLon,
+    departure: datetime,
+    load_lb: float,
+    api_key: str,
+    *,
+    client: httpx.Client | None = None,
+) -> Candidates:
+    """TomTom's routes for the trip, with the first pair of fallbacks asked for at the same time.
+
+    TomTom often sends fewer than 3 routes, and asking for fallbacks only once its answer was
+    in put the slowest requests end to end. So the first pair goes out alongside the main
+    request. Their via points can't wait for the fastest route's midpoint, so they sit 15% of
+    the trip left and right of the straight origin->destination line's midpoint instead.
+
+    Once the main request is back, a fallback still out gets EARLY_GRACE_S more, then its
+    answer is ignored and it finishes in the background. If the main request fails, so does
+    this, straight away, whatever the fallbacks found: a route through a via point is no
+    answer when TomTom has none for the trip itself.
+    """
+    share = FALLBACK_OFFSETS[0]
+    vias = offset_via_points([origin, destination], origin, destination, share)
+    own = client is None
+    client = client or httpx.Client()
+    fetch = partial(_fallback, origin, destination, departure, load_lb, api_key, client=client)
+    pool = ThreadPoolExecutor(max_workers=max(1, len(vias)))
+    pending = [pool.submit(fetch, via, f"early{round(share * 100)}{side}-") for side, via in zip("LR", vias)]
+    pool.shutdown(wait=False)  # its threads end with their requests; nothing here waits on them
+    try:
+        routes = calculate_routes(origin, destination, departure, load_lb, api_key, client=client)
+        done, _ = wait(pending, timeout=EARLY_GRACE_S)
+    finally:
+        if own:
+            _close_when_done(client, pending)
+    early = [r for f in pending if f in done for r in f.result()]
+    return Candidates(routes, early, vias)
+
+
+def _close_when_done(client: httpx.Client, requests: list[Future]) -> None:
+    """Close the client once the last of `requests` has finished, without waiting for it here."""
+    left = len(requests)
+    lock = threading.Lock()
+
+    def one_done(_: Future) -> None:
+        nonlocal left
+        with lock:
+            left -= 1
+            last = left == 0
+        if last:
+            client.close()
+
+    if not requests:
+        client.close()
+    for f in requests:
+        f.add_done_callback(one_done)
 
 
 def ensure_three_routes(
