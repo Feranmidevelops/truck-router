@@ -52,7 +52,7 @@ export const RouteList = memo(function RouteList({ plan, selectedRouteId, onSele
             <span className="route-stats">
               <span>{r.distance_miles.toFixed(0)} mi</span>
               <span>{formatDuration(r.duration_s)}</span>
-              <span>Arrive {formatTime(r.arrival_time)}</span>
+              <span>Arrive {formatTime(r.arrival_time, plan.input.timezone)}</span>
             </span>
             <span className="risk-bar" aria-hidden>
               {LEVELS.map((l) =>

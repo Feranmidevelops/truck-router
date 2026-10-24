@@ -4,14 +4,15 @@ import { LEVEL_COLOR, LEVEL_LABEL, timeFormatter, type TimeFormatter } from '../
 
 interface Props {
   route: Route
+  timeZone: string // the plan's zone (the origin's): ETAs, days and the zone name all follow it
 }
 
 const COLUMNS = 7
 
 // memo: only re-renders when the selected route changes. Rows are keyed by checkpoint index,
 // so switching routes updates the existing rows in place instead of rebuilding the table.
-export const CheckpointTable = memo(function CheckpointTable({ route }: Props) {
-  const time = useMemo(() => timeFormatter(), [])
+export const CheckpointTable = memo(function CheckpointTable({ route, timeZone }: Props) {
+  const time = useMemo(() => timeFormatter(timeZone), [timeZone])
   const days = useMemo(() => groupByDay(route.checkpoints, time), [route, time])
   const zone = route.checkpoints.length ? time.zone(route.checkpoints[0].eta) : ''
 

@@ -42,12 +42,15 @@ export function formatDuration(seconds: number) {
   return h ? `${h} h ${m} min` : `${m} min`
 }
 
-export function formatTime(iso: string) {
+// Plan times show in the plan's zone (the origin's), not the viewer's: "Mon 9:49 PM CDT".
+// timeZone undefined means the viewer's own zone.
+export function formatTime(iso: string, timeZone?: string) {
   return new Date(iso).toLocaleString(undefined, {
     weekday: 'short',
     hour: 'numeric',
     minute: '2-digit',
     timeZoneName: 'short',
+    timeZone,
   })
 }
 
