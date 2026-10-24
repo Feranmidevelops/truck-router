@@ -83,7 +83,15 @@ def geocode(
     query: str, api_key: str, *, country_set: str = "US", limit: int = 5, client: httpx.Client | None = None
 ) -> list[Place]:
     url = f"{BASE_URL}/search/2/search/{quote(query)}.json"
-    params = {"key": api_key, "typeahead": "true", "limit": limit, "countrySet": country_set}
+    # Places, addresses and streets only: points of interest crowd out towns ("salt lake" brought up
+    # a street in Huntington Park, CA) and make the search slower.
+    params = {
+        "key": api_key,
+        "typeahead": "true",
+        "limit": limit,
+        "countrySet": country_set,
+        "idxSet": "Geo,Addr,PAD,Str",
+    }
     payload = _get(url, params, client)
     return [
         Place(

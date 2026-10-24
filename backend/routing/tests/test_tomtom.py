@@ -49,6 +49,19 @@ SAMPLE = {
 }
 
 
+def test_place_search_leaves_out_points_of_interest():
+    seen: list[httpx.Request] = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, json={"results": [{"address": {"freeformAddress": "Salt Lake City, UT"}, "position": {"lat": 40.76, "lon": -111.89}}]})
+
+    places = tomtom.geocode("salt lake", "test-key", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    assert [p.label for p in places] == ["Salt Lake City, UT"]
+    assert seen[0].url.params["idxSet"] == "Geo,Addr,PAD,Str"
+    assert seen[0].url.params["countrySet"] == "US"
+
+
 def test_vehicle_weight_adds_tare_and_converts_to_kg():
     assert tomtom.vehicle_weight_kg(0) == round(35_000 * 0.45359237)
     assert tomtom.vehicle_weight_kg(45_000) == round(80_000 * 0.45359237)
