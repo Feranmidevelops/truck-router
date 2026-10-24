@@ -14,6 +14,7 @@ const HOURS = 48
 
 interface Props {
   state: HeatmapState
+  timeZone?: string // the plan's zone (the origin's); the slider's clock reads in it
   visible: boolean
   onToggle: () => void
   onHourChange: (hour: number) => void
@@ -21,7 +22,7 @@ interface Props {
 }
 
 // Map overlay: weather on/off, the 0-48 h slider and the colour legend.
-export function HeatmapSlider({ state, visible, onToggle, onHourChange, ref }: Props) {
+export function HeatmapSlider({ state, timeZone, visible, onToggle, onHourChange, ref }: Props) {
   const { status } = state
   return (
     <section ref={ref} className="heat-panel" aria-label="Weather overlay">
@@ -33,7 +34,13 @@ export function HeatmapSlider({ state, visible, onToggle, onHourChange, ref }: P
       )}
       {/* Stays mounted while hidden so the chosen hour survives a toggle. */}
       {state.status === 'ready' && (
-        <HourSlider key={state.data.plan_id} heatmap={state.data} hidden={!visible} onChange={onHourChange} />
+        <HourSlider
+          key={state.data.plan_id}
+          heatmap={state.data}
+          timeZone={timeZone}
+          hidden={!visible}
+          onChange={onHourChange}
+        />
       )}
       {/* Same shape as the slider, so the panel doesn't jump when the forecast arrives. */}
       {status === 'loading' && (
@@ -67,14 +74,16 @@ export function HeatmapSlider({ state, visible, onToggle, onHourChange, ref }: P
 
 interface SliderProps {
   heatmap: Heatmap
+  timeZone?: string
   hidden: boolean
   onChange: (hour: number) => void
 }
 
 // Owns the hour so a slide re-renders only this component; the map is told directly.
-function HourSlider({ heatmap, hidden, onChange }: SliderProps) {
+function HourSlider({ heatmap, timeZone, hidden, onChange }: SliderProps) {
   const [hour, setHour] = useState(0)
-  const clock = formatTime(new Date(Date.parse(heatmap.start_time) + hour * HOUR_MS).toISOString())
+  // Hour 0 is start_time, a UTC instant (the departure floored to the hour)
+  const clock = formatTime(new Date(Date.parse(heatmap.start_time) + hour * HOUR_MS).toISOString(), timeZone)
 
   return (
     <div className="heat-slider" hidden={hidden}>

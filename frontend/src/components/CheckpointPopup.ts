@@ -5,13 +5,14 @@ import './CheckpointPopup.css'
 type Factor = 'wind' | 'rain' | 'snow'
 
 // Built with DOM APIs so route labels from the API are always treated as text.
-export function checkpointPopup(route: Route, cp: Checkpoint): HTMLElement {
+// timeZone is the plan's (the origin's), so the ETA reads the same as in the checkpoint table.
+export function checkpointPopup(route: Route, cp: Checkpoint, timeZone: string): HTMLElement {
   const { weather, risk } = cp
   const root = el('div', 'cp')
 
   const head = el('div', 'cp-head')
   head.append(levelTag(risk.level), el('span', 'cp-mile', `Mile ${Math.round(cp.mile)}`))
-  root.append(head, el('div', 'cp-route', route.label), el('div', 'cp-eta', `ETA ${formatTime(cp.eta)}`))
+  root.append(head, el('div', 'cp-route', route.label), el('div', 'cp-eta', `ETA ${formatTime(cp.eta, timeZone)}`))
 
   const rows = el('dl', 'cp-rows')
   const gust = weather.gust_mph > weather.wind_mph ? `, gusts ${Math.round(weather.gust_mph)}` : ''

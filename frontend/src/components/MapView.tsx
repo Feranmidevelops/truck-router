@@ -263,6 +263,7 @@ export function MapView({ plan, selectedRouteId, onSelectRoute, heatmap }: Props
       <HeatmapSlider
         ref={panelRef}
         state={heatmap}
+        timeZone={plan?.input.timezone}
         visible={showHeat}
         onToggle={toggleHeat}
         onHourChange={onHourChange}
@@ -311,10 +312,11 @@ function bindCheckpointPopup(
     const key = `${routeId}:${index}`
     pinned = pin
     if (key === shown && popup.isOpen()) return
-    const route = planRef.current?.routes.find((r) => r.id === routeId)
+    const plan = planRef.current
+    const route = plan?.routes.find((r) => r.id === routeId)
     const cp = route?.checkpoints.find((c) => c.index === index)
-    if (!route || !cp) return
-    popup.setLngLat([cp.lon, cp.lat]).setDOMContent(checkpointPopup(route, cp))
+    if (!plan || !route || !cp) return
+    popup.setLngLat([cp.lon, cp.lat]).setDOMContent(checkpointPopup(route, cp, plan.input.timezone))
     if (!popup.isOpen()) popup.addTo(map)
     shown = key
   }
