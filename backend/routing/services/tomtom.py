@@ -178,17 +178,19 @@ def ensure_three_routes(
     survive, the caller gets what is left.
     """
     lat0 = (origin.lat + destination.lat) / 2
-    kept: list[tuple[RouteOption, _Trace]] = []
+    kept: list[RouteOption] = []  # kept[0] is the fastest route TomTom gave us
+    traces: list[_Trace] = []  # kept[i] projected for the overlap test
 
     def consider(route: RouteOption) -> None:
         if len(kept) >= 3:
             return
-        if kept and route.duration_s > MAX_SLOWDOWN * kept[0][0].duration_s:
+        if kept and route.duration_s > MAX_SLOWDOWN * kept[0].duration_s:
             return
         trace = _Trace(route.points, lat0)
-        if any(trace.overlap(other) > MAX_OVERLAP for _, other in kept):
+        if any(trace.overlap(other) > MAX_OVERLAP for other in traces):
             return
-        kept.append((route, trace))
+        kept.append(route)
+        traces.append(trace)
 
     def fetch(via: LatLon, id_prefix: str) -> list[RouteOption]:
         try:
@@ -205,14 +207,14 @@ def ensure_three_routes(
     for share in FALLBACK_OFFSETS:
         if not kept or len(kept) >= 3:
             break
-        vias = offset_via_points(kept[0][0].points, origin, destination, share)
+        vias = offset_via_points(kept[0].points, origin, destination, share)
         prefixes = [f"via{round(share * 100)}{side}-" for side in "LR"]
         with ThreadPoolExecutor(max_workers=2) as pool:
             candidates = [r for found in pool.map(fetch, vias, prefixes) for r in found]
         for route in sorted(candidates, key=_duration):
             consider(route)
 
-    return sorted((route for route, _ in kept), key=_duration)
+    return sorted(kept, key=_duration)  # a fallback can, rarely, beat TomTom's fastest
 
 
 def offset_via_points(route: list[LatLon], origin: LatLon, destination: LatLon, share: float) -> list[LatLon]:

@@ -162,9 +162,15 @@ def test_via_points_start_from_halfway_along_the_route_by_distance():
 
 # Trips below run west to east along latitude 35, so "left" of the trip is north.
 SPEED_MPS = 25.0
+
+
+def through(via: LatLon) -> list[LatLon]:
+    return line(WEST, via, 500) + line(via, EAST, 500)[1:]
+
+
 FASTEST = line(WEST, EAST, 1000)
-NORTHERN = line(WEST, LatLon(36.0, -95.0), 500) + line(LatLon(36.0, -95.0), EAST, 500)[1:]
-SOUTHERN = line(WEST, LatLon(34.0, -95.0), 500) + line(LatLon(34.0, -95.0), EAST, 500)[1:]
+NORTHERN = through(LatLon(36.0, -95.0))
+SOUTHERN = through(LatLon(34.0, -95.0))
 
 
 def drive(route_id: str, points: list[LatLon], slowdown: float = 1.0) -> RouteOption:
@@ -259,15 +265,14 @@ def fallbacks(**special: str):
     named, which "fail" (HTTP 400), come back as a "copy" of the fastest route, or are "slow"."""
 
     def answer(via: LatLon):
-        through = line(WEST, via, 500) + line(via, EAST, 500)[1:]
         kind = special.get(attempt(via), "ok")
         if kind == "fail":
             return None
         if kind == "copy":
             return shifted(FASTEST, 0.2), 1.01
         if kind == "slow":
-            return through, 2.0
-        return through, 1.0
+            return through(via), 2.0
+        return through(via), 1.0
 
     return answer
 
@@ -311,6 +316,31 @@ def test_when_every_fallback_fails_the_fastest_route_comes_back_alone():
     fake = FakeTomTom(fallbacks(L15="fail", R15="fail", L25="fail", R25="fail"))
     assert [r.id for r in ensure([drive("r0", FASTEST)], fake)] == ["r0"]
     assert len(fake.vias) == 4  # never more than two pairs
+
+
+def test_a_fallback_on_the_same_road_as_an_earlier_fallback_is_dropped():
+    _, right15 = tomtom.offset_via_points(FASTEST, WEST, EAST, 0.15)
+    # Left fails both times; the 25% right point snaps back onto the 15% right road.
+    fake = FakeTomTom(lambda via: None if attempt(via).startswith("L") else (through(right15), 1.0))
+    assert [r.id for r in ensure([drive("r0", FASTEST)], fake)] == ["r0", "via15R-0"]
+    assert len(fake.vias) == 4
+
+
+def test_a_fallback_faster_than_tomtoms_route_comes_first():
+    fake = FakeTomTom(lambda via: (through(via), 0.5))
+    assert [r.id for r in ensure([drive("r0", FASTEST)], fake)] == ["via15L-0", "via15R-0", "r0"]
+
+
+def test_never_more_than_three_routes():
+    far_north = through(LatLon(37.0, -95.0))
+    routes = [drive("r0", FASTEST), drive("r1", NORTHERN), drive("r2", SOUTHERN), drive("r3", far_north)]
+    assert [r.id for r in ensure(routes, FakeTomTom())] == ["r0", "r1", "r2"]
+
+
+def test_route_ids_are_unique_across_tomtom_and_every_fallback():
+    fake = FakeTomTom(fallbacks(L15="copy", R15="slow"))
+    ids = [r.id for r in ensure([drive("r0", FASTEST)], fake)]
+    assert len(ids) == len(set(ids)) == 3
 
 
 def test_no_routes_means_no_fallbacks():
