@@ -234,4 +234,23 @@ so Route A is always the recommended one.
 
 ## Known limits
 
-- TODO
+- **ETAs assume nonstop driving.** US hours-of-service rules (a 30-minute break after 8 hours,
+  at most 11 hours driving, then 10 hours off) would push later checkpoints into later forecast
+  hours. Dallas -> Denver is about 12 hours, so a real driver would stop. Adding the breaks to
+  the timing profile is the next step.
+- **Weather between checkpoints isn't scored.** At a 50-mile interval a storm between two
+  checkpoints doesn't count towards a route's miles; that's the brief's sampling design. The
+  heatmap shows the corridor in between, and a 10-mile interval narrows the gap.
+- **Gusts are shown but not scored**, because the brief's wind thresholds read as sustained wind.
+- **Forecast detail.** Open-Meteo blends weather models on grids of a few kilometres, and
+  lookups are rounded to 0.1 degrees (about 7 miles), so very local storms can be missed or
+  smeared.
+- **Routes depend on TomTom.** It often returns two truck alternatives, so the third is usually
+  a fallback that's slower, and with live traffic the routes can change between runs.
+- **One clock per trip.** Every time is shown on the origin's clock, even after the truck
+  crosses into another time zone.
+- **US only.** Place search is limited to the US (`GEOCODE_COUNTRY_SET`), and the thresholds are
+  in mph and inches.
+- **Free tiers.** TomTom allows 2,500 requests a day (about 830 plans), Open-Meteo 600 locations
+  a minute, and a free Render instance sleeps when idle, so the first request after a quiet
+  spell is slow.
