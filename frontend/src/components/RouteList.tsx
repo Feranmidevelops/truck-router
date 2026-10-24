@@ -9,8 +9,17 @@ interface Props {
 
 // TODO(day 2): checkpoint table for the selected route (mile, ETA, conditions, level).
 export function RouteList({ plan, selectedRouteId, onSelect }: Props) {
+  const best = plan.routes.find((r) => r.id === plan.recommended_route_id)
+  // No Travel miles are the first ranking key, so if the best route has any, every route does
+  const noSafeRoute = (best?.summary.miles_by_level.NO_TRAVEL ?? 0) > 0
+
   return (
     <section className="routes" aria-label="Route options">
+      {noSafeRoute && (
+        <p key={plan.plan_id} className="banner banner-danger" role="alert">
+          Every route crosses No Travel conditions. Consider a later departure.
+        </p>
+      )}
       {plan.routes.map((r) => {
         const recommended = r.id === plan.recommended_route_id
         const total = LEVELS.reduce((sum, l) => sum + r.summary.miles_by_level[l], 0) || 1
@@ -24,7 +33,11 @@ export function RouteList({ plan, selectedRouteId, onSelect }: Props) {
           >
             <div className="route-head">
               <strong>{r.label}</strong>
-              {recommended && <span className="badge">Recommended</span>}
+              {recommended && (
+                <span className={noSafeRoute ? 'badge badge-danger' : 'badge'}>
+                  {noSafeRoute ? 'Least risky' : 'Recommended'}
+                </span>
+              )}
             </div>
             <div className="route-stats">
               <span>{r.distance_miles.toFixed(0)} mi</span>

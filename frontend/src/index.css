@@ -267,6 +267,11 @@ button[type='submit']:disabled {
   white-space: nowrap;
 }
 
+.badge-danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
 .route-stats,
 .route-risk {
   display: flex;
