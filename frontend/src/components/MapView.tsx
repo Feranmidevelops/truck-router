@@ -24,6 +24,10 @@ const STYLE_URL = import.meta.env.VITE_MAP_STYLE_URL || 'https://tiles.openfreem
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
 // Matches the single-column breakpoint in index.css.
 const NARROW_SCREEN = '(max-width: 800px)'
+// Black and greys like the rest of the page, so the risk colours on the dots stand out
+const ROUTE_COLOR = '#8b8d94'
+const SELECTED_ROUTE_COLOR = '#111113'
+const CASING_COLOR = '#ffffff'
 
 // Selection lives in feature-state, so changing it restyles on the GPU without
 // sending any geometry back to the map's worker.
@@ -138,14 +142,14 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
         type: 'line',
         source: 'routes',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#ffffff', 'line-width': 7 },
+        paint: { 'line-color': CASING_COLOR, 'line-width': 7 },
       })
       map.addLayer({
         id: 'routes-line',
         type: 'line',
         source: 'routes',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#7d8aa0', 'line-width': 4 },
+        paint: { 'line-color': ROUTE_COLOR, 'line-width': 4 },
       })
       // The selected route is drawn a second time, above the others, so it stays on
       // top where routes share a road. Only the selected one is visible here.
@@ -154,14 +158,14 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
         type: 'line',
         source: 'routes',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#ffffff', 'line-width': 10, 'line-opacity': ['case', SELECTED, 1, 0] },
+        paint: { 'line-color': CASING_COLOR, 'line-width': 10, 'line-opacity': ['case', SELECTED, 1, 0] },
       })
       map.addLayer({
         id: 'routes-selected',
         type: 'line',
         source: 'routes',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#1f5fbf', 'line-width': 6, 'line-opacity': ['case', SELECTED, 1, 0] },
+        paint: { 'line-color': SELECTED_ROUTE_COLOR, 'line-width': 6, 'line-opacity': ['case', SELECTED, 1, 0] },
       })
       // Same idea for checkpoints: faded ones for the other routes, then the selected
       // route's on top.
@@ -174,7 +178,7 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
           'circle-radius': byZoom(['case', SELECTED, 4, 3], ['case', SELECTED, 7, 5]),
           'circle-opacity': ['case', SELECTED, 0, 0.55],
           'circle-stroke-opacity': ['case', SELECTED, 0, 0.55],
-          'circle-stroke-color': '#ffffff',
+          'circle-stroke-color': CASING_COLOR,
           'circle-stroke-width': 1.5,
         },
       })
@@ -187,7 +191,7 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
           'circle-radius': byZoom(4, 7),
           'circle-opacity': ['case', SELECTED, 1, 0],
           'circle-stroke-opacity': ['case', SELECTED, 1, 0],
-          'circle-stroke-color': '#ffffff',
+          'circle-stroke-color': CASING_COLOR,
           'circle-stroke-width': 1.5,
         },
       })

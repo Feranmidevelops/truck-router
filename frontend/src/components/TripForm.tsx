@@ -192,7 +192,7 @@ export function TripForm({ loading, onSubmit }: Props) {
           {loadError}
         </p>
       )}
-      <button type="submit" disabled={!ready || loading || finding}>
+      <button type="submit" className="button button-block" disabled={!ready || loading || finding}>
         {finding ? 'Finding places…' : loading ? 'Planning…' : 'Plan routes'}
       </button>
     </form>

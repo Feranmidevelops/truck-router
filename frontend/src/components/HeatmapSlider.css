@@ -2,7 +2,7 @@
   --heat-bg: rgb(255 255 255 / 0.96);
   --heat-text: var(--ink);
   --heat-muted: var(--muted);
-  --heat-accent: var(--accent);
+  --heat-accent: var(--ink);
   --heat-error: var(--danger);
   --heat-track: var(--line-strong);
   --heat-shadow: var(--shadow-float);

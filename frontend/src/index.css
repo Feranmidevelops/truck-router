@@ -13,8 +13,6 @@
   --surface-sunken: #ebebed; /* chips, skeletons, tracks */
   --on-dark: #ffffff;
   --on-dark-muted: rgb(255 255 255 / 0.8);
-  --accent: #1f5fbf;
-  --on-accent: #ffffff;
   --danger: #b42318;
   --danger-bg: #fdeceb;
   --danger-border: #f4c4bf;
@@ -208,22 +206,6 @@ body {
   color: var(--danger);
 }
 
-button[type='submit'] {
-  font: inherit;
-  font-weight: var(--weight-semibold);
-  padding: var(--space-3);
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: var(--on-accent);
-  cursor: pointer;
-}
-
-button[type='submit']:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
 .banner {
   margin: 0;
   padding: var(--space-2) var(--space-3);
@@ -257,20 +239,68 @@ button[type='submit']:disabled {
 
 .plan-error .button {
   flex: none;
-  border: 1px solid var(--danger-border);
-  background: var(--surface);
-  color: var(--danger);
 }
 
+/* Buttons are pills: black on light surfaces, white on the photo */
 .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: var(--space-2) var(--space-5);
   font: inherit;
+  font-size: var(--text-md);
   font-weight: var(--weight-semibold);
-  padding: var(--space-2) var(--space-4);
-  border: 0;
-  border-radius: var(--radius);
-  background: var(--accent);
-  color: var(--on-accent);
+  line-height: 1.2;
+  text-decoration: none;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-pill);
+  background: var(--ink);
+  color: var(--on-dark);
   cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--ink-hover);
+  border-color: var(--ink-hover);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.button-block {
+  width: 100%;
+  min-height: 48px;
+  font-size: var(--text-base);
+}
+
+.button-outline {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+
+.button-outline:hover:not(:disabled) {
+  background: var(--surface-alt);
+  border-color: var(--ink);
+}
+
+.button-light {
+  background: var(--on-dark);
+  border-color: var(--on-dark);
+  color: var(--ink);
+}
+
+.button-light:hover:not(:disabled) {
+  background: var(--surface-sunken);
+  border-color: var(--surface-sunken);
 }
 
 .crash {
@@ -324,7 +354,7 @@ button[type='submit']:disabled {
   width: var(--spinner-size);
   height: var(--spinner-size);
   border: 2px solid var(--line);
-  border-top-color: var(--accent);
+  border-top-color: var(--ink);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -406,8 +436,8 @@ button[type='submit']:disabled {
 }
 
 .route-card.selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
 }
 
 .route-head {
@@ -422,8 +452,8 @@ button[type='submit']:disabled {
   font-weight: var(--weight-semibold);
   padding: 2px var(--space-2);
   border-radius: var(--radius-pill);
-  background: var(--surface-sunken);
-  color: var(--accent);
+  background: var(--ink);
+  color: var(--on-dark);
   white-space: nowrap;
 }
 
