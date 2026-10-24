@@ -96,10 +96,26 @@ def test_lower_average_risk_breaks_high_tie():
     assert order == ["b", "a"]
 
 
-def test_travel_time_breaks_near_equal_average_risk():
-    # 0.84 and 0.81 both round to 0.8, so the faster route wins
+def test_travel_time_breaks_equal_average_risk():
     order, reason = rank_routes(
-        [summary("a", avg=0.81, duration=40_000), summary("b", avg=0.84, duration=30_000)]
+        [summary("a", avg=0.80, duration=40_000), summary("b", avg=0.80, duration=30_000)]
+    )
+    assert order == ["b", "a"]
+    assert "time" in reason.lower()
+
+
+def test_lower_average_risk_wins_even_when_much_slower():
+    order, reason = rank_routes(
+        [summary("a", avg=0.84, duration=30_000), summary("b", avg=0.81, duration=45_000)]
+    )
+    assert order == ["b", "a"]
+    assert reason == "Lower average risk (0.81 vs 0.84)"
+
+
+def test_average_risk_ignores_float_noise():
+    # 0.1 + 0.2 is 0.30000000000000004; it must still tie with 0.3 so time decides
+    order, reason = rank_routes(
+        [summary("a", avg=0.3, duration=40_000), summary("b", avg=0.1 + 0.2, duration=30_000)]
     )
     assert order == ["b", "a"]
     assert "time" in reason.lower()

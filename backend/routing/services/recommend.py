@@ -4,9 +4,9 @@ Ranking order (the brief, plus the decisions in the README):
   0. Fewest NO_TRAVEL miles (not in the brief; a route you can't drive can't win)
   1. Fewest SEVERE miles
   2. Fewest HIGH miles
-  3. Lowest average risk (distance-weighted, rounded to 1 decimal so travel
-     time can break near-ties)
-  4. Shortest travel time
+  3. Lowest average risk (distance-weighted, compared at 2 decimals only to
+     remove float noise, so a lower average wins even when slower)
+  4. Shortest travel time (decides only true ties)
 Miles are compared rounded to 0.1.
 """
 
@@ -48,7 +48,7 @@ def ranking_key(summary: RouteSummary) -> tuple:
         round(miles.get(Level.NO_TRAVEL, 0.0), 1),
         round(miles.get(Level.SEVERE, 0.0), 1),
         round(miles.get(Level.HIGH, 0.0), 1),
-        round(summary.avg_risk, 1),
+        round(summary.avg_risk, 2),
         summary.duration_s,
     )
 
@@ -85,7 +85,7 @@ _REASONS = (
     ("Fewest no-travel miles", _miles),
     ("Fewest severe miles", _miles),
     ("Fewest high-risk miles", _miles),
-    ("Lower average risk", lambda v: f"{v:.1f}"),
+    ("Lower average risk", lambda v: f"{v:.2f}"),
     ("Shorter travel time", _duration),
 )
 
