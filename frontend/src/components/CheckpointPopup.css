@@ -1,20 +1,20 @@
 .checkpoint-popup {
-  --cp-bg: #ffffff;
-  --cp-text: var(--text, #1b2330);
-  --cp-muted: var(--muted, #5b6678);
-  --cp-border: var(--border, #dde2ea);
-  --cp-shadow: 0 4px 16px rgb(0 0 0 / 0.16);
-  --cp-radius: 8px;
-  --cp-pad-y: 10px;
-  --cp-pad-x: 12px;
-  --cp-gap: 4px;
-  --cp-row-gap: 12px;
-  --cp-font: 0.8rem;
-  --cp-font-head: 0.85rem;
-  --cp-font-small: 0.75rem;
+  --cp-bg: var(--surface);
+  --cp-text: var(--ink);
+  --cp-muted: var(--muted);
+  --cp-border: var(--line);
+  --cp-shadow: var(--shadow-float);
+  --cp-radius: var(--radius);
+  --cp-pad-y: var(--space-3);
+  --cp-pad-x: var(--space-3);
+  --cp-gap: var(--space-1);
+  --cp-row-gap: var(--space-3);
+  --cp-font: var(--text-sm);
+  --cp-font-head: var(--text-md);
+  --cp-font-small: var(--text-xs);
   --cp-dot-size: 8px;
   --cp-level-size: 10px;
-  --cp-load-text: #8a4b00;
+  --cp-load-text: var(--ink);
 
   /* Above the map's overlays and controls (z-index 2). */
   z-index: 3;
@@ -68,7 +68,7 @@
   display: flex;
   align-items: center;
   gap: var(--cp-gap);
-  font-weight: 700;
+  font-weight: var(--weight-bold);
 }
 
 .cp-level::before {
@@ -87,7 +87,7 @@
 
 .cp-route {
   font-size: var(--cp-font-head);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 
 .cp-eta {
@@ -122,7 +122,7 @@
 .cp-driver dt,
 .cp-driver dd {
   color: var(--cp-text);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 
 .cp-dot {
@@ -140,5 +140,5 @@
 
 .cp-load {
   color: var(--cp-load-text);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }

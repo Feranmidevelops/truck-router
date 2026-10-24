@@ -36,10 +36,10 @@ export function PlanResults({ plan, loading, error, selectedRouteId, onSelect, o
         </p>
       )}
       {error && (
-        <div className="banner banner-danger plan-error" role="alert">
+        <div className="banner banner-alert plan-error" role="alert">
           <p>{error}</p>
           {onRetry && (
-            <button type="button" className="button" onClick={onRetry}>
+            <button type="button" className="button button-outline" onClick={onRetry}>
               Try again
             </button>
           )}

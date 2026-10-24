@@ -16,7 +16,7 @@ export function SampleDataBanner() {
 
   if (!fixtures) return null
   return (
-    <p className="banner banner-sample">
+    <p className="banner banner-note">
       <strong>Sample data:</strong> every search shows the same Dallas to Denver trip.
     </p>
   )
