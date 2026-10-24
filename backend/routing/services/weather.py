@@ -4,8 +4,9 @@ Docs: https://open-meteo.com/en/docs
 - Many coordinates per request (comma-separated); the response is then a JSON
   list in request order.
 - start_hour and end_hour are both inclusive, in the requested timezone (GMT).
-- wind_speed_10m is instantaneous. wind_gusts_10m is the preceding hour's max.
-  rain, showers and snowfall are sums over the preceding hour, so they read as in/hr.
+- wind_speed_10m, temperature_2m and weather_code are instantaneous.
+  wind_gusts_10m is the preceding hour's max. rain, showers and snowfall are sums
+  over the preceding hour, so they read as in/hr.
 - Free tier: under 10,000 calls/day, 5,000/hour, 600/minute
   (https://open-meteo.com/en/pricing). Up to 10 variables over up to 2 weeks is
   one call; a request for several locations is weighted by how many it asks for
@@ -13,7 +14,8 @@ Docs: https://open-meteo.com/en/docs
   Round, de-duplicate, cache and batch.
 
 Units are read from `hourly_units` and converted. With the params below the API
-returns "mp/h" for wind and "inch" for rain, showers and snowfall.
+returns "mp/h" for wind, "inch" for rain, showers and snowfall, and "°F" for
+temperature. weather_code is a WMO code ("wmo code"), described in conditions.py.
 """
 
 from __future__ import annotations
@@ -31,7 +33,16 @@ import httpx
 from .types import LatLon, WeatherSample
 
 BASE_URL = "https://api.open-meteo.com/v1/forecast"
-HOURLY_VARS = ("wind_speed_10m", "wind_gusts_10m", "rain", "showers", "snowfall")
+# Temperature and weather_code are shown, not scored. Seven variables still count as one call.
+HOURLY_VARS = (
+    "wind_speed_10m",
+    "wind_gusts_10m",
+    "rain",
+    "showers",
+    "snowfall",
+    "temperature_2m",
+    "weather_code",
+)
 CHUNK_SIZE = 50
 COORD_DECIMALS = 1  # 0.1 deg, about 11 km
 MAX_WORKERS = 4
@@ -41,6 +52,7 @@ RATE_LIMITED_MESSAGE = "The weather service is rate-limiting requests. Try again
 
 SPEED_TO_MPH = {"mp/h": 1.0, "mph": 1.0, "km/h": 0.621371, "m/s": 2.236936, "kn": 1.150779}
 DEPTH_TO_IN = {"inch": 1.0, "in": 1.0, "mm": 1 / 25.4, "cm": 1 / 2.54}
+TEMP_TO_F = {"°F": lambda f: f, "°C": lambda c: c * 9 / 5 + 32}
 
 
 class WeatherError(Exception):
@@ -60,6 +72,8 @@ class HourlySeries:
     gust_mph: list[float]
     rain_in_hr: list[float]  # rain + showers
     snow_in_hr: list[float]
+    temp_f: list[float | None]  # None where Open-Meteo has no value: 0 °F is a real temperature
+    weather_code: list[int | None]  # WMO code
 
 
 def floor_hour(dt: datetime) -> datetime:
@@ -117,6 +131,7 @@ def _fetch_chunk(
         "hourly": ",".join(HOURLY_VARS),
         "wind_speed_unit": "mph",
         "precipitation_unit": "inch",
+        "temperature_unit": "fahrenheit",
         "timezone": "GMT",
         "start_hour": start.strftime("%Y-%m-%dT%H:%M"),
         "end_hour": end.strftime("%Y-%m-%dT%H:%M"),
@@ -174,6 +189,8 @@ def parse_location(item: dict, position: LatLon) -> HourlySeries:
         gust_mph=_convert(hourly["wind_gusts_10m"], units.get("wind_gusts_10m"), SPEED_TO_MPH),
         rain_in_hr=[r + s for r, s in zip(rain, showers)],
         snow_in_hr=_convert(hourly["snowfall"], units.get("snowfall"), DEPTH_TO_IN),
+        temp_f=_temperature_f(hourly["temperature_2m"], units.get("temperature_2m")),
+        weather_code=[None if c is None else int(c) for c in hourly["weather_code"]],
     )
 
 
@@ -183,6 +200,14 @@ def _convert(values: list, unit: str | None, table: dict[str, float]) -> list[fl
     factor = table[unit]
     # Missing values (null) are treated as 0. Revisit if gaps show up in real responses.
     return [(v or 0.0) * factor for v in values]
+
+
+def _temperature_f(values: list, unit: str | None) -> list[float | None]:
+    if unit not in TEMP_TO_F:
+        raise WeatherError(f"Unexpected unit {unit!r}")
+    to_f = TEMP_TO_F[unit]
+    # Unlike wind or rain, a missing temperature can't be read as 0, so it stays missing
+    return [None if v is None else to_f(v) for v in values]
 
 
 def sample_at(series: HourlySeries, when: datetime) -> WeatherSample:

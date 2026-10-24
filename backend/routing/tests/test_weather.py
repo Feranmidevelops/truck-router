@@ -20,7 +20,7 @@ def sleeps(monkeypatch):
     return waits
 
 
-def location_payload(snow_unit="inch", hours=3):
+def location_payload(snow_unit="inch", temp_unit="°F", hours=3):
     times = [(T0 + timedelta(hours=h)).strftime("%Y-%m-%dT%H:%M") for h in range(hours)]
     return {
         "latitude": 32.75,
@@ -32,6 +32,8 @@ def location_payload(snow_unit="inch", hours=3):
             "rain": "inch",
             "showers": "inch",
             "snowfall": snow_unit,
+            "temperature_2m": temp_unit,
+            "weather_code": "wmo code",
         },
         "hourly": {
             "time": times,
@@ -40,6 +42,8 @@ def location_payload(snow_unit="inch", hours=3):
             "rain": [0.0, 0.1, 0.2][:hours],
             "showers": [0.0, 0.05, 0.1][:hours],
             "snowfall": [0.0, 2.54, 5.08][:hours],
+            "temperature_2m": [50.0, 41.0, 32.0][:hours],
+            "weather_code": [2, 61, 73][:hours],
         },
     }
 
@@ -68,6 +72,41 @@ def test_converts_snowfall_from_cm():
     client = mock_client(location_payload(snow_unit="cm"))
     [s] = weather.fetch_hourly([LatLon(39.7, -105.0)], T0, T0 + timedelta(hours=2), client=client)
     assert s.snow_in_hr == pytest.approx([0.0, 1.0, 2.0])
+
+
+def test_asks_for_temperature_in_fahrenheit_and_the_weather_code():
+    calls: list = []
+    [s] = weather.fetch_hourly([LatLon(39.7, -105.0)], T0, T0, client=mock_client(location_payload(), calls))
+    params = calls[0].url.params
+    assert params["temperature_unit"] == "fahrenheit"
+    assert {"temperature_2m", "weather_code"} <= set(params["hourly"].split(","))
+    assert len(params["hourly"].split(",")) <= 10  # more than 10 variables would count as a second call
+    assert s.temp_f == [50.0, 41.0, 32.0]
+    assert s.weather_code == [2, 61, 73]
+
+
+def test_converts_temperature_from_celsius():
+    payload = location_payload(temp_unit="°C")
+    payload["hourly"]["temperature_2m"] = [10.0, 0.0, -40.0]
+    [s] = weather.fetch_hourly([LatLon(39.7, -105.0)], T0, T0, client=mock_client(payload))
+    assert s.temp_f == pytest.approx([50.0, 32.0, -40.0])
+
+
+def test_a_missing_temperature_or_weather_code_stays_missing():
+    # 0 is a real temperature and a real code (clear sky), so a gap must not turn into either
+    payload = location_payload()
+    payload["hourly"]["temperature_2m"] = [None, 0.0, 12.5]
+    payload["hourly"]["weather_code"] = [None, 0, 3.0]
+    [s] = weather.fetch_hourly([LatLon(39.7, -105.0)], T0, T0, client=mock_client(payload))
+    assert s.temp_f == [None, 0.0, 12.5]
+    assert s.weather_code == [None, 0, 3]
+    assert isinstance(s.weather_code[2], int)
+
+
+def test_unknown_temperature_unit_is_an_error():
+    client = mock_client(location_payload(temp_unit="K"))
+    with pytest.raises(weather.WeatherError, match="Unexpected unit 'K'"):
+        weather.fetch_hourly([LatLon(39.7, -105.0)], T0, T0, client=client)
 
 
 def test_requests_are_chunked():
@@ -316,7 +355,9 @@ def test_sample_at_accepts_any_timezone():
 def test_sample_at_measures_real_time_across_a_dst_change():
     start = datetime(2026, 11, 1, 6, tzinfo=timezone.utc)
     times = [start + timedelta(hours=h) for h in range(3)]
-    s = weather.HourlySeries(LatLon(41.9, -87.6), times, [6.0, 7.0, 8.0], [0.0] * 3, [0.0] * 3, [0.0] * 3)
+    s = weather.HourlySeries(
+        LatLon(41.9, -87.6), times, [6.0, 7.0, 8.0], [0.0] * 3, [0.0] * 3, [0.0] * 3, [40.0] * 3, [0] * 3
+    )
     # 01:45 CDT is 06:45 UTC, an hour before Chicago falls back to CST.
     w = weather.sample_at(s, datetime(2026, 11, 1, 1, 45, tzinfo=ZoneInfo("America/Chicago")))
     assert w.forecast_time == datetime(2026, 11, 1, 7, tzinfo=timezone.utc)
