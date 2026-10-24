@@ -1,4 +1,5 @@
 import math
+import time
 
 import pytest
 
@@ -110,6 +111,16 @@ def test_too_many_cells_coarsens_the_grid_until_it_fits_the_cap():
     assert cell > 0.25
     assert capped == build_grid(routes, cell_deg=cell, max_points=NO_CAP)
     assert all(is_centre(p.lat, cell) and is_centre(p.lon, cell) for p in capped)
+
+
+def test_three_1000_mile_routes_build_in_well_under_a_second():
+    # A vertex every 0.1 mile, about as dense as TomTom route geometry.
+    routes = three_long_routes(step_miles=0.1)
+    started = time.perf_counter()
+    grid = build_grid(routes)
+    elapsed = time.perf_counter() - started
+    assert 0 < len(grid) <= 250
+    assert elapsed < 0.5
 
 
 def test_small_cap_on_a_short_route():
