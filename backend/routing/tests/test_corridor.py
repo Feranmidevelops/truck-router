@@ -87,6 +87,7 @@ TEXAS = polyline(DALLAS, WACO)
 ALASKA = polyline(FAIRBANKS, LIVENGOOD)
 SVALBARD = polyline(LatLon(78.22, 15.65), LatLon(78.45, 16.30))
 NEAR_POLE = polyline(LatLon(89.8, 100.0), LatLon(89.85, 120.0))
+POLE_TO_ANTIMERIDIAN = polyline(LatLon(89.8, 100.0), LatLon(89.85, 179.95))
 ACROSS_EQUATOR_AND_MERIDIAN = polyline(LatLon(-1.0, -1.0), LatLon(1.0, 1.0))
 
 
@@ -219,8 +220,8 @@ def test_three_1000_mile_routes_build_in_well_under_a_second():
 @pytest.mark.parametrize("cap", [4, 250])
 @pytest.mark.parametrize(
     "route",
-    [TEXAS, NEAR_POLE, ACROSS_EQUATOR_AND_MERIDIAN],
-    ids=["texas", "near-pole", "equator-and-meridian"],
+    [TEXAS, NEAR_POLE, POLE_TO_ANTIMERIDIAN, ACROSS_EQUATOR_AND_MERIDIAN],
+    ids=["texas", "near-pole", "pole-to-antimeridian", "equator-and-meridian"],
 )
 def test_a_route_never_gets_an_empty_grid(route, cap):
     grid = build_grid([route], max_points=cap)
