@@ -110,6 +110,23 @@ def test_overlap_measures_distance_to_segments_not_just_vertices():
     assert tomtom.overlap_fraction(sparse, dense) == 1.0
 
 
+def test_overlap_measures_east_west_gaps_in_miles_not_degrees():
+    # At 40N a degree of longitude is ~53 miles, not ~69, so 0.45 mile east is 0.0085 degrees.
+    # Taken as degrees of latitude, that gap would look like 0.59 mile.
+    road = line(LatLon(39.5, -100.0), LatLon(40.5, -100.0), 200)
+    east = 0.45 * DEG_LAT_PER_MILE / math.cos(math.radians(40.0))
+    beside = [LatLon(p.lat, p.lon + east) for p in road]
+    assert tomtom.overlap_fraction(beside, road) == 1.0
+
+
+def test_routes_that_meet_only_at_their_ends_do_not_overlap():
+    # Samples sit mid-slice, so the start and end every route shares are never counted.
+    north, south = LatLon(36.0, -95.0), LatLon(34.0, -95.0)
+    a = line(WEST, north, 500) + line(north, EAST, 500)[1:]
+    b = line(WEST, south, 500) + line(south, EAST, 500)[1:]
+    assert tomtom.overlap_fraction(a, b) == 0.0
+
+
 def test_overlap_is_fast_on_two_long_dense_routes():
     def wiggly(miles_north: float, n: int = 10_000) -> list[LatLon]:
         # ~1,000 miles east from (35, -100), gently curving
@@ -158,6 +175,13 @@ def test_via_points_start_from_halfway_along_the_route_by_distance():
     left, right = tomtom.offset_via_points(route, WEST, EAST, 0.15)
     assert (left.lat + right.lat) / 2 == pytest.approx(36.0)
     assert left.lon == pytest.approx(-95.0)
+
+
+def test_via_points_are_offset_by_the_straight_line_trip_not_the_route():
+    bend = LatLon(37.0, -95.0)  # the route is 10% longer than the straight line
+    route = line(WEST, bend, 500) + line(bend, EAST, 500)[1:]
+    for p in tomtom.offset_via_points(route, WEST, EAST, 0.15):
+        assert haversine_m(bend, p) == pytest.approx(0.15 * haversine_m(WEST, EAST), rel=0.001)
 
 
 # Trips below run west to east along latitude 35, so "left" of the trip is north.
@@ -240,6 +264,37 @@ def test_a_tomtom_alternative_on_the_same_road_as_a_faster_one_is_dropped():
     assert fake.vias == []
 
 
+def test_tomtom_routes_are_sorted_before_filtering():
+    # A near copy of the fastest route listed first: the copy is the one to drop.
+    routes = [drive("r1", shifted(FASTEST, 0.2), 1.01), drive("r0", FASTEST)]
+    assert [r.id for r in ensure(routes, FakeTomTom())] == ["r0"]
+
+
+def test_overlap_is_the_share_of_the_candidate_that_runs_along_a_kept_route():
+    # The fastest road, except for a loop 50 miles north around 28 miles of it. 84% of the
+    # loop route runs along the fastest one, while 96% of the fastest runs along the loop route.
+    leave, top, rejoin = LatLon(35.0, -95.25), LatLon(35.0 + 50 * DEG_LAT_PER_MILE, -95.0), LatLon(35.0, -94.75)
+    loop = line(WEST, leave, 500) + line(leave, top, 100)[1:] + line(top, rejoin, 100)[1:] + line(rejoin, EAST, 500)[1:]
+    assert tomtom.overlap_fraction(loop, FASTEST) == pytest.approx(0.84, abs=0.01)
+    assert tomtom.overlap_fraction(FASTEST, loop) == pytest.approx(0.96, abs=0.01)
+    assert [r.id for r in ensure([drive("r0", FASTEST), drive("r1", loop)], FakeTomTom())] == ["r0", "r1"]
+
+
+def test_a_route_exactly_90_percent_along_a_kept_one_is_kept():
+    # Ten samples ~5 miles apart; one lands on a 4 mile stretch a mile north of the kept road.
+    deg_lon_per_mile = DEG_LAT_PER_MILE / math.cos(math.radians(35.0))
+
+    def at(miles_east: float, miles_north: float) -> LatLon:
+        return LatLon(35.0 + miles_north * DEG_LAT_PER_MILE, -100.0 + miles_east * deg_lon_per_mile)
+
+    road = line(at(0, 0), at(50, 0), 100)
+    bypass = line(at(0, 0), at(20, 0), 40) + [at(20, 1), at(24, 1)] + line(at(24, 0), at(50, 0), 60)
+    assert tomtom.overlap_fraction(bypass, road) == 0.9
+    routes = [drive("r0", road), drive("r1", bypass)]
+    kept = tomtom.ensure_three_routes(routes, at(0, 0), at(50, 0), T0, 20_000, "test-key", client=FakeTomTom().client)
+    assert [r.id for r in kept] == ["r0", "r1"]
+
+
 def test_a_tomtom_alternative_over_one_and_a_half_times_slower_is_dropped():
     fast = drive("r0", FASTEST)
     slow = drive("r1", NORTHERN)
@@ -252,6 +307,14 @@ def test_exactly_one_and_a_half_times_slower_is_kept():
     slow = drive("r1", NORTHERN)
     slow.duration_s = fast.duration_s * 1.5
     assert [r.id for r in ensure([fast, slow], FakeTomTom())] == ["r0", "r1"]
+
+
+def test_the_time_limit_is_against_the_fastest_route_not_the_last_kept():
+    fast, slower, slowest = drive("r0", FASTEST), drive("r1", NORTHERN), drive("r2", SOUTHERN)
+    slower.duration_s = fast.duration_s * 1.2  # 12 h against 10 h
+    slowest.duration_s = fast.duration_s * 1.6  # 16 h: within 1.5x of 12 h, not of 10 h
+    routes = ensure([fast, slower, slowest], FakeTomTom(fallbacks()))
+    assert [r.id for r in routes] == ["r0", "via15L-0", "r1"]
 
 
 def attempt(via: LatLon) -> str:
@@ -291,6 +354,12 @@ def test_two_tomtom_routes_take_the_faster_of_two_fallbacks():
     routes = ensure([drive("r0", FASTEST), drive("r1", SOUTHERN)], fake)
     assert [r.id for r in routes] == ["r0", "r1", "via15L-0"]
     assert len(fake.vias) == 2
+
+
+def test_the_faster_fallback_takes_the_last_slot_even_when_it_is_on_the_right():
+    fake = FakeTomTom(lambda via: (through(via), 1.2 if attempt(via) == "L15" else 1.0))
+    routes = ensure([drive("r0", FASTEST), drive("r1", NORTHERN)], fake)
+    assert [r.id for r in routes] == ["r0", "r1", "via15R-0"]
 
 
 def test_a_fallback_on_the_same_road_as_the_fastest_route_is_dropped():
