@@ -6,15 +6,18 @@
   --heat-error: var(--ink);
   --heat-track: var(--line-strong);
   --heat-shadow: var(--shadow-float);
-  --heat-radius: var(--radius);
+  --heat-radius: var(--radius-lg);
+  --heat-thumb: 18px;
+  --heat-rail: 4px;
+  --heat-thumb-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
   --heat-inset: var(--space-3);
-  --heat-bar-width: 780px;
+  --heat-bar-width: 900px;
   --heat-pad: var(--space-3);
   --heat-gap: 6px;
   --heat-legend-gap: var(--space-1) var(--space-3);
   --heat-font: var(--text-sm);
   --heat-font-small: var(--text-xs);
-  --heat-font-time: var(--text-base);
+  --heat-font-time: var(--text-lg);
   --heat-swatch: 10px;
   --heat-switch-w: 26px;
   --heat-switch-h: 14px;
@@ -102,7 +105,7 @@
 
 .heat-time {
   font-size: var(--heat-font-time);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--weight-bold);
   font-variant-numeric: tabular-nums;
 }
 
@@ -112,11 +115,58 @@
   font-size: var(--heat-font);
 }
 
+/* A thin grey rail with a black knob, drawn the same in every browser */
 .heat-slider input[type='range'] {
   width: 100%;
+  height: var(--heat-thumb);
   margin: 0;
-  accent-color: var(--heat-accent);
+  background: transparent;
   cursor: pointer;
+  appearance: none;
+}
+
+.heat-slider input[type='range']::-webkit-slider-runnable-track {
+  height: var(--heat-rail);
+  border-radius: var(--radius-pill);
+  background: var(--heat-track);
+}
+
+.heat-slider input[type='range']::-moz-range-track {
+  height: var(--heat-rail);
+  border-radius: var(--radius-pill);
+  background: var(--heat-track);
+}
+
+.heat-slider input[type='range']::-webkit-slider-thumb {
+  width: var(--heat-thumb);
+  height: var(--heat-thumb);
+  margin-top: calc((var(--heat-rail) - var(--heat-thumb)) / 2);
+  border: 3px solid var(--surface);
+  border-radius: 50%;
+  background: var(--heat-accent);
+  box-shadow: var(--heat-thumb-shadow);
+  appearance: none;
+}
+
+.heat-slider input[type='range']::-moz-range-thumb {
+  width: var(--heat-thumb);
+  height: var(--heat-thumb);
+  box-sizing: border-box;
+  border: 3px solid var(--surface);
+  border-radius: 50%;
+  background: var(--heat-accent);
+  box-shadow: var(--heat-thumb-shadow);
+}
+
+.heat-slider input[type='range']:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.heat-slider input[type='range']:focus-visible {
+  outline: 2px solid var(--heat-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-pill);
 }
 
 .heat-scale {
@@ -153,8 +203,17 @@
   font-size: var(--heat-font-small);
 }
 
-/* Phones keep it short: the hour scale and the note go */
+/* Phones keep it short: the hour scale and the note go, the legend fits one line */
 @media (max-width: 899px) {
+  .heat-panel {
+    --heat-font-time: var(--text-base);
+    --heat-legend-gap: var(--space-1) var(--space-2);
+  }
+
+  .heat-legend {
+    font-size: var(--heat-font-small);
+  }
+
   .heat-scale,
   .heat-note {
     display: none;
@@ -224,7 +283,7 @@
 }
 
 /* Not enough width for the worst-hour line beside the clock: it takes its own row */
-@media (min-width: 900px) and (max-width: 1279px) {
+@media (min-width: 900px) and (max-width: 1379px) {
   .heat-panel {
     grid-template-columns: auto minmax(0, 1fr);
     grid-template-areas:
@@ -258,12 +317,18 @@
 }
 
 .heat-jump {
-  font: inherit;
   margin-left: auto;
-  padding: 0;
-  border: 0;
+  padding: 2px var(--space-3);
+  font: inherit;
+  font-size: var(--heat-font-small);
+  font-weight: var(--weight-semibold);
+  color: var(--heat-text);
   background: none;
-  color: var(--heat-accent);
-  text-decoration: underline;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
   cursor: pointer;
+}
+
+.heat-jump:hover {
+  border-color: var(--heat-accent);
 }
