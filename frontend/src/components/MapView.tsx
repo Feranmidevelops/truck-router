@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { LngLatBounds, Map as MapLibreMap, NavigationControl, type GeoJSONSource } from 'maplibre-gl'
+import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '../lib/maplibre'
 import type { FeatureCollection, LineString, Point } from 'geojson'
@@ -9,6 +10,10 @@ import { LEVELS, LEVEL_COLOR, LEVEL_LABEL, levelColorExpression } from '../lib/r
 // OpenFreeMap is free and needs no key. Override with VITE_MAP_STYLE_URL if it's ever down.
 const STYLE_URL = import.meta.env.VITE_MAP_STYLE_URL || 'https://tiles.openfreemap.org/styles/liberty'
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
+
+// Selection lives in feature-state, so changing it restyles on the GPU without
+// sending any geometry back to the map's worker.
+const SELECTED: ExpressionSpecification = ['boolean', ['feature-state', 'selected'], false]
 
 interface Props {
   plan: Plan | null
@@ -38,8 +43,10 @@ export function MapView({ plan, selectedRouteId, onSelectRoute }: Props) {
     map.addControl(new NavigationControl({ showCompass: false }), 'top-right')
 
     map.on('load', () => {
-      map.addSource('routes', { type: 'geojson', data: EMPTY })
-      map.addSource('checkpoints', { type: 'geojson', data: EMPTY })
+      // promoteId lets setFeatureState address features by route id. Checkpoints
+      // share their route's id, so one call restyles every checkpoint on a route.
+      map.addSource('routes', { type: 'geojson', data: EMPTY, promoteId: 'id' })
+      map.addSource('checkpoints', { type: 'geojson', data: EMPTY, promoteId: 'routeId' })
 
       // TODO(day 3): add the heatmap source and layer here, before the route layers,
       // so routes draw on top.
@@ -49,26 +56,55 @@ export function MapView({ plan, selectedRouteId, onSelectRoute }: Props) {
         type: 'line',
         source: 'routes',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: { 'line-color': '#ffffff', 'line-width': ['case', ['get', 'selected'], 10, 7] },
+        paint: { 'line-color': '#ffffff', 'line-width': 7 },
       })
       map.addLayer({
         id: 'routes-line',
         type: 'line',
         source: 'routes',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': ['case', ['get', 'selected'], '#1f5fbf', '#7d8aa0'],
-          'line-width': ['case', ['get', 'selected'], 6, 4],
-        },
+        paint: { 'line-color': '#7d8aa0', 'line-width': 4 },
       })
+      // The selected route is drawn a second time, above the others, so it stays on
+      // top where routes share a road. Only the selected one is visible here.
+      map.addLayer({
+        id: 'routes-selected-casing',
+        type: 'line',
+        source: 'routes',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#ffffff', 'line-width': 10, 'line-opacity': ['case', SELECTED, 1, 0] },
+      })
+      map.addLayer({
+        id: 'routes-selected',
+        type: 'line',
+        source: 'routes',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#1f5fbf', 'line-width': 6, 'line-opacity': ['case', SELECTED, 1, 0] },
+      })
+      // Same idea for checkpoints: faded ones for the other routes, then the selected
+      // route's on top.
       map.addLayer({
         id: 'checkpoints',
         type: 'circle',
         source: 'checkpoints',
         paint: {
           'circle-color': levelColorExpression,
-          'circle-radius': ['case', ['get', 'selected'], 6, 4],
-          'circle-opacity': ['case', ['get', 'selected'], 1, 0.55],
+          'circle-radius': ['case', SELECTED, 6, 4],
+          'circle-opacity': ['case', SELECTED, 0, 0.55],
+          'circle-stroke-opacity': ['case', SELECTED, 0, 0.55],
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 1.5,
+        },
+      })
+      map.addLayer({
+        id: 'checkpoints-selected',
+        type: 'circle',
+        source: 'checkpoints',
+        paint: {
+          'circle-color': levelColorExpression,
+          'circle-radius': 6,
+          'circle-opacity': ['case', SELECTED, 1, 0],
+          'circle-stroke-opacity': ['case', SELECTED, 1, 0],
           'circle-stroke-color': '#ffffff',
           'circle-stroke-width': 1.5,
         },
@@ -93,11 +129,22 @@ export function MapView({ plan, selectedRouteId, onSelectRoute }: Props) {
     }
   }, [])
 
+  // Geometry is uploaded only when the plan changes, never on selection.
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-    ;(map.getSource('routes') as GeoJSONSource).setData(routesGeoJSON(plan, selectedRouteId))
-    ;(map.getSource('checkpoints') as GeoJSONSource).setData(checkpointsGeoJSON(plan, selectedRouteId))
+    ;(map.getSource('routes') as GeoJSONSource).setData(routesGeoJSON(plan))
+    ;(map.getSource('checkpoints') as GeoJSONSource).setData(checkpointsGeoJSON(plan))
+  }, [plan, ready])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !plan) return
+    for (const r of plan.routes) {
+      const state = { selected: r.id === selectedRouteId }
+      map.setFeatureState({ source: 'routes', id: r.id }, state)
+      map.setFeatureState({ source: 'checkpoints', id: r.id }, state)
+    }
   }, [plan, selectedRouteId, ready])
 
   useEffect(() => {
@@ -123,29 +170,26 @@ export function MapView({ plan, selectedRouteId, onSelectRoute }: Props) {
   )
 }
 
-// Selected route last so it draws on top.
-function routesGeoJSON(plan: Plan | null, selectedId: string | null): FeatureCollection<LineString> {
+function routesGeoJSON(plan: Plan | null): FeatureCollection<LineString> {
   if (!plan) return { type: 'FeatureCollection', features: [] }
-  const routes = [...plan.routes].sort((a, b) => Number(a.id === selectedId) - Number(b.id === selectedId))
   return {
     type: 'FeatureCollection',
-    features: routes.map((r) => ({
+    features: plan.routes.map((r) => ({
       type: 'Feature',
-      properties: { id: r.id, selected: r.id === selectedId },
+      properties: { id: r.id },
       geometry: { type: 'LineString', coordinates: r.geometry },
     })),
   }
 }
 
-function checkpointsGeoJSON(plan: Plan | null, selectedId: string | null): FeatureCollection<Point> {
+function checkpointsGeoJSON(plan: Plan | null): FeatureCollection<Point> {
   if (!plan) return { type: 'FeatureCollection', features: [] }
-  const routes = [...plan.routes].sort((a, b) => Number(a.id === selectedId) - Number(b.id === selectedId))
   return {
     type: 'FeatureCollection',
-    features: routes.flatMap((r) =>
+    features: plan.routes.flatMap((r) =>
       r.checkpoints.map((c) => ({
         type: 'Feature' as const,
-        properties: { routeId: r.id, index: c.index, level: c.risk.level, selected: r.id === selectedId },
+        properties: { routeId: r.id, index: c.index, level: c.risk.level },
         geometry: { type: 'Point' as const, coordinates: [c.lon, c.lat] },
       })),
     ),
