@@ -77,7 +77,10 @@ export default function App() {
     scrollToElement(card, 'center')
   }
 
-  const trip = loading && planning ? tripFromRequest(planning) : plan ? tripFromPlan(plan) : null
+  // The trip being planned, else the one on screen, else the one that just failed
+  const failed = !loading && !plan && error !== null
+  const trip =
+    (loading || failed) && planning ? tripFromRequest(planning) : plan ? tripFromPlan(plan) : null
 
   return (
     <>
@@ -89,7 +92,7 @@ export default function App() {
         </Hero>
         {/* The trip bar sticks to the top of the window anywhere below the hero */}
         <div ref={belowHero} className="below-hero">
-          <TripBar trip={trip} planning={loading} onEdit={editTrip} />
+          <TripBar trip={trip} status={loading ? 'planning' : failed ? 'failed' : 'ready'} onEdit={editTrip} />
           <Workspace
             plan={plan}
             loading={loading}

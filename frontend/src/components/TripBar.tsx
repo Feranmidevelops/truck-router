@@ -4,14 +4,15 @@ import './TripBar.css'
 
 interface Props {
   trip: TripSummary | null
-  planning: boolean
+  // planning: a plan for this trip is on its way. failed: it came back with an error.
+  status: 'planning' | 'failed' | 'ready'
   onEdit: () => void // back to the form in the hero
 }
 
 const pounds = new Intl.NumberFormat('en-US')
 
 // Sticks to the top of the window below the hero: the trip on screen and a way back to the form
-export function TripBar({ trip, planning, onEdit }: Props) {
+export function TripBar({ trip, status, onEdit }: Props) {
   return (
     <div className="trip-bar">
       <div className="trip-bar-inner">
@@ -28,11 +29,13 @@ export function TripBar({ trip, planning, onEdit }: Props) {
               </span>
             </span>
             <span className="trip-meta">
-              {planning ? (
+              {status === 'planning' ? (
                 <span className="trip-planning">
                   <span className="spinner" aria-hidden />
                   Planning…
                 </span>
+              ) : status === 'failed' ? (
+                <span>Not planned: see the message below</span>
               ) : (
                 <>
                   <span>Leaves {trip.departure}</span>
