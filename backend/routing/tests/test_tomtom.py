@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import math
 from pathlib import Path
+import threading
 import time
 
 import httpx
@@ -128,6 +129,119 @@ def test_reverse_geocode_errors_are_routing_errors():
     client = reverse_client(lambda r: httpx.Response(403, json={"detailedError": {"code": "Forbidden"}}))
     with pytest.raises(tomtom.RoutingError, match="403"):
         tomtom.reverse_geocode(LatLon(36.7, -104.0), "test-key", client=client)
+
+
+class RecordingCache(dict):
+    """A dict with Django's cache.set signature, keeping each timeout it was given."""
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.timeouts: dict = {}
+
+    def set(self, key, value, timeout=None):
+        self[key] = value
+        self.timeouts[key] = timeout
+
+
+def town_per_cell(request: httpx.Request) -> httpx.Response:
+    """Names every place after its rounded position, e.g. "Town 36.7 -104.0, NM"."""
+    lat, lon = request.url.path.split("/")[-1].removesuffix(".json").split(",")
+    payload = copy.deepcopy(CAPULIN)
+    payload["addresses"][0]["address"]["municipality"] = f"Town {float(lat)} {float(lon)}"
+    return httpx.Response(200, json=payload)
+
+
+def test_place_names_round_positions_and_ask_once_per_place():
+    seen: list[httpx.Request] = []
+    near_capulin = [LatLon(36.71, -104.02), LatLon(36.68, -103.97)]  # both round to 36.7,-104.0
+    positions = [near_capulin[0], LatLon(35.2, -101.8), near_capulin[1]]
+    names = tomtom.place_names(positions, "test-key", client=reverse_client(town_per_cell, seen))
+    assert names == ["Town 36.7 -104.0, NM", "Town 35.2 -101.8, NM", "Town 36.7 -104.0, NM"]
+    assert sorted(r.url.path for r in seen) == [
+        "/search/2/reverseGeocode/35.200000,-101.800000.json",
+        "/search/2/reverseGeocode/36.700000,-104.000000.json",
+    ]
+
+
+def test_place_names_are_cached_for_30_days_and_a_cache_hit_sends_no_request():
+    cache = RecordingCache()
+    seen: list[httpx.Request] = []
+    client = reverse_client(town_per_cell, seen)
+    tomtom.place_names([LatLon(36.7, -104.0)], "test-key", cache=cache, client=client)
+    assert cache == {"place:36.7,-104.0": "Town 36.7 -104.0, NM"}
+    assert cache.timeouts == {"place:36.7,-104.0": 30 * 24 * 60 * 60}
+
+    again = tomtom.place_names([LatLon(36.72, -103.96)], "test-key", cache=cache, client=client)
+    assert again == ["Town 36.7 -104.0, NM"]
+    assert len(seen) == 1
+
+
+def test_no_town_is_cached_too_and_comes_back_as_none():
+    cache = RecordingCache()
+    seen: list[httpx.Request] = []
+    client = reverse_client(lambda r: httpx.Response(200, json={"addresses": []}), seen)
+    assert tomtom.place_names([LatLon(36.7, -104.0)], "test-key", cache=cache, client=client) == [None]
+    assert tomtom.place_names([LatLon(36.7, -104.0)], "test-key", cache=cache, client=client) == [None]
+    assert cache == {"place:36.7,-104.0": ""}
+    assert len(seen) == 1
+
+
+@pytest.mark.parametrize(
+    "fail",
+    [
+        lambda r: httpx.Response(500, text="Internal error for key test-key"),
+        lambda r: httpx.Response(200, text="<html>not json</html>"),
+        lambda r: httpx.Response(200, json={"addresses": [{"position": "36.7,-104.0"}]}),
+        lambda r: httpx.Response(200, json=["not", "an", "object"]),
+    ],
+    ids=["server error", "not json", "no address", "unexpected shape"],
+)
+def test_a_failed_lookup_is_none_is_not_cached_and_does_not_leak_the_key(fail, caplog):
+    cache = RecordingCache()
+    seen: list[httpx.Request] = []
+    client = reverse_client(fail, seen)
+    positions = [LatLon(36.7, -104.0), LatLon(35.2, -101.8)]
+    assert tomtom.place_names(positions, "test-key", cache=cache, client=client) == [None, None]
+    assert cache == {}
+    assert "No place name for" in caplog.text
+    assert "test-key" not in caplog.text
+    tomtom.place_names(positions, "test-key", cache=cache, client=client)
+    assert len(seen) == 4  # asked again next time
+
+
+def test_a_network_error_is_none():
+    def unreachable(request):
+        raise httpx.ConnectError("no route to host", request=request)
+
+    assert tomtom.place_names([LatLon(36.7, -104.0)], "test-key", client=reverse_client(unreachable)) == [None]
+
+
+def test_place_names_ask_for_at_most_max_lookups_places_in_input_order():
+    cache = RecordingCache({"place:30.0,-100.0": "Cached Town, TX"})
+    seen: list[httpx.Request] = []
+    positions = [LatLon(30.0, -100.0)] + [LatLon(31.0 + i, -100.0) for i in range(8)]
+    names = tomtom.place_names(positions, "test-key", cache=cache, client=reverse_client(town_per_cell, seen))
+    assert len(seen) == tomtom.MAX_PLACE_LOOKUPS == 6
+    assert names[0] == "Cached Town, TX"  # from the cache, so it doesn't count
+    assert names[1:7] == [f"Town {31.0 + i} -100.0, NM" for i in range(6)]
+    assert names[7:] == [None, None]
+
+
+def test_place_names_are_looked_up_at_the_same_time():
+    all_in_flight = threading.Barrier(3, timeout=5)
+
+    def answer(request):
+        all_in_flight.wait()  # raises unless the other two are requested meanwhile
+        return town_per_cell(request)
+
+    positions = [LatLon(31.0, -100.0), LatLon(32.0, -100.0), LatLon(33.0, -100.0)]
+    assert None not in tomtom.place_names(positions, "test-key", client=reverse_client(answer))
+
+
+def test_no_positions_send_no_request():
+    seen: list[httpx.Request] = []
+    assert tomtom.place_names([], "test-key", client=reverse_client(town_per_cell, seen)) == []
+    assert seen == []
 
 
 def test_vehicle_weight_adds_tare_and_converts_to_kg():

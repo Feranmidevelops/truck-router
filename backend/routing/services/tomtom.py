@@ -20,10 +20,12 @@ from __future__ import annotations
 
 from bisect import bisect_left, bisect_right
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from functools import cached_property
+from functools import cached_property, partial
 from itertools import accumulate
+import logging
 import math
 from operator import attrgetter
 from urllib.parse import quote
@@ -31,7 +33,7 @@ from urllib.parse import quote
 import httpx
 
 from .geometry import METERS_PER_MILE, cumulative_m, haversine_m, point_at_distance
-from .types import LatLon, RouteOption, TimingPoint
+from .types import Cache, LatLon, RouteOption, TimingPoint
 
 BASE_URL = "https://api.tomtom.com"
 TRUCK_TARE_LB = 35_000  # assumed empty tractor-trailer weight; the user enters cargo weight
@@ -54,6 +56,9 @@ REQUEST_TIMEOUT_S = 20
 FALLBACK_TIMEOUT_S = 10
 # A town name only decorates the journey report, so a slow answer is not worth waiting for
 PLACE_TIMEOUT_S = 3
+MAX_PLACE_LOOKUPS = 6  # reverse geocodes per plan, at most; stretches past that say "at mile N"
+PLACE_DECIMALS = 1  # 0.1 deg, about 7 miles: close enough to say "near" a town
+PLACE_CACHE_S = 30 * 24 * 60 * 60  # towns don't move
 
 OVERLAP_STEP_M = 5 * METERS_PER_MILE  # sample spacing along the candidate route
 OVERLAP_NEAR_M = 0.5 * METERS_PER_MILE  # a sample this close to the other route counts as shared road
@@ -67,6 +72,8 @@ LOOP_MAX_M = 0.25 * METERS_PER_MILE
 _M_PER_DEG_LAT = haversine_m(LatLon(0, 0), LatLon(1, 0))
 
 _duration = attrgetter("duration_s")
+
+log = logging.getLogger(__name__)
 
 
 class RoutingError(Exception):
@@ -147,6 +154,61 @@ def reverse_geocode(
         if town:
             return f"{town}, {state}" if state else town
     return None
+
+
+def place_names(
+    positions: list[LatLon],
+    api_key: str,
+    *,
+    cache: Cache | None = None,
+    client: httpx.Client | None = None,
+    max_lookups: int = MAX_PLACE_LOOKUPS,
+) -> list[str | None]:
+    """The town near each position, or None, in input order. Never raises.
+
+    Positions are rounded to 0.1 degree (about 7 miles) first, so stretches that start in the
+    same place, on any route, share one request and one cache entry. Answers are cached for 30
+    days, "no town here" included; a failed request isn't, and its positions get None. Only the
+    first `max_lookups` places missing from the cache, in input order, are asked for, all at
+    once on one client; the rest get None.
+    """
+    cells = [LatLon(round(p.lat, PLACE_DECIMALS), round(p.lon, PLACE_DECIMALS)) for p in positions]
+    names: dict[LatLon, str | None] = {}
+    todo: list[LatLon] = []
+    for cell in dict.fromkeys(cells):  # unique, in order
+        cached = cache.get(_place_key(cell)) if cache is not None else None
+        if cached is not None:
+            names[cell] = cached or None  # "" is TomTom saying there's no town there
+        elif len(todo) < max_lookups:
+            todo.append(cell)
+    if todo:
+        own = client is None
+        client = client or httpx.Client()
+        try:
+            with ThreadPoolExecutor(max_workers=len(todo)) as pool:
+                found = list(pool.map(partial(_place_name, api_key=api_key, client=client), todo))
+        finally:
+            if own:
+                client.close()
+        for cell, (answered, name) in zip(todo, found):
+            names[cell] = name
+            if answered and cache is not None:
+                cache.set(_place_key(cell), name or "", PLACE_CACHE_S)
+    return [names.get(cell) for cell in cells]
+
+
+def _place_name(cell: LatLon, *, api_key: str, client: httpx.Client) -> tuple[bool, str | None]:
+    """(answered, name). A failed request is logged and comes back as (False, None)."""
+    try:
+        return True, reverse_geocode(cell, api_key, client=client)
+    except (RoutingError, KeyError, TypeError, AttributeError) as exc:
+        # An HTTP error can quote the request URL, and the key is in its query string
+        log.warning("No place name for %s: %s", cell, str(exc).replace(api_key, "<TOMTOM_API_KEY>"))
+        return False, None
+
+
+def _place_key(cell: LatLon) -> str:
+    return f"place:{cell.lat:.{PLACE_DECIMALS}f},{cell.lon:.{PLACE_DECIMALS}f}"
 
 
 def calculate_routes(
