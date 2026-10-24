@@ -14,7 +14,7 @@
   --cp-font-small: var(--text-xs);
   --cp-dot-size: 8px;
   --cp-level-size: 10px;
-  --cp-load-text: #8a4b00;
+  --cp-load-text: var(--ink);
 
   /* Above the map's overlays and controls (z-index 2). */
   z-index: 3;

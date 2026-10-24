@@ -3,7 +3,7 @@
   --heat-text: var(--ink);
   --heat-muted: var(--muted);
   --heat-accent: var(--ink);
-  --heat-error: var(--danger);
+  --heat-error: var(--ink);
   --heat-track: var(--line-strong);
   --heat-shadow: var(--shadow-float);
   --heat-radius: var(--radius);

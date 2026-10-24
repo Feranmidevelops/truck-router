@@ -17,7 +17,7 @@ export const RouteList = memo(function RouteList({ plan, selectedRouteId, onSele
   return (
     <section className="routes" aria-label="Route options">
       {noSafeRoute && (
-        <p key={plan.plan_id} className="banner banner-danger" role="alert">
+        <p key={plan.plan_id} className="banner banner-alert" role="alert">
           Every route crosses No Travel conditions. Consider a later departure.
         </p>
       )}
@@ -44,7 +44,7 @@ export const RouteList = memo(function RouteList({ plan, selectedRouteId, onSele
             <span className="route-head">
               <strong>{r.label}</strong>
               {recommended && (
-                <span className={noSafeRoute ? 'badge badge-danger' : 'badge'}>
+                <span className="badge">
                   {noSafeRoute ? 'Least risky' : 'Recommended'}
                 </span>
               )}

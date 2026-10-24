@@ -6,9 +6,9 @@
   --map-ui-pad-y: var(--space-2);
   --map-ui-pad-x: var(--space-3);
   --map-ui-font: var(--text-md);
-  --map-ui-warn-bg: #fff4e5;
-  --map-ui-warn-text: #8a4b00;
-  --map-ui-warn-border: #f5c98b;
+  --map-ui-warn-bg: var(--surface);
+  --map-ui-warn-text: var(--ink);
+  --map-ui-warn-border: var(--ink);
   --map-ui-stale-opacity: var(--stale-opacity);
   --map-ui-fade: var(--duration);
 }

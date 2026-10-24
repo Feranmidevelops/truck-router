@@ -13,12 +13,6 @@
   --surface-sunken: #ebebed; /* chips, skeletons, tracks */
   --on-dark: #ffffff;
   --on-dark-muted: rgb(255 255 255 / 0.8);
-  --danger: #b42318;
-  --danger-bg: #fdeceb;
-  --danger-border: #f4c4bf;
-  --sample-bg: #fff6dd;
-  --sample-border: #eed58f;
-  --sample-text: #6b4e00;
   --stale-opacity: 0.45; /* the last plan, still on screen while a new one loads */
 
   /* Type: Archivo for everything; the display cut is the same family at its widest */
@@ -147,14 +141,36 @@ body {
   background: var(--surface);
 }
 
+/* Errors are black, not red: red would read as a risk level. A heavier border and the
+   alert mark carry the meaning instead. */
 .field input[aria-invalid='true'] {
-  border-color: var(--danger);
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
 }
 
 .field-error {
   margin: calc(-1 * var(--space-1)) 0 0;
   font-size: var(--text-sm);
-  color: var(--danger);
+  font-weight: var(--weight-medium);
+}
+
+.field-error::before,
+.place-status.failed::before,
+.banner-alert::before {
+  content: '!';
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  margin-right: 0.4em;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--on-dark);
+  font-size: 0.85em;
+  font-weight: var(--weight-heavy);
+  line-height: 1;
+  vertical-align: -0.1em;
 }
 
 .row {
@@ -203,27 +219,26 @@ body {
 }
 
 .place-status.failed {
-  color: var(--danger);
+  color: var(--ink);
+  font-weight: var(--weight-medium);
 }
 
 .banner {
   margin: 0;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
   font-size: var(--text-md);
+  background: var(--surface-alt);
+  color: var(--ink);
 }
 
-.banner-sample {
-  background: var(--sample-bg);
-  border-color: var(--sample-border);
-  color: var(--sample-text);
-}
-
-.banner-danger {
-  background: var(--danger-bg);
-  border-color: var(--danger-border);
-  color: var(--danger);
+.banner-alert {
+  display: flex;
+  align-items: baseline;
+  border-color: var(--ink);
+  box-shadow: inset 3px 0 0 var(--ink);
+  background: var(--surface);
 }
 
 .plan-error {
@@ -457,11 +472,6 @@ body {
   white-space: nowrap;
 }
 
-.badge-danger {
-  background: var(--danger-bg);
-  color: var(--danger);
-}
-
 .route-stats,
 .route-risk {
   display: flex;
@@ -574,7 +584,6 @@ body {
 .load-mark {
   font-weight: var(--weight-bold);
   text-decoration: none;
-  color: var(--danger);
   cursor: help;
 }
 
