@@ -71,8 +71,8 @@ def test_summarize_route_all_low():
 
 
 def test_ranking_key_order():
-    s = summary("a", nt=1.24, severe=2.26, high=3.0, avg=1.5, duration=9000)
-    assert ranking_key(s) == (1.2, 2.3, 3.0, 1.5, 9000)
+    s = summary("a", nt=1.24, severe=2.26, high=3.0, avg=1.234, duration=9000)
+    assert ranking_key(s) == (1.2, 2.3, 3.0, 1.23, 9000)
 
 
 def test_ranking_key_treats_missing_levels_as_zero():
@@ -119,6 +119,24 @@ def test_average_risk_ignores_float_noise():
     )
     assert order == ["b", "a"]
     assert "time" in reason.lower()
+
+
+@pytest.mark.parametrize(
+    ("fast_avg", "expected_order", "expected_reason"),
+    [
+        # 0.804 rounds to 0.80, ties with the slow route, so time decides
+        (0.804, ["fast", "slow"], "Shorter travel time (8 h 20 min vs 11 h 7 min)"),
+        # 0.806 rounds to 0.81, so the slow route's lower average wins
+        (0.806, ["slow", "fast"], "Lower average risk (0.80 vs 0.81)"),
+    ],
+    ids=["same-at-2-decimals", "apart-at-2-decimals"],
+)
+def test_average_risk_is_compared_at_two_decimals(fast_avg, expected_order, expected_reason):
+    order, reason = rank_routes(
+        [summary("slow", avg=0.80, duration=40_000), summary("fast", avg=fast_avg, duration=30_000)]
+    )
+    assert order == expected_order
+    assert reason == expected_reason
 
 
 def test_no_travel_miles_rank_before_everything():
