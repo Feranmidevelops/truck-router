@@ -1,6 +1,7 @@
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 import math
+import re
 
 import pytest
 
@@ -160,6 +161,20 @@ def test_a_future_departure_is_used_as_given(faked, monkeypatch):
         assert abs(arrival - (asked + timedelta(seconds=route["duration_s"]))) < timedelta(seconds=1)
     heatmap = planner.build_heatmap(data["plan_id"])
     assert datetime.fromisoformat(heatmap["start_time"]) == T0
+
+
+def test_plan_and_heatmap_log_how_long_each_step_took(faked, caplog):
+    data = plan()
+    planner.build_heatmap(data["plan_id"])
+    lines = [r.getMessage() for r in caplog.records if r.name == "routing.services.planner"]
+    assert len(lines) == 2
+    plan_line, heatmap_line = lines
+    assert plan_line.startswith(f"Plan {data['plan_id']}: 3 routes, ")
+    steps = ("routing", "fallback routes", "checkpoints", "weather", "risk + ranking", "simplify")
+    timings = ", ".join(rf"{re.escape(step)} \d+\.\d\d s" for step in steps)
+    assert re.search(rf" s total \({timings}\)$", plan_line)
+    assert heatmap_line.startswith(f"Heatmap {data['plan_id']}: 3 points, ")
+    assert re.search(r" s total \(grid \d+\.\d\d s, weather \d+\.\d\d s, risk \d+\.\d\d s\)$", heatmap_line)
 
 
 def test_response_lines_are_simplified(faked):
