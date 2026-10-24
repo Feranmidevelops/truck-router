@@ -7,7 +7,7 @@ The response shape here must match frontend/src/api/types.ts.
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 import uuid
 
 from django.conf import settings
@@ -41,12 +41,25 @@ def build_plan(
     o = LatLon(origin["lat"], origin["lon"])
     d = LatLon(destination["lat"], destination["lon"])
     key = settings.TOMTOM_API_KEY
+    # The form accepts a departure up to an hour ago, but TomTom can only leave now. The whole
+    # plan (ETAs, arrival, heatmap start, the departure echoed back) starts at the same instant.
+    now = datetime.now(UTC).replace(microsecond=0)
+    departure = max(departure_time, now).astimezone(departure_time.tzinfo)
 
-    routes = tomtom.calculate_routes(o, d, departure_time, load_weight_lb, key)
-    routes = tomtom.ensure_three_routes(routes, o, d, departure_time, load_weight_lb, key)
+    routes = tomtom.calculate_routes(o, d, departure, load_weight_lb, key)
+    routes = tomtom.ensure_three_routes(routes, o, d, departure, load_weight_lb, key)
     # Every lookup below is keyed by route id, so number them here rather than trust the
-    # routing client to keep TomTom's routes and the fallbacks apart.
-    routes = [replace(r, id=f"r{i}") for i, r in enumerate(routes)]
+    # routing client to keep TomTom's routes and the fallbacks apart. Fallbacks are requested
+    # a few seconds after the first call, so their "now" is reset to the plan's too.
+    routes = [
+        replace(
+            r,
+            id=f"r{i}",
+            departure_time=departure,
+            arrival_time=departure + timedelta(seconds=r.duration_s),
+        )
+        for i, r in enumerate(routes)
+    ]
 
     checkpoints = {
         r.id: geometry.sample_checkpoints(r.points, r.timing, r.departure_time, interval_miles) for r in routes
@@ -77,7 +90,7 @@ def build_plan(
         f"plan:{plan_id}",
         {
             "routes": [shapes[r.id] for r in routes],
-            "departure_time": departure_time,
+            "departure_time": departure,
             "load_weight_lb": load_weight_lb,
         },
         PLAN_TTL_S,
@@ -91,7 +104,7 @@ def build_plan(
         "input": {
             "origin": origin,
             "destination": destination,
-            "departure_time": departure_time.isoformat(),
+            "departure_time": departure.isoformat(),
             "timezone": timezone,
             "load_weight_lb": load_weight_lb,
             "interval_miles": interval_miles,

@@ -8,7 +8,8 @@ from routing.services import corridor, geometry, planner, tomtom, weather
 from routing.services.geometry import METERS_PER_MILE, cumulative_m
 from routing.services.types import LatLon, RouteOption, TimingPoint, WeatherSample
 
-T0 = datetime(2026, 10, 26, 13, tzinfo=timezone.utc)
+# In the future whenever the tests run, since a past departure is moved up to now
+T0 = (datetime.now(timezone.utc) + timedelta(days=2)).replace(minute=0, second=0, microsecond=0)
 DALLAS = {"label": "Dallas, TX", "lat": 32.0, "lon": -97.0}
 NORTH = {"label": "Up the road", "lat": 33.5, "lon": -97.0}
 M_PER_DEG_LAT = 111_195
@@ -81,6 +82,7 @@ def faked(monkeypatch, routes):
     monkeypatch.setattr(tomtom, "ensure_three_routes", lambda found, *a, **k: found)
     monkeypatch.setattr(weather, "fetch_hourly", fake_fetch_hourly)
     monkeypatch.setattr(weather, "sample_at", fake_sample_at)
+    monkeypatch.setattr(corridor, "build_grid", lambda lines: [line[0] for line in lines])
     return routes
 
 
@@ -118,6 +120,46 @@ def test_routes_are_lettered_in_ranked_order(faked):
     assert [r["rank"] for r in routes] == [1, 2, 3]
     assert [r["summary"]["max_level"] for r in routes] == ["LOW", "MODERATE", "HIGH"]
     assert data["recommended_route_id"] == routes[0]["id"]
+
+
+def test_a_past_departure_starts_the_whole_plan_now(faked, monkeypatch):
+    cdt = timezone(timedelta(hours=-5))
+    asked = (datetime.now(timezone.utc) - timedelta(minutes=40)).astimezone(cdt)
+    sent = []
+
+    def calculate_routes(origin, destination, departure, *args, **kwargs):
+        sent.append(departure)
+        return list(faked)
+
+    monkeypatch.setattr(tomtom, "calculate_routes", calculate_routes)
+    before = datetime.now(timezone.utc).replace(microsecond=0)
+    data = plan(departure_time=asked)
+    start = datetime.fromisoformat(data["input"]["departure_time"])
+    assert before <= start <= datetime.now(timezone.utc)
+    assert start.utcoffset() == timedelta(hours=-5)  # still shown in the origin's offset
+    assert sent == [start]
+    for route in data["routes"]:
+        assert datetime.fromisoformat(route["departure_time"]) == start
+        assert datetime.fromisoformat(route["checkpoints"][0]["eta"]) == start
+        assert route["arrival_time"] == route["checkpoints"][-1]["eta"]
+    heatmap = planner.build_heatmap(data["plan_id"])
+    assert datetime.fromisoformat(heatmap["start_time"]) == weather.floor_hour(start)
+
+
+def test_a_future_departure_is_used_as_given(faked, monkeypatch):
+    # TomTom's own departure for a fallback can be a few seconds off; the plan's wins.
+    late = [replace(r, departure_time=T0 + timedelta(seconds=7)) for r in faked]
+    monkeypatch.setattr(tomtom, "ensure_three_routes", lambda *a, **k: late)
+    asked = T0.astimezone(timezone(timedelta(hours=-6)))
+    data = plan(departure_time=asked)
+    assert data["input"]["departure_time"] == asked.isoformat()
+    for route in data["routes"]:
+        assert route["departure_time"] == asked.isoformat()
+        assert route["checkpoints"][0]["eta"] == asked.isoformat()
+        arrival = datetime.fromisoformat(route["arrival_time"])
+        assert abs(arrival - (asked + timedelta(seconds=route["duration_s"]))) < timedelta(seconds=1)
+    heatmap = planner.build_heatmap(data["plan_id"])
+    assert datetime.fromisoformat(heatmap["start_time"]) == T0
 
 
 def test_response_lines_are_simplified(faked):
