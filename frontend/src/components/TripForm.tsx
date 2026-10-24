@@ -33,6 +33,8 @@ export function TripForm({ loading, onSubmit }: Props) {
   const [interval, setIntervalMiles] = useState<PlanRequest['interval_miles']>(25)
 
   const load = parseLoad(loadText)
+  const loadError =
+    load !== null ? null : loadText.trim() ? 'Enter a whole number from 0 to 80,000.' : 'Enter the load in pounds.'
   const ready = origin && destination && departure && load !== null
 
   function submit(e: FormEvent) {
@@ -69,6 +71,8 @@ export function TripForm({ loading, onSubmit }: Props) {
             autoComplete="off"
             value={loadText}
             onChange={(e) => setLoadText(e.target.value)}
+            aria-invalid={loadError !== null}
+            aria-describedby={loadError ? 'load-error' : undefined}
           />
         </div>
         <div className="field">
@@ -84,6 +88,11 @@ export function TripForm({ loading, onSubmit }: Props) {
           </select>
         </div>
       </div>
+      {loadError && (
+        <p id="load-error" className="field-error">
+          {loadError}
+        </p>
+      )}
       <button type="submit" disabled={!ready || loading}>
         {loading ? 'Planning…' : 'Plan routes'}
       </button>

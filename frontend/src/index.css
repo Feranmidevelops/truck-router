@@ -76,6 +76,16 @@ body {
   background: #fff;
 }
 
+.field input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.field-error {
+  margin: -4px 0 0;
+  color: var(--danger);
+  font-size: 0.8rem;
+}
+
 .row {
   display: flex;
   gap: 12px;
