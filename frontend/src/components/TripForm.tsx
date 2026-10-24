@@ -7,6 +7,8 @@ interface Props {
   onSubmit: (req: PlanRequest) => void
 }
 
+const MAX_LOAD_LB = 80000
+
 function defaultDeparture() {
   const d = new Date(Date.now() + 60 * 60 * 1000)
   d.setMinutes(0, 0, 0)
@@ -15,18 +17,27 @@ function defaultDeparture() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+// Pounds as typed ("42350", "42,350"), rounded to a whole number. null if not a number in range.
+function parseLoad(text: string): number | null {
+  const clean = text.replace(/[,\s]/g, '')
+  if (!/^\d+(\.\d+)?$/.test(clean)) return null
+  const lb = Math.round(Number(clean))
+  return lb <= MAX_LOAD_LB ? lb : null
+}
+
 export function TripForm({ loading, onSubmit }: Props) {
   const [origin, setOrigin] = useState<Place | null>(null)
   const [destination, setDestination] = useState<Place | null>(null)
   const [departure, setDeparture] = useState(defaultDeparture)
-  const [load, setLoad] = useState(40000)
+  const [loadText, setLoadText] = useState('40000')
   const [interval, setIntervalMiles] = useState<PlanRequest['interval_miles']>(25)
 
-  const ready = origin && destination && departure && load >= 0
+  const load = parseLoad(loadText)
+  const ready = origin && destination && departure && load !== null
 
   function submit(e: FormEvent) {
     e.preventDefault()
-    if (!origin || !destination) return
+    if (!origin || !destination || load === null) return
     onSubmit({
       origin,
       destination,
@@ -54,12 +65,10 @@ export function TripForm({ loading, onSubmit }: Props) {
           <label htmlFor="load">Load (lb)</label>
           <input
             id="load"
-            type="number"
-            min={0}
-            max={80000}
-            step={500}
-            value={load}
-            onChange={(e) => setLoad(Number(e.target.value))}
+            inputMode="numeric"
+            autoComplete="off"
+            value={loadText}
+            onChange={(e) => setLoadText(e.target.value)}
           />
         </div>
         <div className="field">
