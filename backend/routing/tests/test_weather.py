@@ -8,6 +8,12 @@ from routing.services import weather
 from routing.services.types import LatLon
 
 T0 = datetime(2026, 10, 24, 12, tzinfo=timezone.utc)
+RATE_LIMITED = {"error": True, "reason": "rate limited"}
+
+
+@pytest.fixture(autouse=True)
+def no_retry_wait(monkeypatch):
+    monkeypatch.setattr(weather, "RETRY_WAIT_S", 0)
 
 
 def location_payload(snow_unit="inch", hours=3):
@@ -95,6 +101,41 @@ def test_nearby_positions_share_one_location_and_keep_their_own_position():
     assert [float(x) for x in params["longitude"].split(",")] == [-96.8, -105.0]
     assert [s.position for s in series] == positions
     assert [s.wind_mph[0] for s in series] == [10.0, 40.0, 10.0, 10.0, 40.0]
+
+
+def scripted_client(responses: list[httpx.Response], calls: list):
+    def handler(request: httpx.Request):
+        calls.append(request)
+        return responses[len(calls) - 1]
+
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def test_retries_once_after_a_429():
+    calls: list = []
+    client = scripted_client(
+        [httpx.Response(429, json=RATE_LIMITED), httpx.Response(200, json=location_payload())], calls
+    )
+    [s] = weather.fetch_hourly([LatLon(39.7, -105.0)], T0, T0 + timedelta(hours=2), client=client)
+    assert len(calls) == 2
+    assert s.wind_mph == [10.0, 20.0, 30.0]
+
+
+def test_a_second_429_gives_a_friendly_error():
+    calls: list = []
+    client = scripted_client([httpx.Response(429, json=RATE_LIMITED)] * 2, calls)
+    with pytest.raises(weather.WeatherError) as exc_info:
+        weather.fetch_hourly([LatLon(39.7, -105.0)], T0, T0, client=client)
+    assert len(calls) == 2
+    assert str(exc_info.value) == "The weather service is rate-limiting requests. Try again in a minute."
+
+
+def test_other_http_errors_are_not_retried():
+    calls: list = []
+    client = scripted_client([httpx.Response(400, json={"error": True, "reason": "bad"})], calls)
+    with pytest.raises(weather.WeatherError, match="400"):
+        weather.fetch_hourly([LatLon(39.7, -105.0)], T0, T0, client=client)
+    assert len(calls) == 1
 
 
 def test_unknown_unit_is_an_error():

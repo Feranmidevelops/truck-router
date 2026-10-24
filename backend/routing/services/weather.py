@@ -16,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 import hashlib
+import time
 from typing import Protocol
 
 import httpx
@@ -28,6 +29,8 @@ CHUNK_SIZE = 50
 COORD_DECIMALS = 1  # 0.1 deg, about 11 km
 MAX_WORKERS = 4
 CACHE_TTL_S = 30 * 60
+RETRY_WAIT_S = 2.0
+RATE_LIMITED_MESSAGE = "The weather service is rate-limiting requests. Try again in a minute."
 
 SPEED_TO_MPH = {"mp/h": 1.0, "mph": 1.0, "km/h": 0.621371, "m/s": 2.236936, "kn": 1.150779}
 DEPTH_TO_IN = {"inch": 1.0, "in": 1.0, "mm": 1 / 25.4, "cm": 1 / 2.54}
@@ -112,13 +115,7 @@ def _fetch_chunk(
     key = "wx:" + hashlib.sha1(repr(sorted(params.items())).encode()).hexdigest()
     payload = cache.get(key) if cache else None
     if payload is None:
-        try:
-            resp = client.get(BASE_URL, params=params)
-        except httpx.HTTPError as exc:
-            raise WeatherError(f"Open-Meteo request failed: {exc}") from exc
-        if resp.status_code != 200:
-            raise WeatherError(f"Open-Meteo {resp.status_code}: {resp.text[:200]}")
-        payload = resp.json()
+        payload = _get_json(client, params)
         if cache:
             cache.set(key, payload, CACHE_TTL_S)
 
@@ -126,6 +123,26 @@ def _fetch_chunk(
     if len(items) != len(chunk):
         raise WeatherError(f"Open-Meteo returned {len(items)} locations for {len(chunk)} requested")
     return [parse_location(item, pos) for item, pos in zip(items, chunk)]
+
+
+def _get_json(client: httpx.Client, params: dict) -> dict | list:
+    resp = _send(client, params)
+    if resp.status_code == 429:
+        # Retry once only: the driver is waiting on this request.
+        time.sleep(RETRY_WAIT_S)
+        resp = _send(client, params)
+    if resp.status_code == 429:
+        raise WeatherError(RATE_LIMITED_MESSAGE)
+    if resp.status_code != 200:
+        raise WeatherError(f"Open-Meteo {resp.status_code}: {resp.text[:200]}")
+    return resp.json()
+
+
+def _send(client: httpx.Client, params: dict) -> httpx.Response:
+    try:
+        return client.get(BASE_URL, params=params)
+    except httpx.HTTPError as exc:
+        raise WeatherError(f"Open-Meteo request failed: {exc}") from exc
 
 
 def parse_location(item: dict, position: LatLon) -> HourlySeries:
