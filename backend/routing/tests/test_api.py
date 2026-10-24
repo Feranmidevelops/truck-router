@@ -5,6 +5,7 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework.settings import api_settings as drf_settings
 from rest_framework.test import APIClient
+from rest_framework.throttling import SimpleRateThrottle
 import pytest
 
 PLACE_A = {"label": "Dallas, TX", "lat": 32.7767, "lon": -96.797}
@@ -73,25 +74,66 @@ def post_plan(api, **extra):
     return api.post("/api/plan", plan_body(), format="json", **extra)
 
 
+def get_geocode(api):
+    return api.get("/api/geocode?q=dallas")
+
+
+def get_heatmap(api):
+    return api.get("/api/heatmap?plan_id=fixture")
+
+
+class FakeClock:
+    def __init__(self):
+        self.now = 1_000_000.0
+
+    def __call__(self):
+        return self.now
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    # Throttles read the time through SimpleRateThrottle.timer. A callable object is not bound
+    # as a method the way a plain function would be, so it can stand in for time.time as is.
+    fake = FakeClock()
+    monkeypatch.setattr(SimpleRateThrottle, "timer", fake)
+    return fake
+
+
 @override_settings(USE_FIXTURES=True)
-def test_eleventh_plan_in_a_minute_is_throttled(api):
+def test_eleventh_plan_in_a_minute_is_throttled(api, clock):
     for _ in range(10):
         assert post_plan(api).status_code == 200
     res = post_plan(api)
     assert res.status_code == 429
     assert res.json()["detail"].startswith("Request was throttled.")
-    assert 0 < int(res["Retry-After"]) <= 60
+    assert res["Retry-After"] == "60"
 
 
 @override_settings(USE_FIXTURES=True)
 @pytest.mark.parametrize(
-    "path, limit",
-    [("/api/geocode?q=dallas", 120), ("/api/heatmap?plan_id=fixture", 30)],
+    "send, limit", [(get_geocode, 120), (get_heatmap, 30)], ids=["geocode", "heatmap"]
 )
-def test_geocode_and_heatmap_allow_more_than_plan(api, path, limit):
+def test_geocode_and_heatmap_allow_more_than_plan(api, clock, send, limit):
     for _ in range(limit):
-        assert api.get(path).status_code == 200
-    assert api.get(path).status_code == 429
+        assert send(api).status_code == 200
+    res = send(api)
+    assert res.status_code == 429
+    assert res["Retry-After"] == "60"
+
+
+@override_settings(USE_FIXTURES=True)
+@pytest.mark.parametrize(
+    "send, limit",
+    [(post_plan, 10), (get_geocode, 120), (get_heatmap, 30)],
+    ids=["plan", "geocode", "heatmap"],
+)
+def test_limit_frees_up_a_minute_after_the_first_request(api, clock, send, limit):
+    for _ in range(limit):
+        assert send(api).status_code == 200
+    clock.now += 59
+    assert send(api).status_code == 429
+    clock.now += 1.5
+    assert send(api).status_code == 200
 
 
 @override_settings(USE_FIXTURES=True)
