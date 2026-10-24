@@ -3,7 +3,7 @@
 import pytest
 
 from routing.services.risk import apply_load_rules, assess, classify_rain, classify_snow, classify_wind
-from routing.services.types import Level
+from routing.services.types import Assessment, Level
 
 L, M, H, S, N = Level.LOW, Level.MODERATE, Level.HIGH, Level.SEVERE, Level.NO_TRAVEL
 
@@ -162,6 +162,12 @@ def test_assess_low_has_no_drivers():
     assert a.drivers == ()
 
 
+def test_assess_all_zero_inputs():
+    assert assess(wind_mph=0, rain_in_hr=0, snow_in_hr=0, load_lb=0) == Assessment(
+        level=L, wind_level=L, rain_level=L, snow_level=L, load_adjusted=False, drivers=()
+    )
+
+
 @pytest.mark.parametrize(
     "mph, load, wind_level, adjusted",
     [
@@ -180,6 +186,13 @@ def test_assess_load_adjusted_only_when_a_load_rule_raised_wind(mph, load, wind_
     assert a.load_adjusted is adjusted
 
 
+def test_assess_load_rules_do_not_touch_rain_or_snow():
+    a = assess(wind_mph=10, rain_in_hr=0.6, snow_in_hr=1.5, load_lb=80_000)
+    assert (a.level, a.wind_level, a.rain_level, a.snow_level) == (S, L, S, H)
+    assert a.load_adjusted is False
+    assert a.drivers == ("rain",)
+
+
 @pytest.mark.parametrize(
     "mph, rain, snow, load, level, drivers",
     [
@@ -196,3 +209,16 @@ def test_assess_drivers_with_ties(mph, rain, snow, load, level, drivers):
     a = assess(wind_mph=mph, rain_in_hr=rain, snow_in_hr=snow, load_lb=load)
     assert a.level == level
     assert a.drivers == drivers
+
+
+def test_assess_rain_alone_can_make_no_travel():
+    a = assess(wind_mph=0, rain_in_hr=1.0001, snow_in_hr=0, load_lb=0)
+    assert (a.level, a.wind_level, a.rain_level, a.snow_level) == (N, L, N, L)
+    assert a.drivers == ("rain",)
+    assert a.load_adjusted is False
+
+
+def test_assess_snow_alone_can_make_no_travel():
+    a = assess(wind_mph=0, rain_in_hr=0, snow_in_hr=3.0001, load_lb=0)
+    assert a.level == N
+    assert a.drivers == ("snow",)
