@@ -101,18 +101,10 @@ body {
   border-color: var(--danger);
 }
 
-.field-error,
-.hint {
+.field-error {
   margin: calc(-1 * var(--space-1)) 0 0;
   font-size: var(--text-sm);
-}
-
-.field-error {
   color: var(--danger);
-}
-
-.hint {
-  color: var(--muted);
 }
 
 .row {

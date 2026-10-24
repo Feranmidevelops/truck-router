@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { geocode } from '../api/client'
 import type { Place, PlanRequest } from '../api/types'
 import { PlaceInput } from './PlaceInput'
 
@@ -58,9 +59,28 @@ function parseLoad(text: string): number | null {
   return lb <= MAX_LOAD_LB ? lb : null
 }
 
+// The best match for a place the driver typed but didn't pick from the list. null, with the
+// reason passed to fail, when there's no match or search is down.
+async function bestMatch(text: string, fail: (message: string) => void): Promise<Place | null> {
+  const q = text.trim()
+  try {
+    const [best] = await geocode(q)
+    if (!best) fail(`No place found for "${q}". Try a city name.`)
+    return best ?? null
+  } catch {
+    fail("Place search isn't working right now. Try again in a moment.")
+    return null
+  }
+}
+
 export function TripForm({ loading, onSubmit }: Props) {
   const [origin, setOrigin] = useState<Place | null>(null)
   const [destination, setDestination] = useState<Place | null>(null)
+  const [originText, setOriginText] = useState('')
+  const [destinationText, setDestinationText] = useState('')
+  const [originError, setOriginError] = useState<string | null>(null)
+  const [destinationError, setDestinationError] = useState<string | null>(null)
+  const [finding, setFinding] = useState(false)
   const [departure, setDeparture] = useState(() => defaultDeparture())
   const [departureEdited, setDepartureEdited] = useState(false)
   const [loadText, setLoadText] = useState('40000')
@@ -69,7 +89,9 @@ export function TripForm({ loading, onSubmit }: Props) {
   const load = parseLoad(loadText)
   const loadError =
     load !== null ? null : loadText.trim() ? 'Enter a whole number from 0 to 80,000.' : 'Enter the load in pounds.'
-  const ready = origin && destination && departure && load !== null
+  // A place typed but not picked is fine: the best match is looked up when the trip is planned
+  const named = (place: Place | null, text: string) => place !== null || text.trim().length >= 2
+  const ready = named(origin, originText) && named(destination, destinationText) && departure && load !== null
   // "Dallas" from "Dallas, TX"
   const departureLabel = origin?.timezone
     ? `Departure (local time in ${origin.label.split(',')[0]}, ${zoneNameAt(departure, origin.timezone)})`
@@ -81,14 +103,25 @@ export function TripForm({ loading, onSubmit }: Props) {
     if (place?.timezone && !departureEdited) setDeparture(defaultDeparture(place.timezone))
   }
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault()
-    if (!origin || !destination || load === null) return
+    if (load === null) return
+    setFinding(true)
+    const [from, to] = await Promise.all([
+      origin ?? bestMatch(originText, setOriginError),
+      destination ?? bestMatch(destinationText, setDestinationError),
+    ])
+    setFinding(false)
+    if (!from || !to) return
+    // Show which places were used, and move the default departure onto the origin's clock
+    if (!origin) chooseOrigin(from)
+    if (!destination) setDestination(to)
+    const departureTime = !origin && from.timezone && !departureEdited ? defaultDeparture(from.timezone) : departure
     onSubmit({
-      origin,
-      destination,
+      origin: from,
+      destination: to,
       // As typed: the server reads it as local time at the origin, whatever zone this device is in
-      departure_time: departure,
+      departure_time: departureTime,
       load_weight_lb: load,
       interval_miles: interval,
     })
@@ -96,9 +129,26 @@ export function TripForm({ loading, onSubmit }: Props) {
 
   return (
     <form className="trip-form" onSubmit={submit}>
-      <PlaceInput label="Origin" value={origin} onChange={chooseOrigin} />
-      <PlaceInput label="Destination" value={destination} onChange={setDestination} />
-      {(!origin || !destination) && <p className="hint">Pick a place from the suggestions</p>}
+      <PlaceInput
+        label="Origin"
+        value={origin}
+        onChange={chooseOrigin}
+        onTextChange={(text) => {
+          setOriginText(text)
+          setOriginError(null)
+        }}
+        error={originError}
+      />
+      <PlaceInput
+        label="Destination"
+        value={destination}
+        onChange={setDestination}
+        onTextChange={(text) => {
+          setDestinationText(text)
+          setDestinationError(null)
+        }}
+        error={destinationError}
+      />
       <div className="field">
         <label htmlFor="departure">{departureLabel}</label>
         <input
@@ -142,8 +192,8 @@ export function TripForm({ loading, onSubmit }: Props) {
           {loadError}
         </p>
       )}
-      <button type="submit" disabled={!ready || loading}>
-        {loading ? 'Planning…' : 'Plan routes'}
+      <button type="submit" disabled={!ready || loading || finding}>
+        {finding ? 'Finding places…' : loading ? 'Planning…' : 'Plan routes'}
       </button>
     </form>
   )

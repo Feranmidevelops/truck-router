@@ -6,6 +6,9 @@ interface Props {
   label: string
   value: Place | null
   onChange: (place: Place | null) => void
+  // What's in the box, so the form can look up a place the driver typed but didn't pick
+  onTextChange?: (text: string) => void
+  error?: string | null
 }
 
 // The latest finished search: what was asked, and what came back
@@ -15,12 +18,20 @@ interface Search {
   failed: boolean
 }
 
-export function PlaceInput({ label, value, onChange }: Props) {
+export function PlaceInput({ label, value, onChange, onTextChange, error }: Props) {
   const id = useId()
   const [text, setText] = useState(value?.label ?? '')
   const [search, setSearch] = useState<Search>({ q: '', places: [], failed: false })
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1) // option highlighted with the arrow keys, -1 for none
+
+  // The form can pick a place for us (the best match for what was typed), so show its name.
+  // Adjusted while rendering rather than in an effect, so there's no extra render.
+  const [shownValue, setShownValue] = useState(value)
+  if (value !== shownValue) {
+    setShownValue(value)
+    if (value) setText(value.label)
+  }
 
   useEffect(() => {
     if (value && text === value.label) return
@@ -94,8 +105,11 @@ export function PlaceInput({ label, value, onChange }: Props) {
         value={text}
         autoComplete="off"
         placeholder="City or address"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
         onChange={(e) => {
           setText(e.target.value)
+          onTextChange?.(e.target.value)
           setOpen(true)
           setActive(-1)
           if (value) onChange(null)
@@ -120,7 +134,11 @@ export function PlaceInput({ label, value, onChange }: Props) {
           ))}
         </ul>
       )}
-      {(searching && search.failed) || noMatches ? (
+      {error ? (
+        <p id={`${id}-error`} className="place-status failed" role="alert">
+          {error}
+        </p>
+      ) : (searching && search.failed) || noMatches ? (
         <p className={search.failed ? 'place-status failed' : 'place-status'} role="status">
           {search.failed ? "Place search isn't working right now." : 'No places found.'}
         </p>
