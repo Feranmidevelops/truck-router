@@ -78,10 +78,68 @@ Types: `frontend/src/api/types.ts`.
 
 ## Decisions
 
-Where the brief left room for interpretation.
+Where the brief left room for interpretation, and what I chose.
 
-- TODO: summarise the boundary convention, checkpoint ownership, ETA method, the No Travel rule
-  in ranking, and the average-risk rounding.
+### Risk rules
+
+- **Shared boundaries go to the higher, safer band.** Rain 0.25 in/hr is High, snow 1.0 in/hr is
+  High, wind 35 mph is High.
+- **An explicit operator in the brief wins.** No Travel is "> 1.00" for rain and "> 3.0" for snow,
+  so exactly 1.00 and 3.0 stay Severe.
+- **Wind bands are half-open.** The brief writes 25-34 and 35-44 as whole numbers; 34.9 mph is
+  Moderate.
+- **Load rules use a strict "greater than".** Exactly 30,000 lb at 50 mph stays Severe; 30,001 lb
+  is No Travel. A load rule can raise the wind level but never lower it.
+- **A checkpoint's level is the worst of wind (after load rules), rain and snow.** Every factor at
+  that level is listed as a driver.
+- **Wind means sustained wind at 10 m.** Gusts are shown in the popup but not scored.
+- **Rain rate is Open-Meteo `rain + showers` for the hour; snow rate is `snowfall`.** Units are
+  read from the response and converted.
+- **Load weight is cargo weight.** The truck weight sent to TomTom is cargo plus an assumed
+  35,000 lb empty tractor-trailer.
+
+### Checkpoints and ETAs
+
+- **Checkpoints sit at mile 0, every interval, and the destination.** The destination is skipped
+  when the last interval checkpoint is within half a mile of it.
+- **Each checkpoint owns the road centred on it**, from halfway back to the previous checkpoint to
+  halfway on to the next. "Severe miles" is the sum of the miles owned by Severe checkpoints, and
+  the owned miles of a route add up to its length.
+- **ETA comes from TomTom's own timing along the route**, interpolated between its turn-by-turn
+  instructions, not from an average speed. Slow city miles and fast interstate miles keep their
+  real speeds.
+- **Forecast hour.** Wind uses the nearest forecast hour. Rain and snow use the first hour at or
+  after the ETA, because Open-Meteo reports precipitation as the total over the preceding hour.
+
+### Recommendation
+
+Routes are sorted on these keys, in order:
+
+0. **Fewest No Travel miles.** Not in the brief, but a route with No Travel segments should never
+   beat one without. If every route has some, the least bad is still recommended and the UI warns.
+1. **Fewest Severe miles**, then 2. **fewest High miles** (both compared to 0.1 mile).
+3. **Lowest average risk**: the distance-weighted mean of the level scores (Low 0 to No Travel 4).
+   Compared at 2 decimals only to remove floating-point noise, so a lower average wins even when
+   it is slower. That keeps the brief's order exactly.
+4. **Shortest travel time**, which only decides true ties.
+
+The reason shown under the recommended route names the first key that separates it from the
+runner-up, for example "Fewest severe miles (0.0 vs 25.0)".
+
+### Routes
+
+- TomTom's own truck alternatives come first. When it returns fewer than three, extra routes are
+  requested through points offset to the left and right of the trip's midpoint.
+- Any candidate that takes over 1.5 times as long as the fastest route, or overlaps a route
+  already kept by more than 90%, is dropped. If that leaves fewer than three, the app shows what
+  it has rather than padding with a silly detour.
+
+### Weather requests
+
+- Open-Meteo's free tier allows 600 locations a minute. Coordinates are rounded to 0.1 degrees and
+  de-duplicated before the request, so checkpoints on shared road cost one lookup.
+- Responses are cached for 30 minutes, and a rate-limited request is retried once before the app
+  shows a clear "try again in a minute".
 
 ## Tests
 
