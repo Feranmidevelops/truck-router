@@ -517,33 +517,6 @@ button[type='submit']:disabled {
   inset: 0;
 }
 
-.legend {
-  position: absolute;
-  left: 12px;
-  bottom: 28px;
-  margin: 0;
-  padding: 8px 10px;
-  list-style: none;
-  background: rgb(255 255 255 / 0.92);
-  border-radius: 6px;
-  font-size: 0.8rem;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.legend li {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-
 @media (max-width: 800px) {
   .app {
     grid-template-columns: 1fr;
