@@ -6,6 +6,7 @@ from .geometry import EARTH_RADIUS_M, METERS_PER_MILE, cumulative_m, haversine_m
 from .types import LatLon
 
 SAMPLE_STEP_MILES = 2.0
+COARSEN_FACTOR = 1.5
 COORD_DECIMALS = 6  # ~0.1 m; hides float noise such as 32.650000000000006
 
 
@@ -14,7 +15,7 @@ def build_grid(
     *,
     cell_deg: float = 0.25,
     buffer_miles: float = 30,
-    max_points: int = 400,
+    max_points: int = 250,
 ) -> list[LatLon]:
     """Cell centres on a `cell_deg` lat/lon grid that lie within `buffer_miles` of any route.
 
@@ -28,11 +29,17 @@ def build_grid(
     Distances are measured to route samples, so a cell within a mile of the
     buffer's edge can be missed; a cell outside the buffer is never kept.
     """
+    if cell_deg <= 0 or max_points < 1:
+        raise ValueError("cell_deg and max_points must be positive")
     step_m = SAMPLE_STEP_MILES * METERS_PER_MILE
     samples = [p for route in routes for p in _sample_route(route, step_m)]
     if not samples:
         return []
-    cells = _cells_within(samples, cell_deg, buffer_miles * METERS_PER_MILE)
+    buffer_m = buffer_miles * METERS_PER_MILE
+    cells = _cells_within(samples, cell_deg, buffer_m)
+    while len(cells) > max_points:
+        cell_deg *= COARSEN_FACTOR
+        cells = _cells_within(samples, cell_deg, buffer_m)
     # Centres grow with their index, so sorting (row, col) sorts by (lat, lon).
     return [LatLon(_centre(i, cell_deg), _centre(j, cell_deg)) for i, j in sorted(cells)]
 

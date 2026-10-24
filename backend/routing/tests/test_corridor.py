@@ -48,6 +48,16 @@ def every_centre_near(route: list[LatLon], cell_deg: float) -> list[LatLon]:
     return [LatLon((i + 0.5) * cell_deg, (j + 0.5) * cell_deg) for i in rows for j in cols]
 
 
+def three_long_routes(step_miles: float) -> list[list[LatLon]]:
+    """A straight 1,000-mile route and two longer ones bending east and west of it."""
+    start, end = LatLon(30.0, -100.0), LatLon(44.5, -100.0)
+    return [
+        polyline(start, end, step_miles=step_miles),
+        polyline(start, LatLon(37.0, -104.0), end, step_miles=step_miles),
+        polyline(start, LatLon(37.0, -96.0), end, step_miles=step_miles),
+    ]
+
+
 TEXAS = polyline(DALLAS, WACO)
 ALASKA = polyline(FAIRBANKS, LIVENGOOD)
 SVALBARD = polyline(LatLon(78.22, 15.65), LatLon(78.45, 16.30))
@@ -85,6 +95,33 @@ def test_buffer_reaching_over_the_pole_stays_on_valid_coordinates():
     assert all(miles_to_route(p, route) <= BUFFER + 1 for p in grid)
     # This close to the pole, a cell 80 degrees of longitude away is only 27.5 miles off.
     assert LatLon(89.875, 119.875) in grid
+
+
+def test_too_many_cells_coarsens_the_grid_until_it_fits_the_cap():
+    routes = three_long_routes(step_miles=1.0)
+    assert len(build_grid(routes, max_points=NO_CAP)) > 250
+
+    capped = build_grid(routes)
+    assert 0 < len(capped) <= 250
+
+    cell = 0.25
+    while len(build_grid(routes, cell_deg=cell, max_points=NO_CAP)) > 250:
+        cell *= 1.5
+    assert cell > 0.25
+    assert capped == build_grid(routes, cell_deg=cell, max_points=NO_CAP)
+    assert all(is_centre(p.lat, cell) and is_centre(p.lon, cell) for p in capped)
+
+
+def test_small_cap_on_a_short_route():
+    grid = build_grid([TEXAS], max_points=10)
+    assert 0 < len(grid) <= 10
+
+
+def test_rejects_a_grid_that_could_never_fit():
+    with pytest.raises(ValueError):
+        build_grid([TEXAS], cell_deg=0)
+    with pytest.raises(ValueError):
+        build_grid([TEXAS], max_points=0)
 
 
 def test_single_point_route_still_gets_cells_around_it():
