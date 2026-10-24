@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta, timezone
+import math
 
 import pytest
 
 from routing.services.geometry import (
+    EARTH_RADIUS_M,
     METERS_PER_MILE,
     cumulative_m,
     haversine_m,
@@ -21,6 +23,12 @@ def straight_line(miles: float) -> list[LatLon]:
     n = int(miles) + 1
     step = miles / MILES_PER_DEG_LAT / (n - 1)
     return [LatLon(30 + i * step, -97.0) for i in range(n)]
+
+
+def meridian_line(miles: float, step_miles: float = 1.0) -> list[LatLon]:
+    """North-south polyline whose haversine length is exactly `miles` (to float precision)."""
+    marks = [min(k * step_miles, miles) for k in range(math.ceil(miles / step_miles) + 1)]
+    return [LatLon(30 + math.degrees(m * METERS_PER_MILE / EARTH_RADIUS_M), -97.0) for m in marks]
 
 
 def uniform_timing(points: list[LatLon], mph: float) -> list[TimingPoint]:
@@ -114,3 +122,64 @@ def test_no_duplicate_destination_checkpoint():
     pts = straight_line(50.2)
     cps = sample_checkpoints(pts, uniform_timing(pts, 60), T0, 25)
     assert [round(c.mile) for c in cps] == [0, 25, 50]
+
+
+@pytest.mark.parametrize(
+    "interval, expected_miles, last_interval_owns",
+    [
+        (10, list(range(0, 240, 10)) + [237], 5 + 3.5),
+        (50, [0, 50, 100, 150, 200, 237], 25 + 18.5),
+    ],
+)
+def test_checkpoints_on_a_long_route(interval, expected_miles, last_interval_owns):
+    pts = meridian_line(237)
+    cps = sample_checkpoints(pts, uniform_timing(pts, 60), T0, interval)
+    assert [c.mile for c in cps] == [pytest.approx(m) for m in expected_miles]
+    assert [c.index for c in cps] == list(range(len(cps)))
+    assert sum(c.segment_miles for c in cps) == pytest.approx(237)
+    assert cps[0].segment_miles == pytest.approx(interval / 2)
+    assert [c.segment_miles for c in cps[1:-2]] == [pytest.approx(interval)] * (len(cps) - 3)
+    assert cps[-2].segment_miles == pytest.approx(last_interval_owns)
+    assert cps[-1].segment_miles == pytest.approx((237 - expected_miles[-2]) / 2)
+    # 60 mph: one minute per mile
+    for c in cps:
+        assert (c.eta - T0).total_seconds() == pytest.approx(c.mile * 60, abs=0.5)
+
+
+def test_eta_follows_the_timing_profile_not_an_average_speed():
+    pts = meridian_line(100)
+    m = METERS_PER_MILE
+    # 10 city miles at 20 mph, then 90 highway miles at 60 mph: 2 h in total.
+    timing = [TimingPoint(0, 0), TimingPoint(10 * m, 1800), TimingPoint(100 * m, 7200)]
+    cps = sample_checkpoints(pts, timing, T0, 10)
+    minutes = {round(c.mile): (c.eta - T0).total_seconds() / 60 for c in cps}
+    assert minutes[10] == pytest.approx(30)  # an average speed would say 12
+    assert minutes[50] == pytest.approx(70)  # an average speed would say 60
+    assert minutes[100] == pytest.approx(120)
+
+
+def test_destination_exactly_half_a_mile_past_the_last_interval_is_merged():
+    pts = meridian_line(25.5)
+    cps = sample_checkpoints(pts, uniform_timing(pts, 60), T0, 25)
+    assert [c.mile for c in cps] == [0, pytest.approx(25)]
+    assert cps[-1].segment_miles == pytest.approx(12.5 + 0.5)
+
+    pts = meridian_line(25.51)
+    cps = sample_checkpoints(pts, uniform_timing(pts, 60), T0, 25)
+    assert [c.mile for c in cps] == [0, pytest.approx(25), pytest.approx(25.51)]
+
+
+def test_route_ending_on_an_interval_mark_has_one_checkpoint_there():
+    pts = meridian_line(50)
+    cps = sample_checkpoints(pts, uniform_timing(pts, 60), T0, 25)
+    assert [c.mile for c in cps] == [0, pytest.approx(25), pytest.approx(50)]
+
+
+def test_route_shorter_than_half_a_mile_is_one_checkpoint():
+    pts = meridian_line(0.3)
+    cps = sample_checkpoints(pts, uniform_timing(pts, 30), T0, 10)
+    assert len(cps) == 1
+    assert cps[0].mile == 0
+    assert cps[0].position == pts[0]
+    assert cps[0].eta == T0
+    assert cps[0].segment_miles == pytest.approx(0.3)

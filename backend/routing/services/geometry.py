@@ -17,6 +17,7 @@ from .types import Checkpoint, LatLon, TimingPoint
 
 EARTH_RADIUS_M = 6_371_008.8
 METERS_PER_MILE = 1609.344
+DESTINATION_MERGE_MILES = 0.5
 
 
 def haversine_m(a: LatLon, b: LatLon) -> float:
@@ -71,7 +72,34 @@ def sample_checkpoints(
     If the last interval checkpoint lands within 0.5 mile of the destination,
     don't add a separate destination checkpoint.
     """
-    raise NotImplementedError("sample_checkpoints")
+    if interval_miles <= 0:
+        raise ValueError("interval_miles must be positive")
+    cumulative = cumulative_m(points)
+    length = cumulative[-1]
+    step = interval_miles * METERS_PER_MILE
+
+    marks = [0.0]
+    k = 1
+    while k * step < length:
+        marks.append(k * step)
+        k += 1
+    # Rounded so float noise from summing thousands of segments can't flip the boundary.
+    if round((length - marks[-1]) / METERS_PER_MILE, 6) > DESTINATION_MERGE_MILES:
+        marks.append(length)
+
+    # Midpoints between neighbours, plus the two route ends: checkpoint i owns bounds[i]..bounds[i + 1].
+    bounds = [0.0] + [(a + b) / 2 for a, b in zip(marks, marks[1:])] + [length]
+
+    return [
+        Checkpoint(
+            index=i,
+            mile=m / METERS_PER_MILE,
+            position=point_at_distance(points, cumulative, m),
+            segment_miles=(bounds[i + 1] - bounds[i]) / METERS_PER_MILE,
+            eta=eta(departure, seconds_at_distance(timing, m)),
+        )
+        for i, m in enumerate(marks)
+    ]
 
 
 def eta(departure: datetime, seconds: float) -> datetime:
