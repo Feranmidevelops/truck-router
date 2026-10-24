@@ -103,6 +103,55 @@ def test_nearby_positions_share_one_location_and_keep_their_own_position():
     assert [s.wind_mph[0] for s in series] == [10.0, 40.0, 10.0, 10.0, 40.0]
 
 
+def echo_client(calls: list):
+    """Answers each requested location with wind = its latitude and gust = its longitude."""
+
+    def handler(request: httpx.Request):
+        calls.append(request)
+        lats = [float(x) for x in request.url.params["latitude"].split(",")]
+        lons = [float(x) for x in request.url.params["longitude"].split(",")]
+        body = []
+        for lat, lon in zip(lats, lons):
+            payload = location_payload(hours=1)
+            payload["hourly"]["wind_speed_10m"] = [lat]
+            payload["hourly"]["wind_gusts_10m"] = [lon]
+            body.append(payload)
+        return httpx.Response(200, json=body if len(body) > 1 else body[0])
+
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def echoed_cell(series: weather.HourlySeries) -> tuple[float, float]:
+    return series.wind_mph[0], series.gust_mph[0]
+
+
+def test_a_duplicate_just_past_a_chunk_boundary_is_not_requested_again():
+    calls: list = []
+    positions = [LatLon(30 + i * 0.1, -97) for i in range(weather.CHUNK_SIZE)]
+    positions.append(LatLon(30.03, -97.02))  # same cell as the first position
+    series = weather.fetch_hourly(positions, T0, T0, client=echo_client(calls))
+    assert len(calls) == 1
+    assert len(calls[0].url.params["latitude"].split(",")) == weather.CHUNK_SIZE
+    assert echoed_cell(series[-1]) == pytest.approx((30.0, -97.0))
+
+
+def test_every_position_maps_to_its_own_cell_across_chunks():
+    calls: list = []
+    n = 2 * weather.CHUNK_SIZE + 20
+    cells = [LatLon(round(30 + i * 0.1, 1), -97.0) for i in range(n)]
+    # Each cell again, later in the list and in reverse, so repeats land in other chunks.
+    positions = cells + [LatLon(c.lat + 0.03, c.lon - 0.02) for c in reversed(cells)]
+
+    series = weather.fetch_hourly(positions, T0, T0, client=echo_client(calls))
+
+    requested = [lat for call in calls for lat in call.url.params["latitude"].split(",")]
+    assert len(calls) == 3
+    assert len(requested) == n
+    assert [s.position for s in series] == positions
+    for p, s in zip(positions, series):
+        assert echoed_cell(s) == pytest.approx((round(p.lat, 1), round(p.lon, 1)))
+
+
 class DictCache(dict):
     def set(self, key, value, timeout=None):
         self[key] = value
