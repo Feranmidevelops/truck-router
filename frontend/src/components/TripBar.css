@@ -1,0 +1,97 @@
+.trip-bar {
+  position: sticky;
+  z-index: 20;
+  top: 0;
+  height: var(--trip-bar-height);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.trip-bar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  height: 100%;
+  padding: 0 var(--stage-inset);
+}
+
+.trip-summary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 var(--space-5);
+  min-width: 0;
+  margin: 0;
+}
+
+.trip-route {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  font-stretch: var(--stretch-wide);
+  letter-spacing: -0.01em;
+}
+
+.trip-place {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.trip-arrow {
+  flex: none;
+  color: var(--muted);
+}
+
+.trip-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-4);
+  font-size: var(--text-md);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.trip-planning {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.trip-empty {
+  font-weight: var(--weight-semibold);
+  color: var(--muted);
+}
+
+.trip-edit {
+  flex: none;
+  min-height: 36px;
+  padding: var(--space-1) var(--space-4);
+}
+
+/* Two lines: the places, then the details, in smaller type */
+@media (max-width: 899px) {
+  .trip-summary {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .trip-route {
+    max-width: 100%;
+    font-size: var(--text-base);
+  }
+
+  .trip-meta {
+    gap: 0 var(--space-3);
+    font-size: var(--text-xs);
+  }
+
+  .trip-interval {
+    display: none;
+  }
+}

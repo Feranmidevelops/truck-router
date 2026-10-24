@@ -3,6 +3,7 @@ import { ArrowDown } from './icons'
 import './Hero.css'
 
 interface Props {
+  cardId: string // so the trip bar's Edit trip can come back to the form
   children: ReactNode // the trip form, shown in the card
 }
 
@@ -16,7 +17,7 @@ const STATS = [
 
 // The first screen: photo, headline, the trip form and a row of facts.
 // The photo files are preloaded from index.html; keep the two lists in step.
-export function Hero({ children }: Props) {
+export function Hero({ cardId, children }: Props) {
   return (
     <section className="hero" aria-labelledby="hero-title">
       <picture className="hero-photo">
@@ -51,7 +52,7 @@ export function Hero({ children }: Props) {
             <ArrowDown size={16} />
           </a>
         </div>
-        <div className="hero-card" id="plan-trip">
+        <div className="hero-card" id={cardId}>
           <h2 className="hero-card-title">Plan a trip</h2>
           {children}
         </div>

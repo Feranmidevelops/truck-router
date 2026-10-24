@@ -55,6 +55,20 @@ export function formatTime(iso: string, timeZone?: string) {
   })
 }
 
+// A clock time typed without a zone, as the form sends it ("2026-10-26T08:00"), printed as
+// written: "Mon 8:00 AM". Read as UTC and printed in UTC, so no zone can shift it.
+const wallClockFormat = new Intl.DateTimeFormat(undefined, {
+  weekday: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZone: 'UTC',
+})
+
+export function formatWallClock(local: string) {
+  const at = Date.parse(`${local}Z`)
+  return Number.isNaN(at) ? local : wallClockFormat.format(at)
+}
+
 // For long lists of times, like the checkpoint table: the formatters are built once, and the
 // day, clock time and zone name come separately so a table can group rows by day and print
 // the zone once. timeZone undefined means the viewer's own zone.
