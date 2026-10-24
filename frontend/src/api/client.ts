@@ -11,11 +11,11 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-  })
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers)
+  // Only with a body: on a cross-origin GET this header would force a CORS preflight per request
+  if (init.body != null) headers.set('Content-Type', 'application/json')
+  const res = await fetch(`${BASE}${path}`, { ...init, headers })
   const body = parseJson(await res.text())
   if (!res.ok) {
     throw new ApiError(res.status, formatError(body) ?? `Request failed (${res.status})`)
