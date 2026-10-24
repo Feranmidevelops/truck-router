@@ -141,6 +141,13 @@ runner-up, for example "Fewest severe miles (0.0 vs 25.0)".
 - Responses are cached for 30 minutes, and a rate-limited request is retried once before the app
   shows a clear "try again in a minute".
 
+### Response size
+
+- **Route lines are simplified before they are sent.** TomTom returns about 10,000 points per
+  route. The map gets a Douglas-Peucker copy that never strays more than 20 m from the real line
+  (about 900 points), which takes a Dallas -> Denver plan from ~700 kB to ~95 kB of JSON, ~18 kB
+  gzipped. Checkpoints and ETAs are still worked out on the full line.
+
 ### Time zones
 
 - **The departure is local time at the origin**, not the viewer's time zone. The backend looks up
