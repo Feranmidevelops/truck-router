@@ -8,8 +8,7 @@ Calculate Route: https://docs.tomtom.com/routing-api/documentation/tomtom-maps/v
   measured from the route start, which gives us a timing profile for ETAs.
 Fuzzy Search: https://docs.tomtom.com/search-api/documentation/search-service/fuzzy-search/
 
-Field names in the route response (summary.*, legs[].points[]) were taken from
-the docs. Check them against the first live response.
+A real route response, trimmed, is in routing/tests/data/tomtom_dallas_denver.json.
 """
 
 from __future__ import annotations
