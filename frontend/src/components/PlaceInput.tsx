@@ -18,6 +18,10 @@ interface Search {
   failed: boolean
 }
 
+// Answers already seen this visit, so backspacing or retyping a town shows its places at once
+const recent = new Map<string, Place[]>()
+const SEARCH_DELAY_MS = 150
+
 export function PlaceInput({ label, value, onChange, onTextChange, error }: Props) {
   const id = useId()
   const [text, setText] = useState(value?.label ?? '')
@@ -37,17 +41,22 @@ export function PlaceInput({ label, value, onChange, onTextChange, error }: Prop
     if (value && text === value.label) return
     const q = text.trim()
     if (q.length < 2) return
+    const known = recent.get(q.toLowerCase())
     const ctrl = new AbortController()
-    const timer = setTimeout(() => {
-      geocode(q, ctrl.signal)
-        .then((places) => {
-          setSearch({ q, places, failed: false })
-          setActive(-1)
-        })
-        .catch((e: unknown) => {
-          if (!isAbortError(e)) setSearch({ q, places: [], failed: true })
-        })
-    }, 250)
+    const timer = setTimeout(
+      () => {
+        ;(known ? Promise.resolve(known) : geocode(q, ctrl.signal))
+          .then((places) => {
+            recent.set(q.toLowerCase(), places)
+            setSearch({ q, places, failed: false })
+            setActive(-1)
+          })
+          .catch((e: unknown) => {
+            if (!isAbortError(e)) setSearch({ q, places: [], failed: true })
+          })
+      },
+      known ? 0 : SEARCH_DELAY_MS,
+    )
     return () => {
       clearTimeout(timer)
       ctrl.abort()
@@ -56,7 +65,11 @@ export function PlaceInput({ label, value, onChange, onTextChange, error }: Prop
 
   const q = text.trim()
   const searching = !value && q.length >= 2
-  const showOptions = open && searching && search.places.length > 0
+  // While the next search runs, keep showing places for what was typed so far ("salt" while
+  // "salt l" is on its way), but never ones for something else
+  const stillRelevant = search.q !== '' && q.toLowerCase().startsWith(search.q.toLowerCase())
+  const showOptions = open && searching && search.places.length > 0 && stillRelevant
+  const showSearching = open && searching && search.q !== q && !showOptions
   const noMatches = open && searching && search.q === q && !search.failed && search.places.length === 0
   const activePlace = showOptions ? search.places[active] : undefined
 
@@ -134,11 +147,16 @@ export function PlaceInput({ label, value, onChange, onTextChange, error }: Prop
           ))}
         </ul>
       )}
+      {showSearching && (
+        <div className="suggestions suggestions-status" role="status">
+          Searching…
+        </div>
+      )}
       {error ? (
         <p id={`${id}-error`} className="place-status failed" role="alert">
           {error}
         </p>
-      ) : (searching && search.failed) || noMatches ? (
+      ) : (searching && search.failed && search.q === q) || noMatches ? (
         <p className={search.failed ? 'place-status failed' : 'place-status'} role="status">
           {search.failed ? "Place search isn't working right now." : 'No places found.'}
         </p>
