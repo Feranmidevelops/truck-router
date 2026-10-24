@@ -7,6 +7,7 @@ import { HowItWorks } from './components/HowItWorks'
 import { MapView } from './components/MapView'
 import { PlanResults } from './components/PlanResults'
 import { SampleDataBanner } from './components/SampleDataBanner'
+import { SiteFooter } from './components/SiteFooter'
 import { SiteHeader } from './components/SiteHeader'
 import { TripForm } from './components/TripForm'
 
@@ -91,6 +92,7 @@ export default function App() {
         </section>
         <HowItWorks />
       </main>
+      <SiteFooter />
     </>
   )
 }

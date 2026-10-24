@@ -282,3 +282,11 @@ so Route A is always the recommended one.
   to 6 town lookups for its report (cached for 30 days), so that's somewhere between about 280
   and 2,500 plans. Open-Meteo allows 600 locations a minute, and a free Render instance sleeps
   when idle, so the first request after a quiet spell is slow.
+
+## Credits
+
+- Hero photo by [Mason Gemelke](https://unsplash.com/@blueflame567) on
+  [Unsplash](https://unsplash.com/photos/a-semi-truck-drives-along-a-scenic-highway-near-mountains-g_FizakXz50),
+  used under the [Unsplash License](https://unsplash.com/license). Cropped and saved as WebP.
+- Typeface: [Archivo](https://github.com/Omnibus-Type/Archivo) by Omnibus-Type, under the SIL Open
+  Font License 1.1, self-hosted from Fontsource.
