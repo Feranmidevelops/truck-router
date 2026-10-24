@@ -231,6 +231,12 @@ button[type='submit']:disabled {
   gap: 10px;
 }
 
+.routes-note {
+  margin: 0;
+  font-size: var(--text-md);
+  color: var(--muted);
+}
+
 .route-card {
   font: inherit;
   text-align: left;

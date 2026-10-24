@@ -20,6 +20,13 @@ export function RouteList({ plan, selectedRouteId, onSelect }: Props) {
           Every route crosses No Travel conditions. Consider a later departure.
         </p>
       )}
+      {plan.routes.length < 3 && (
+        <p className="routes-note">
+          {plan.routes.length === 1
+            ? 'TomTom found only one route for this trip.'
+            : `TomTom found only ${plan.routes.length} distinct routes for this trip.`}
+        </p>
+      )}
       {plan.routes.map((r) => {
         const recommended = r.id === plan.recommended_route_id
         const total = LEVELS.reduce((sum, l) => sum + r.summary.miles_by_level[l], 0) || 1
