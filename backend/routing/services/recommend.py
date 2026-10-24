@@ -23,7 +23,22 @@ def summarize_route(
     Every Level appears as a key in miles_by_level (0.0 when absent).
     Each checkpoint must already have an assessment.
     """
-    raise NotImplementedError("summarize_route")
+    miles_by_level = {level: 0.0 for level in Level}
+    for cp in checkpoints:
+        miles_by_level[cp.assessment.level] += cp.segment_miles
+
+    total_miles = sum(miles_by_level.values())
+    weighted = sum(level.value * miles for level, miles in miles_by_level.items())
+    avg_risk = weighted / total_miles if total_miles > 0 else 0.0
+
+    return RouteSummary(
+        route_id=route_id,
+        distance_miles=distance_m / METERS_PER_MILE,
+        duration_s=duration_s,
+        miles_by_level=miles_by_level,
+        avg_risk=avg_risk,
+        max_level=max((cp.assessment.level for cp in checkpoints), default=Level.LOW),
+    )
 
 
 def ranking_key(summary: RouteSummary) -> tuple:

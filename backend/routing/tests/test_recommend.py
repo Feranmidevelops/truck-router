@@ -47,6 +47,29 @@ def test_summarize_route_weights_by_distance():
     assert s.max_level == Level.SEVERE
 
 
+def test_summarize_route_converts_distance_to_miles():
+    s = summarize_route("r0", distance_m=160_934.4, duration_s=7200, checkpoints=[cp(0, 100, Level.LOW)])
+    assert s.route_id == "r0"
+    assert s.distance_miles == pytest.approx(100)
+    assert s.duration_s == 7200
+
+
+def test_summarize_route_without_checkpoints():
+    s = summarize_route("r0", distance_m=0, duration_s=0, checkpoints=[])
+    assert s.miles_by_level == {level: 0.0 for level in Level}
+    assert s.avg_risk == 0.0
+    assert s.max_level == Level.LOW
+
+
+def test_summarize_route_all_low():
+    checkpoints = [cp(0, 12.5, Level.LOW), cp(1, 25, Level.LOW), cp(2, 12.5, Level.LOW)]
+    s = summarize_route("r0", distance_m=80_467, duration_s=3600, checkpoints=checkpoints)
+    assert s.miles_by_level[Level.LOW] == pytest.approx(50)
+    assert all(s.miles_by_level[level] == 0.0 for level in Level if level != Level.LOW)
+    assert s.avg_risk == 0.0
+    assert s.max_level == Level.LOW
+
+
 def test_fewest_severe_miles_wins_over_high_miles():
     order, reason = rank_routes([summary("a", severe=10), summary("b", high=200)])
     assert order == ["b", "a"]
