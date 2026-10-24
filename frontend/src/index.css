@@ -26,7 +26,8 @@
   --text-md: 0.85rem;
   --text-base: 0.9rem;
   --text-lg: 1.25rem;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Archivo Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-sans);
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
