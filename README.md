@@ -74,7 +74,9 @@ any API keys.
 | `GET` | `/api/geocode?q=` | Place suggestions, each with its IANA time zone |
 | `GET` | `/api/health` | Health check |
 
-Types: `frontend/src/api/types.ts`.
+Types: `frontend/src/api/types.ts`. Errors come back as `{"detail": "..."}`: 400 for bad input,
+422 when TomTom has no truck route between the places, 429 when a client sends too many
+requests, and 502 with a "try again in a minute" message when TomTom or Open-Meteo fails.
 
 ## Decisions
 
@@ -127,7 +129,8 @@ Routes are sorted on these keys, in order:
 4. **Shortest travel time**, which only decides true ties.
 
 The reason shown under the recommended route names the first key that separates it from the
-runner-up, for example "Fewest severe miles (0.0 vs 25.0)".
+runner-up, for example "Fewest severe miles (0.0 vs 25.0)". Routes are lettered in that order,
+so Route A is always the recommended one.
 
 ### Routes
 
