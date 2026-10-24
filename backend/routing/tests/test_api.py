@@ -1,4 +1,6 @@
 from datetime import timedelta
+import gzip
+import json
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
@@ -47,6 +49,18 @@ def test_plan_fixture_matches_contract(api):
     assert data["recommended_route_id"] == data["routes"][0]["id"]
     cp = data["routes"][0]["checkpoints"][0]
     assert set(cp) >= {"mile", "lat", "lon", "eta", "segment_miles", "weather", "risk"}
+
+
+@override_settings(USE_FIXTURES=True)
+def test_plan_is_gzipped_when_the_client_accepts_it(api):
+    plain = api.post("/api/plan", plan_body(), format="json")
+    assert "Content-Encoding" not in plain
+    res = api.post("/api/plan", plan_body(), format="json", HTTP_ACCEPT_ENCODING="gzip, deflate, br")
+    assert res.status_code == 200
+    assert res["Content-Encoding"] == "gzip"
+    assert "Accept-Encoding" in res["Vary"]
+    assert len(res.content) < len(plain.content) / 3
+    assert json.loads(gzip.decompress(res.content)) == plain.json()
 
 
 @override_settings(USE_FIXTURES=True)
