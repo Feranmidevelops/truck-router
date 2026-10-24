@@ -62,6 +62,8 @@ any API keys.
 | `USE_FIXTURES` | backend | `true` serves canned data |
 | `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS` | backend | Django |
 | `CORS_ALLOWED_ORIGINS` | backend | Frontend origin(s), comma-separated |
+| `NUM_PROXIES` | backend | Proxies that append to `X-Forwarded-For` (0 locally, 2 on Render) |
+| `GEOCODE_COUNTRY_SET` | backend | Countries for place search (default `US`) |
 | `VITE_API_BASE_URL` | frontend | Backend URL in production (empty in dev) |
 | `VITE_MAP_STYLE_URL` | frontend | Optional map style override |
 
@@ -115,6 +117,7 @@ Where the brief left room for interpretation, and what I chose.
   heatmap's hour 0) starts at the later of the typed time and now.
 - **Forecast hour.** Wind uses the nearest forecast hour. Rain and snow use the first hour at or
   after the ETA, because Open-Meteo reports precipitation as the total over the preceding hour.
+  Exactly half past goes to the later hour, and gusts are read from the same hour as the wind.
 
 ### Recommendation
 
@@ -162,6 +165,32 @@ so Route A is always the recommended one.
 - Responses are cached for 30 minutes, and a rate-limited request is retried once before the app
   shows a clear "try again in a minute".
 
+### Heatmap
+
+- **Where it samples.** Cell centres on a fixed 0.25 degree grid (about 17 x 14 miles) within 30
+  miles of any route, capped at 250 points. Long trips get coarser cells until they fit, and the
+  cell each stretch of road passes through is always kept, so the road never has a hole in it.
+- **What it shows.** The risk level (Low to No Travel) at each point for every hour from the
+  departure, rounded down to the hour, to 48 hours later, using the same rules and load as the
+  checkpoints, so the shading and the dots agree.
+- **Drawn as blurred circles in each point's exact level colour.** A density heatmap was tried
+  first, but it blends neighbours by weight: a lone Severe cell came out faint green and Low
+  showed nothing at all. Circles keep every point's colour honest and still read as a smooth
+  field.
+- **The slider never refetches.** All 49 hours arrive in one request and sit on every point as
+  `h0`..`h48`. Moving the slider only changes which property the colour expression reads
+  (`setPaintProperty`): no network, no re-sent data. Measured at about 3 ms per tick and a steady
+  60 fps while dragging.
+
+### Rate limits
+
+- Each visitor gets 10 plans, 120 place searches and 30 heatmaps a minute; a limited request gets
+  a 429 with `Retry-After`. Health checks are never limited.
+- On Render, Cloudflare sits in front of Render's own proxy and both append to
+  `X-Forwarded-For`, so the visitor's address is the second entry from the end
+  (`NUM_PROXIES=2`). The last entry would be a Cloudflare server shared by strangers; the first
+  is whatever the client chose to send.
+
 ### Response size
 
 - **Route lines are simplified before they are sent.** TomTom returns about 10,000 points per
@@ -181,8 +210,20 @@ so Route A is always the recommended one.
 
 ## Tests
 
-`cd backend && pytest` covers every threshold boundary, the load rules, ranking order,
-checkpoint sampling and ETAs, the weather client's unit handling, and the API contract.
+`cd backend && pytest` runs about 400 tests in a few seconds, with no network access.
+
+- **Rules:** every wind, rain and snow boundary just below, at and above its edge, a grid of load
+  rule edges, each level's score in the average, and every ranking key and reason.
+- **Checked against wrong code:** the rule tests were run against deliberately broken versions
+  (a `>=` where the brief says `>`, snow read from the wind's hour, overlap measured the wrong
+  way round, de-duplication per chunk) to make sure each one fails a test.
+- **Real data:** a trimmed real TomTom Dallas -> Denver response, and Open-Meteo unit strings
+  confirmed against a live call.
+- **End to end:** a whole trip goes through the API, the real HTTP clients and the planner
+  against fake TomTom and Open-Meteo servers, including "no route" and failure cases.
+- **Contract:** a test reads `frontend/src/api/types.ts` and checks every API response and sample
+  file against it, so the backend and the frontend can't drift apart silently.
+- **Frontend:** `npm run build` type-checks it and `npm run lint` lints it.
 
 ## Deploy
 
@@ -193,4 +234,23 @@ checkpoint sampling and ETAs, the weather client's unit handling, and the API co
 
 ## Known limits
 
-- TODO
+- **ETAs assume nonstop driving.** US hours-of-service rules (a 30-minute break after 8 hours,
+  at most 11 hours driving, then 10 hours off) would push later checkpoints into later forecast
+  hours. Dallas -> Denver is about 12 hours, so a real driver would stop. Adding the breaks to
+  the timing profile is the next step.
+- **Weather between checkpoints isn't scored.** At a 50-mile interval a storm between two
+  checkpoints doesn't count towards a route's miles; that's the brief's sampling design. The
+  heatmap shows the corridor in between, and a 10-mile interval narrows the gap.
+- **Gusts are shown but not scored**, because the brief's wind thresholds read as sustained wind.
+- **Forecast detail.** Open-Meteo blends weather models on grids of a few kilometres, and
+  lookups are rounded to 0.1 degrees (about 7 miles), so very local storms can be missed or
+  smeared.
+- **Routes depend on TomTom.** It often returns two truck alternatives, so the third is usually
+  a fallback that's slower, and with live traffic the routes can change between runs.
+- **One clock per trip.** Every time is shown on the origin's clock, even after the truck
+  crosses into another time zone.
+- **US only.** Place search is limited to the US (`GEOCODE_COUNTRY_SET`), and the thresholds are
+  in mph and inches.
+- **Free tiers.** TomTom allows 2,500 requests a day (about 830 plans), Open-Meteo 600 locations
+  a minute, and a free Render instance sleeps when idle, so the first request after a quiet
+  spell is slow.
