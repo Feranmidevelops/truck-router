@@ -47,6 +47,40 @@ def test_summarize_route_weights_by_distance():
     assert s.max_level == Level.SEVERE
 
 
+@pytest.mark.parametrize(
+    ("level", "score"),
+    [(Level.LOW, 0), (Level.MODERATE, 1), (Level.HIGH, 2), (Level.SEVERE, 3), (Level.NO_TRAVEL, 4)],
+    ids=["LOW", "MODERATE", "HIGH", "SEVERE", "NO_TRAVEL"],
+)
+def test_summarize_route_scores_each_level(level, score):
+    s = summarize_route("r0", distance_m=64_374, duration_s=3600, checkpoints=[cp(0, 40, level)])
+    assert s.miles_by_level == {lvl: 40.0 if lvl == level else 0.0 for lvl in Level}
+    assert s.avg_risk == pytest.approx(score)
+    assert s.max_level == level
+
+
+def test_summarize_route_with_every_level():
+    checkpoints = [
+        cp(0, 10, Level.LOW),
+        cp(1, 20, Level.MODERATE),
+        cp(2, 5, Level.NO_TRAVEL),
+        cp(3, 15, Level.SEVERE),
+        cp(4, 30, Level.HIGH),
+    ]
+    s = summarize_route("r0", distance_m=128_748, duration_s=7200, checkpoints=checkpoints)
+    assert s.miles_by_level == {
+        Level.LOW: 10.0,
+        Level.MODERATE: 20.0,
+        Level.HIGH: 30.0,
+        Level.SEVERE: 15.0,
+        Level.NO_TRAVEL: 5.0,
+    }
+    # (0*10 + 1*20 + 2*30 + 3*15 + 4*5) / 80
+    assert s.avg_risk == pytest.approx(1.8125)
+    # the worst level, even though it covers the fewest miles and isn't last
+    assert s.max_level == Level.NO_TRAVEL
+
+
 def test_summarize_route_converts_distance_to_miles():
     s = summarize_route("r0", distance_m=160_934.4, duration_s=7200, checkpoints=[cp(0, 100, Level.LOW)])
     assert s.route_id == "r0"
