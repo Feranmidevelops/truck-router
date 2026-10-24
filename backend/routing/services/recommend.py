@@ -4,11 +4,13 @@ Ranking order (the brief, plus the decisions in the README):
   0. Fewest NO_TRAVEL miles (not in the brief; a route you can't drive can't win)
   1. Fewest SEVERE miles
   2. Fewest HIGH miles
-  3. Lowest average risk (distance-weighted, compared rounded to 2 decimals so
-     float noise can't decide it; averages that round the same count as equal,
-     otherwise the lower one wins even when slower)
+  3. Lowest average risk (distance-weighted, compared rounded to 2 decimals;
+     averages that round the same count as equal, otherwise the lower one wins
+     even when slower)
   4. Shortest travel time (decides only true ties)
-Miles are compared rounded to 0.1.
+Miles are compared rounded to 0.1. Rounding hides float noise such as
+0.1 + 0.2 == 0.30000000000000004, except for a value sitting right on a
+halfway point like 0.805, which can still round either way.
 """
 
 from .types import Checkpoint, Level, RouteSummary
