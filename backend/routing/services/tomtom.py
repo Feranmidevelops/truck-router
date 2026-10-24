@@ -34,9 +34,9 @@ BASE_URL = "https://api.tomtom.com"
 TRUCK_TARE_LB = 35_000  # assumed empty tractor-trailer weight; the user enters cargo weight
 LB_TO_KG = 0.45359237
 
-# Drop a route taking over 1.35x the fastest route's time or over 1.35x its length. Live,
-# TomTom's own alternatives that drivers would consider came in at up to 1.29x the time and
-# 1.22x the length; the detours worth dropping at 1.40x and more of either.
+# Drop a route taking over 1.35x the fastest route's time or over 1.35x its length. Live, the
+# alternatives worth showing took up to 1.29x the time and 1.22x the length; the detours worth
+# dropping took 1.40x or more of one or the other.
 MAX_SLOWDOWN = 1.35
 MAX_LONGER = 1.35
 MAX_OVERLAP = 0.9  # drop a route when over 90% of it runs along a route already kept
