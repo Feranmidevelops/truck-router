@@ -28,9 +28,10 @@ export const levelColorExpression = [
   '#888888',
 ] as unknown as ExpressionSpecification
 
-// One decimal under 10 mi, so a short stretch never prints as "0 mi"
+// One decimal, as the API rounds them, so the card matches the recommendation reason
+// ("Fewest no-travel miles (12.5 vs 25.0)") and a short stretch never prints as "0 mi"
 export function formatMiles(miles: number) {
-  return `${miles < 9.95 ? miles.toFixed(1) : miles.toFixed(0)} mi`
+  return `${miles.toFixed(1)} mi`
 }
 
 // Round to the minute before splitting, so 59.5 min is "1 h 0 min", never "60 min".
