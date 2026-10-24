@@ -36,6 +36,11 @@ MAX_SLOWDOWN = 1.5  # drop a route taking over 1.5x the fastest route's time
 MAX_OVERLAP = 0.9  # drop a route when over 90% of it runs along a route already kept
 FALLBACK_OFFSETS = (0.15, 0.25)  # via point distance from the route, as a share of the straight-line trip
 
+REQUEST_TIMEOUT_S = 20
+# A via-point request answered in 2-3 s live. One still silent after 10 s is skipped like any
+# failed fallback, so it can't hold the plan up for the full 20 s.
+FALLBACK_TIMEOUT_S = 10
+
 OVERLAP_STEP_M = 5 * METERS_PER_MILE  # sample spacing along the candidate route
 OVERLAP_NEAR_M = 0.5 * METERS_PER_MILE  # a sample this close to the other route counts as shared road
 _M_PER_DEG_LAT = haversine_m(LatLon(0, 0), LatLon(1, 0))
@@ -92,6 +97,7 @@ def calculate_routes(
     max_alternatives: int = 2,
     source: str = "tomtom",
     id_prefix: str = "r",
+    timeout: float = REQUEST_TIMEOUT_S,
     client: httpx.Client | None = None,
 ) -> list[RouteOption]:
     stops = [origin, *(via or []), destination]
@@ -112,7 +118,7 @@ def calculate_routes(
         "routeRepresentation": "polyline",
         "instructionsType": "coded",
     }
-    payload = _get(url, params, client)
+    payload = _get(url, params, client, timeout)
     routes = parse_routes(payload, departure, source=source, id_prefix=id_prefix)
     if not routes:
         raise NoRouteError(NO_ROUTE_MESSAGE)
@@ -205,8 +211,8 @@ def ensure_three_routes(
     def fetch(via: LatLon, id_prefix: str) -> list[RouteOption]:
         try:
             return calculate_routes(
-                origin, destination, departure, load_lb, api_key,
-                via=[via], source="via-fallback", id_prefix=id_prefix, client=client,
+                origin, destination, departure, load_lb, api_key, via=[via], source="via-fallback",
+                id_prefix=id_prefix, timeout=FALLBACK_TIMEOUT_S, client=client,
             )
         except (RoutingError, KeyError, ValueError):
             return []  # e.g. no road near the via point, or a reply we can't read
@@ -355,11 +361,11 @@ def _dist2_to_segment(x: float, y: float, ax: float, ay: float, bx: float, by: f
     return ex * ex + ey * ey
 
 
-def _get(url: str, params: dict, client: httpx.Client | None) -> dict:
+def _get(url: str, params: dict, client: httpx.Client | None, timeout: float = REQUEST_TIMEOUT_S) -> dict:
     own = client is None
-    client = client or httpx.Client(timeout=20)
+    client = client or httpx.Client()
     try:
-        resp = client.get(url, params=params)
+        resp = client.get(url, params=params, timeout=timeout)
     except httpx.HTTPError as exc:
         raise RoutingError(f"TomTom request failed: {exc}") from exc
     finally:
