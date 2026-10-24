@@ -50,11 +50,19 @@ export function PlaceInput({ label, value, onChange }: Props) {
     setOpen(false)
   }
 
+  const listId = `${id}-list`
+
   return (
     <div className="field place-input">
-      <label htmlFor={id}>{label}</label>
+      <label id={`${id}-label`} htmlFor={id}>
+        {label}
+      </label>
       <input
         id={id}
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={showOptions}
+        aria-controls={showOptions ? listId : undefined}
         value={text}
         autoComplete="off"
         placeholder="City or address"
@@ -73,9 +81,15 @@ export function PlaceInput({ label, value, onChange }: Props) {
         }}
       />
       {showOptions && (
-        <ul className="suggestions" role="listbox">
-          {search.places.map((p) => (
-            <li key={`${p.lat},${p.lon}`} role="option" aria-selected={false} onMouseDown={() => choose(p)}>
+        <ul id={listId} className="suggestions" role="listbox" aria-labelledby={`${id}-label`}>
+          {search.places.map((p, i) => (
+            <li
+              key={`${p.lat},${p.lon}`}
+              id={`${id}-option-${i}`}
+              role="option"
+              aria-selected={false}
+              onMouseDown={() => choose(p)}
+            >
               {p.label}
             </li>
           ))}
