@@ -17,6 +17,17 @@ const NARROW_SCREEN = '(max-width: 800px)'
 // Selection lives in feature-state, so changing it restyles on the GPU without
 // sending any geometry back to the map's worker.
 const SELECTED: ExpressionSpecification = ['boolean', ['feature-state', 'selected'], false]
+// Checkpoint dots shrink when zoomed out so they don't bury the route line.
+const byZoom = (zoomedOut: Radius, zoomedIn: Radius): ExpressionSpecification => [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  4,
+  zoomedOut,
+  7,
+  zoomedIn,
+]
+type Radius = number | ExpressionSpecification
 
 interface Props {
   plan: Plan | null
@@ -113,7 +124,7 @@ export function MapView({ plan, selectedRouteId, onSelectRoute }: Props) {
         source: 'checkpoints',
         paint: {
           'circle-color': levelColorExpression,
-          'circle-radius': ['case', SELECTED, 6, 4],
+          'circle-radius': byZoom(['case', SELECTED, 4, 3], ['case', SELECTED, 7, 5]),
           'circle-opacity': ['case', SELECTED, 0, 0.55],
           'circle-stroke-opacity': ['case', SELECTED, 0, 0.55],
           'circle-stroke-color': '#ffffff',
@@ -126,7 +137,7 @@ export function MapView({ plan, selectedRouteId, onSelectRoute }: Props) {
         source: 'checkpoints',
         paint: {
           'circle-color': levelColorExpression,
-          'circle-radius': 6,
+          'circle-radius': byZoom(4, 7),
           'circle-opacity': ['case', SELECTED, 1, 0],
           'circle-stroke-opacity': ['case', SELECTED, 1, 0],
           'circle-stroke-color': '#ffffff',
