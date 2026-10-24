@@ -253,8 +253,8 @@ class _Trace:
     """A route in flat local metres, plus what the overlap test needs, built on first use.
 
     Longitude degrees are scaled by cos(lat0) so that x and y are both metres. One lat0 for
-    the whole trip is close enough: 500 miles north or south of it the east-west scale is
-    off by a few percent, about 30 m on a 0.5 mile test.
+    the whole trip is close enough: 250 miles north or south of it the east-west scale is
+    about 5% off, 500 miles about 10%, so at worst the 0.5 mile test acts like 0.45-0.55 mile.
     """
 
     def __init__(self, points: list[LatLon], lat0: float):
