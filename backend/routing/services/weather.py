@@ -26,11 +26,10 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 import hashlib
 import time
-from typing import Protocol
 
 import httpx
 
-from .types import LatLon, WeatherSample
+from .types import Cache, LatLon, WeatherSample
 
 BASE_URL = "https://api.open-meteo.com/v1/forecast"
 # Temperature and weather_code are shown, not scored. Seven variables still count as one call.
@@ -57,11 +56,6 @@ TEMP_TO_F = {"°F": lambda f: f, "°C": lambda c: c * 9 / 5 + 32}
 
 class WeatherError(Exception):
     pass
-
-
-class Cache(Protocol):
-    def get(self, key: str, default=None): ...
-    def set(self, key: str, value, timeout: int | None = None): ...
 
 
 @dataclass

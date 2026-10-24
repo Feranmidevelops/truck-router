@@ -5,6 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import IntEnum
+from typing import Protocol
+
+
+class Cache(Protocol):
+    """The part of Django's cache the API clients use, so they can be tested without Django."""
+
+    def get(self, key: str, default=None): ...
+    def set(self, key: str, value, timeout: int | None = None): ...
 
 
 class Level(IntEnum):
