@@ -94,7 +94,8 @@ def calculate_routes(
     locations = ":".join(f"{p.lat:.6f},{p.lon:.6f}" for p in stops)
     url = f"{BASE_URL}/routing/1/calculateRoute/{locations}/json"
     now = datetime.now(timezone.utc)
-    depart_at = "now" if departure <= now + timedelta(minutes=1) else departure.isoformat()
+    # Whole seconds, like the dateTime examples in TomTom's docs: no ".123456" fraction.
+    depart_at = "now" if departure <= now + timedelta(minutes=1) else departure.isoformat(timespec="seconds")
     params = {
         "key": api_key,
         "travelMode": "truck",

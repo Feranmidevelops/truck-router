@@ -59,6 +59,28 @@ def test_parse_routes():
     assert [(t.meters, t.seconds) for t in r.timing] == [(0, 0), (4_000, 300), (10_000, 600)]
 
 
+def depart_at_sent_for(departure: datetime) -> str:
+    sent = {}
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        sent.update(request.url.params)
+        return httpx.Response(200, json=SAMPLE)
+
+    client = httpx.Client(transport=httpx.MockTransport(respond))
+    origin, destination = LatLon(32.0, -97.0), LatLon(32.09, -97.0)
+    tomtom.calculate_routes(origin, destination, departure, 20_000, "test-key", client=client)
+    return sent["departAt"]
+
+
+def test_depart_at_is_sent_in_whole_seconds():
+    departure = (datetime.now(timezone.utc) + timedelta(days=1)).replace(microsecond=123_456)
+    assert depart_at_sent_for(departure) == departure.replace(microsecond=0).isoformat()
+
+
+def test_a_departure_already_passed_is_sent_as_now():
+    assert depart_at_sent_for(datetime.now(timezone.utc) - timedelta(minutes=30)) == "now"
+
+
 WEST, MIDDLE, EAST = LatLon(35.0, -100.0), LatLon(35.0, -95.0), LatLon(35.0, -90.0)
 
 
