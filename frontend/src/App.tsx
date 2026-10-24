@@ -25,6 +25,7 @@ export default function App() {
   const pending = useRef<AbortController | null>(null)
   const lastRequest = useRef<PlanRequest | null>(null)
   const [planning, setPlanning] = useState<PlanRequest | null>(null) // for the trip bar
+  const belowHero = useRef<HTMLDivElement>(null)
   const [heatmap, setHeatmap] = useState<HeatmapState>({ status: 'idle' })
   const heatmapPending = useRef<AbortController | null>(null)
 
@@ -52,6 +53,8 @@ export default function App() {
     setLoading(true)
     setPlanning(req)
     setError(null)
+    // Down to the map, where the loading state and then the routes show
+    scrollToElement(belowHero.current)
     try {
       const result = await planTrip(req, ctrl.signal)
       setPlan(result)
@@ -85,7 +88,7 @@ export default function App() {
           <TripForm loading={loading} onSubmit={handlePlan} />
         </Hero>
         {/* The trip bar sticks to the top of the window anywhere below the hero */}
-        <div className="below-hero">
+        <div ref={belowHero} className="below-hero">
           <TripBar trip={trip} planning={loading} onEdit={editTrip} />
           <Workspace
             plan={plan}
