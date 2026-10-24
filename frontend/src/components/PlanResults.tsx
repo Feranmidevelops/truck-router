@@ -1,4 +1,5 @@
 import type { Plan } from '../api/types'
+import type { Channel } from '../lib/channel'
 import { formatDuration } from '../lib/risk'
 import { AlongRoute } from './AlongRoute'
 import { RouteList } from './RouteList'
@@ -11,11 +12,21 @@ interface Props {
   onSelect: (id: string) => void
   onRetry?: () => void // only when the same request again could work
   onPlanTrip: () => void // back to the form
+  hoverChannel?: Channel<string | null> // the checkpoint hovered in the list, for the map
 }
 
 // The results panel (the bottom sheet on phones): loading and error states, route cards,
 // checkpoints. Each part is a section with its own heading, so more can slot in.
-export function PlanResults({ plan, loading, error, selectedRouteId, onSelect, onRetry, onPlanTrip }: Props) {
+export function PlanResults({
+  plan,
+  loading,
+  error,
+  selectedRouteId,
+  onSelect,
+  onRetry,
+  onPlanTrip,
+  hoverChannel,
+}: Props) {
   const selectedRoute = plan?.routes.find((r) => r.id === selectedRouteId)
 
   return (
@@ -37,6 +48,7 @@ export function PlanResults({ plan, loading, error, selectedRouteId, onSelect, o
               route={selectedRoute}
               timeZone={plan.input.timezone}
               intervalMiles={plan.input.interval_miles}
+              hoverChannel={hoverChannel}
             />
           )}
         </div>

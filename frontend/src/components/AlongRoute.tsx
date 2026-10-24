@@ -1,5 +1,6 @@
-import { memo, useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { memo, useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import type { Checkpoint, RiskLevel, Route } from '../api/types'
+import { checkpointKey, type Channel } from '../lib/channel'
 import { LEVEL_COLOR, formatSky, timeFormatter, type TimeFormatter } from '../lib/risk'
 import { CheckpointTable } from './CheckpointTable'
 import { ChevronDown, RainIcon, SnowIcon, WindIcon } from './icons'
@@ -10,12 +11,16 @@ interface Props {
   route: Route
   timeZone: string // the plan's zone (the origin's): every time here reads in it
   intervalMiles: number
+  hoverChannel?: Channel<string | null> // rows hovered or focused here get a ring on the map
 }
+
+// Called with a row's checkpoint as the pointer or focus arrives, and null as it leaves
+export type Highlight = (index: number | null) => void
 
 // The selected route, checkpoint by checkpoint. The ones above Low come first, as readable
 // rows; the full list, grouped by day, opens on request.
 // memo: only re-renders when the selected route changes.
-export const AlongRoute = memo(function AlongRoute({ route, timeZone, intervalMiles }: Props) {
+export const AlongRoute = memo(function AlongRoute({ route, timeZone, intervalMiles, hoverChannel }: Props) {
   const titleId = useId()
   const listId = useId()
   const [showAll, setShowAll] = useState(false)
@@ -23,6 +28,12 @@ export const AlongRoute = memo(function AlongRoute({ route, timeZone, intervalMi
   const notable = useMemo(() => route.checkpoints.filter((c) => c.risk.level !== 'LOW'), [route])
   const count = route.checkpoints.length
   const zone = count ? time.zone(route.checkpoints[0].eta) : ''
+  const highlight = useMemo<Highlight>(
+    () => (index) => hoverChannel?.set(index === null ? null : checkpointKey(route.id, index)),
+    [hoverChannel, route.id],
+  )
+  // A row that goes away under the pointer never reports leaving it: clear the ring
+  useEffect(() => () => highlight(null), [highlight, route])
 
   return (
     <section className="along" aria-labelledby={titleId}>
@@ -37,7 +48,7 @@ export const AlongRoute = memo(function AlongRoute({ route, timeZone, intervalMi
       {notable.length ? (
         <ol className="along-list" aria-label="Checkpoints above Low">
           {notable.map((c) => (
-            <NotableRow key={c.index} checkpoint={c} time={time} />
+            <NotableRow key={c.index} checkpoint={c} time={time} highlight={highlight} />
           ))}
         </ol>
       ) : (
@@ -56,17 +67,31 @@ export const AlongRoute = memo(function AlongRoute({ route, timeZone, intervalMi
         {showAll ? 'Hide the full list' : `Show all ${count} checkpoints`}
         <ChevronDown size={16} />
       </button>
-      {showAll && <CheckpointTable id={listId} route={route} time={time} zone={zone} />}
+      {showAll && <CheckpointTable id={listId} route={route} time={time} zone={zone} highlight={highlight} />}
     </section>
   )
 })
 
-function NotableRow({ checkpoint: c, time }: { checkpoint: Checkpoint; time: TimeFormatter }) {
+interface RowProps {
+  checkpoint: Checkpoint
+  time: TimeFormatter
+  highlight: Highlight
+}
+
+// Focusable, so keyboard users can light up a checkpoint on the map too
+function NotableRow({ checkpoint: c, time, highlight }: RowProps) {
   const { weather: w, risk } = c
   const gust = Math.round(w.gust_mph) > Math.round(w.wind_mph) ? `gusts ${Math.round(w.gust_mph)}` : undefined
   const sky = formatSky(w)
   return (
-    <li className="along-row">
+    <li
+      className="along-row"
+      tabIndex={0}
+      onMouseEnter={() => highlight(c.index)}
+      onMouseLeave={() => highlight(null)}
+      onFocus={() => highlight(c.index)}
+      onBlur={() => highlight(null)}
+    >
       <span className="along-when">
         <span className="along-time">{time.dayClock(c.eta)}</span>
         <span className="along-mile">mile {Math.round(c.mile)}</span>

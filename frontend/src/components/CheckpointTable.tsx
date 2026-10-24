@@ -1,12 +1,14 @@
 import { memo, useMemo } from 'react'
 import type { Checkpoint, CheckpointRisk, Route } from '../api/types'
 import { LEVEL_COLOR, LEVEL_LABEL, type TimeFormatter } from '../lib/risk'
+import type { Highlight } from './AlongRoute'
 
 interface Props {
   id: string
   route: Route
   time: TimeFormatter // in the plan's zone (the origin's)
   zone: string // that zone's name at departure, for the header
+  highlight: Highlight // a hovered row's checkpoint gets a ring on the map
 }
 
 const COLUMNS = 6
@@ -14,7 +16,7 @@ const COLUMNS = 6
 // Every checkpoint on the route, grouped by day. The values that set a checkpoint's level
 // are bold. memo: only re-renders when the selected route changes. Rows are keyed by
 // checkpoint index, so switching routes updates the existing rows in place.
-export const CheckpointTable = memo(function CheckpointTable({ id, route, time, zone }: Props) {
+export const CheckpointTable = memo(function CheckpointTable({ id, route, time, zone, highlight }: Props) {
   const days = useMemo(() => groupByDay(route.checkpoints, time), [route, time])
 
   return (
@@ -53,7 +55,7 @@ export const CheckpointTable = memo(function CheckpointTable({ id, route, time, 
               const rowZone = time.zone(c.eta)
               const { weather: w, risk } = c
               return (
-                <tr key={c.index}>
+                <tr key={c.index} onMouseEnter={() => highlight(c.index)} onMouseLeave={() => highlight(null)}>
                   <td>
                     {time.clock(c.eta)}
                     {rowZone !== zone && ` ${rowZone}`}

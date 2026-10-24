@@ -42,6 +42,15 @@
     background-color var(--duration-fast) var(--ease);
 }
 
+.along-row:hover,
+.along-row:focus-visible {
+  border-color: var(--ink);
+}
+
+.along-row:focus-visible {
+  outline-offset: 1px;
+}
+
 .along-when {
   display: flex;
   align-items: baseline;
@@ -188,6 +197,10 @@
 
 .checkpoint-table td {
   border-bottom: 1px solid var(--line);
+}
+
+.checkpoint-table tbody tr:not(.day-row):hover td {
+  background: var(--surface-alt);
 }
 
 .checkpoint-table .num {

@@ -1,5 +1,6 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import type { Plan } from '../api/types'
+import { createChannel } from '../lib/channel'
 import { NARROW_SCREEN, useMediaQuery } from '../lib/layout'
 import { BottomSheet } from './BottomSheet'
 import type { HeatmapState } from './HeatmapSlider'
@@ -24,6 +25,8 @@ interface Props {
 export function Workspace({ plan, loading, error, onRetry, selectedRouteId, onSelectRoute, heatmap, onPlanTrip }: Props) {
   const narrow = useMediaQuery(NARROW_SCREEN)
   const coverRef = useRef<HTMLDivElement>(null)
+  // The checkpoint hovered in the list, for the map to ring. Never changes identity.
+  const [hoverChannel] = useState(() => createChannel<string | null>(null))
 
   const results = (
     <PlanResults
@@ -34,6 +37,7 @@ export function Workspace({ plan, loading, error, onRetry, selectedRouteId, onSe
       onSelect={onSelectRoute}
       onRetry={onRetry}
       onPlanTrip={onPlanTrip}
+      hoverChannel={hoverChannel}
     />
   )
 
@@ -46,6 +50,7 @@ export function Workspace({ plan, loading, error, onRetry, selectedRouteId, onSe
         onSelectRoute={onSelectRoute}
         heatmap={heatmap}
         coverRef={coverRef}
+        hoverChannel={hoverChannel}
       />
       {narrow ? (
         <>
