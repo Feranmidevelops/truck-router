@@ -1,12 +1,16 @@
 """Open-Meteo hourly forecast client.
 
 Docs: https://open-meteo.com/en/docs
-- Many coordinates per request (comma-separated); the response is then a JSON list.
-- rain, showers and snowfall are sums over the preceding hour, so they read as in/hr.
-- Free tier: under 10,000 calls/day, 5,000/hour, 600/minute. Cache and batch.
+- Many coordinates per request (comma-separated, up to 1,000); the response is
+  then a JSON list in request order.
+- start_hour and end_hour are both inclusive, in the requested timezone (GMT).
+- wind_speed_10m is instantaneous. wind_gusts_10m is the preceding hour's max.
+  rain, showers and snowfall are sums over the preceding hour, so they read as in/hr.
+- Free tier: under 10,000 calls/day, 5,000/hour, 600/minute, and every location
+  in a request counts as a call. Round, de-duplicate, cache and batch.
 
-Units are read from `hourly_units` and converted, so the code is correct
-whether or not the API honours precipitation_unit=inch for snowfall.
+Units are read from `hourly_units` and converted. With the params below the API
+returns "mp/h" for wind and "inch" for rain, showers and snowfall.
 """
 
 from __future__ import annotations
