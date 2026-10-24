@@ -164,7 +164,9 @@ def test_sample_at_uses_nearest_hour_for_wind_and_next_hour_for_precip():
     s = weather.parse_location(location_payload(), LatLon(32.78, -96.80))
     w = weather.sample_at(s, T0 + timedelta(minutes=20))
     assert w.wind_mph == 10.0  # nearest hour is T0
+    assert w.gust_mph == 15.0  # gusts follow the wind's hour
     assert w.rain_in_hr == pytest.approx(0.15)  # window (T0, T0+1h] is reported at T0+1h
+    assert w.snow_in_hr == pytest.approx(2.54)  # snow follows the rain's hour, not the wind's
     assert w.forecast_time == T0
 
     late = weather.sample_at(s, T0 + timedelta(minutes=40))
