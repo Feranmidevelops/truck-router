@@ -18,6 +18,36 @@
   inset: 0;
 }
 
+/* Holds the map's place until MapLibre arrives: survey-grid lines on light grey */
+.map-placeholder {
+  --grid-line: var(--line);
+  --grid-size: 48px;
+
+  display: grid;
+  place-items: center;
+  background-color: var(--surface-sunken);
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: var(--grid-size) var(--grid-size);
+}
+
+.map-placeholder-note {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--muted);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+
+/* Centred in the part of the map the panel leaves free */
+@media (min-width: 900px) {
+  .map-placeholder-note {
+    margin-left: var(--map-left-inset);
+  }
+}
+
 .results-panel {
   --panel-padding: var(--space-5);
   --panel-padding-top: var(--panel-padding);

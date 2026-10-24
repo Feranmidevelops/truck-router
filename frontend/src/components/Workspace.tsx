@@ -1,12 +1,15 @@
-import { useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import type { Plan } from '../api/types'
 import { createChannel } from '../lib/channel'
 import { NARROW_SCREEN, useMediaQuery } from '../lib/layout'
+import { afterLoadWhenIdle, loadMapView } from '../lib/loadMap'
 import { BottomSheet } from './BottomSheet'
+import { ErrorBoundary } from './ErrorBoundary'
 import type { HeatmapState } from './HeatmapSlider'
-import { MapView } from './MapView'
 import { PlanPeek, PlanResults } from './PlanResults'
 import './Workspace.css'
+
+const MapView = lazy(() => loadMapView().then((m) => ({ default: m.MapView })))
 
 interface Props {
   plan: Plan | null
@@ -41,17 +44,47 @@ export function Workspace({ plan, loading, error, onRetry, selectedRouteId, onSe
     />
   )
 
+  // The map loads once the first screen has settled, as the workspace scrolls near, or as
+  // soon as a plan is on its way, whichever comes first. Until then a light grid holds its place.
+  const sectionRef = useRef<HTMLElement>(null)
+  const [mapWanted, setMapWanted] = useState(false)
+  const showMap = mapWanted || loading || plan !== null
+  useEffect(() => {
+    if (showMap) return
+    const want = () => setMapWanted(true)
+    const cancelIdle = afterLoadWhenIdle(want)
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) want()
+      },
+      { rootMargin: '50% 0px' },
+    )
+    if (sectionRef.current) observer.observe(sectionRef.current)
+    return () => {
+      cancelIdle()
+      observer.disconnect()
+    }
+  }, [showMap])
+
   return (
-    <section id="workspace" className="workspace" aria-label="Routes and map">
-      <MapView
-        plan={plan}
-        loading={loading}
-        selectedRouteId={selectedRouteId}
-        onSelectRoute={onSelectRoute}
-        heatmap={heatmap}
-        coverRef={coverRef}
-        hoverChannel={hoverChannel}
-      />
+    <section ref={sectionRef} id="workspace" className="workspace" aria-label="Routes and map">
+      {showMap ? (
+        <ErrorBoundary fallback={<MapPlaceholder failed />}>
+          <Suspense fallback={<MapPlaceholder />}>
+            <MapView
+              plan={plan}
+              loading={loading}
+              selectedRouteId={selectedRouteId}
+              onSelectRoute={onSelectRoute}
+              heatmap={heatmap}
+              coverRef={coverRef}
+              hoverChannel={hoverChannel}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      ) : (
+        <MapPlaceholder />
+      )}
       {narrow ? (
         <>
           {/* The strip the sheet covers while it's down: the map fits the routes above it */}
@@ -78,5 +111,22 @@ export function Workspace({ plan, loading, error, onRetry, selectedRouteId, onSe
         </div>
       )}
     </section>
+  )
+}
+
+// Same size as the map, so nothing moves when it arrives
+function MapPlaceholder({ failed = false }: { failed?: boolean }) {
+  return (
+    <div className="map-wrap map-placeholder">
+      {failed ? (
+        <p className="map-placeholder-note" role="status">
+          The map didn't load, but the route list still works. Reload the page to try again.
+        </p>
+      ) : (
+        <p className="map-placeholder-note" aria-hidden>
+          Loading the map…
+        </p>
+      )}
+    </div>
   )
 }

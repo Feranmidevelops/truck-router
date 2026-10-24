@@ -9,8 +9,8 @@ export default defineConfig({
     chunkSizeWarningLimit: 1100, // the maplibre-gl chunk alone is ~1 MB minified
     rolldownOptions: {
       output: {
-        // maplibre-gl gets its own chunk: it downloads in parallel with the app code
-        // and stays cached when only our code changes.
+        // maplibre-gl gets its own chunk: it loads with the map, after the first screen
+        // (see lib/loadMap.ts), and stays cached when only our code changes.
         codeSplitting: {
           groups: [{ name: 'maplibre', test: /node_modules[\\/]maplibre-gl[\\/]/ }],
         },

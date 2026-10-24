@@ -2,6 +2,7 @@ import { Component, type ReactNode } from 'react'
 
 interface Props {
   children: ReactNode
+  fallback?: ReactNode // shown instead of the whole-page message, for a part that can fail alone
 }
 
 interface State {
@@ -19,6 +20,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (!this.state.crashed) return this.props.children
+    if (this.props.fallback !== undefined) return this.props.fallback
     return (
       <div className="crash" role="alert">
         <h1>Something went wrong</h1>
