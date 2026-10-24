@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
@@ -94,3 +95,67 @@ def test_sample_at_uses_nearest_hour_for_wind_and_next_hour_for_precip():
 
     clamped = weather.sample_at(s, T0 + timedelta(hours=10))
     assert clamped.wind_mph == 30.0
+
+
+def test_sample_at_half_past_goes_to_the_later_hour():
+    s = weather.parse_location(location_payload(), LatLon(32.78, -96.80))
+    just_before = weather.sample_at(s, T0 + timedelta(minutes=29, seconds=59))
+    assert just_before.forecast_time == T0
+
+    half = weather.sample_at(s, T0 + timedelta(minutes=30))
+    assert half.forecast_time == T0 + timedelta(hours=1)
+    assert half.wind_mph == 20.0
+    assert half.gust_mph == 25.0
+    assert half.rain_in_hr == pytest.approx(0.15)  # wind and precip from the same row
+
+
+def test_sample_at_exactly_on_the_hour_uses_that_hour_for_everything():
+    s = weather.parse_location(location_payload(), LatLon(32.78, -96.80))
+    w = weather.sample_at(s, T0 + timedelta(hours=1))
+    assert w.forecast_time == T0 + timedelta(hours=1)
+    assert w.wind_mph == 20.0
+    assert w.rain_in_hr == pytest.approx(0.15)  # window (T0, T0+1h] includes its end
+    assert w.snow_in_hr == pytest.approx(2.54)
+
+
+def test_sample_at_clamps_before_the_first_and_after_the_last_hour():
+    s = weather.parse_location(location_payload(), LatLon(32.78, -96.80))
+    early = weather.sample_at(s, T0 - timedelta(hours=3))
+    assert early.forecast_time == T0
+    assert (early.wind_mph, early.rain_in_hr, early.snow_in_hr) == (10.0, 0.0, 0.0)
+
+    late = weather.sample_at(s, T0 + timedelta(hours=10))
+    assert late.forecast_time == T0 + timedelta(hours=2)
+    assert late.wind_mph == 30.0
+    assert late.gust_mph == 0.0
+    assert late.rain_in_hr == pytest.approx(0.3)
+    assert late.snow_in_hr == pytest.approx(5.08)
+
+
+def test_sample_at_accepts_any_timezone():
+    s = weather.parse_location(location_payload(), LatLon(32.78, -96.80))
+    central = datetime(2026, 10, 24, 7, 20, tzinfo=timezone(timedelta(hours=-5)))  # 12:20 UTC
+    w = weather.sample_at(s, central)
+    assert w.forecast_time == T0
+    assert w.forecast_time.tzinfo == timezone.utc
+    assert w.rain_in_hr == pytest.approx(0.15)
+
+    # Half-hour offsets must still land on whole UTC hours.
+    newfoundland = datetime(2026, 10, 24, 10, 40, tzinfo=timezone(timedelta(hours=-2, minutes=-30)))
+    assert weather.sample_at(s, newfoundland).forecast_time == T0 + timedelta(hours=1)  # 13:10 UTC
+
+
+def test_sample_at_measures_real_time_across_a_dst_change():
+    start = datetime(2026, 11, 1, 6, tzinfo=timezone.utc)
+    times = [start + timedelta(hours=h) for h in range(3)]
+    s = weather.HourlySeries(LatLon(41.9, -87.6), times, [6.0, 7.0, 8.0], [0.0] * 3, [0.0] * 3, [0.0] * 3)
+    # 01:45 CDT is 06:45 UTC, an hour before Chicago falls back to CST.
+    w = weather.sample_at(s, datetime(2026, 11, 1, 1, 45, tzinfo=ZoneInfo("America/Chicago")))
+    assert w.forecast_time == datetime(2026, 11, 1, 7, tzinfo=timezone.utc)
+    assert w.wind_mph == 7.0
+
+
+def test_sample_at_rejects_a_naive_datetime():
+    s = weather.parse_location(location_payload(), LatLon(32.78, -96.80))
+    with pytest.raises(ValueError):
+        weather.sample_at(s, datetime(2026, 10, 24, 12, 20))

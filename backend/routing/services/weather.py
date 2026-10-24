@@ -11,6 +11,7 @@ whether or not the API honours precipitation_unit=inch for snowfall.
 
 from __future__ import annotations
 
+from bisect import bisect_left
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -140,12 +141,36 @@ def _convert(values: list, unit: str | None, table: dict[str, float]) -> list[fl
 
 
 def sample_at(series: HourlySeries, when: datetime) -> WeatherSample:
-    """Weather the truck meets at `when`.
+    """Weather the truck meets at `when` (timezone-aware, any zone).
 
-    - Wind and gusts are instantaneous: use the nearest forecast hour.
+    - Wind is instantaneous: use the nearest forecast hour. Exactly half past
+      goes to the later hour, the same hour rain and snow use, so at :30 every
+      value comes from one forecast row.
+    - Gusts are shown, not scored, so they come from the wind's hour and the
+      two read together.
     - Rain and snow are preceding-hour sums: use the first forecast hour >= when
       (the hour whose window contains `when`).
     - Clamp to the first/last hour if `when` is outside the series.
     forecast_time is the hour used for wind.
     """
-    raise NotImplementedError("sample_at")
+    if when.tzinfo is None:
+        raise ValueError("sample_at needs a timezone-aware datetime")
+    if not series.times:
+        raise WeatherError("No forecast hours to sample")
+    # Convert first: adding 30 minutes to a local time is wall-clock maths and
+    # goes wrong across a DST change.
+    t = when.astimezone(timezone.utc)
+    wind_i = _hour_index(series.times, floor_hour(t + timedelta(minutes=30)))
+    precip_i = _hour_index(series.times, ceil_hour(t))
+    return WeatherSample(
+        wind_mph=series.wind_mph[wind_i],
+        gust_mph=series.gust_mph[wind_i],
+        rain_in_hr=series.rain_in_hr[precip_i],
+        snow_in_hr=series.snow_in_hr[precip_i],
+        forecast_time=series.times[wind_i],
+    )
+
+
+def _hour_index(times: list[datetime], hour: datetime) -> int:
+    """Index of `hour` in the series, clamped to the first/last hour."""
+    return min(bisect_left(times, hour), len(times) - 1)
