@@ -159,6 +159,35 @@ def test_report_stretches_follow_the_checkpoints(faked):
         assert (stretch["min_temp_f"], stretch["max_temp_f"]) == (60.0, 60.0)
 
 
+def test_stretches_are_named_after_the_town_near_their_start(faked):
+    for route in plan()["routes"]:
+        for s in route["report"]["stretches"]:
+            start = route["checkpoints"][s["first_index"]]
+            assert s["where"] == f"near Town {start['lat']:.1f} {start['lon']:.1f}"
+
+
+def test_place_names_are_asked_for_once_per_plan_in_rank_order(faked, monkeypatch):
+    asked = []
+
+    def place_names(positions, api_key, **kwargs):
+        asked.append(positions)
+        return [None] * len(positions)  # e.g. every lookup failed
+
+    monkeypatch.setattr(tomtom, "place_names", place_names)
+    data = plan()
+    [positions] = asked
+    starts = [
+        LatLon(route["checkpoints"][s["first_index"]]["lat"], route["checkpoints"][s["first_index"]]["lon"])
+        for route in data["routes"]
+        for s in route["report"]["stretches"]
+    ]
+    assert [LatLon(round(p.lat, 5), round(p.lon, 5)) for p in positions] == starts
+    for route in data["routes"]:
+        assert [s["where"] for s in route["report"]["stretches"]] == [
+            f"at mile {round(s['start_mile'])}" for s in route["report"]["stretches"]
+        ]
+
+
 def test_plan_and_heatmap_log_how_long_each_step_took(faked, caplog):
     data = plan()
     planner.build_heatmap(data["plan_id"])
@@ -166,7 +195,15 @@ def test_plan_and_heatmap_log_how_long_each_step_took(faked, caplog):
     assert len(lines) == 2
     plan_line, heatmap_line = lines
     assert plan_line.startswith(f"Plan {data['plan_id']}: 3 routes, ")
-    steps = ("routing", "fallback routes", "checkpoints", "weather", "risk + ranking", "simplify")
+    steps = (
+        "routing",
+        "fallback routes",
+        "checkpoints",
+        "weather",
+        "risk + ranking",
+        "place names",
+        "simplify",
+    )
     timings = ", ".join(rf"{re.escape(step)} \d+\.\d\d s" for step in steps)
     assert re.search(rf" s total \({timings}\)$", plan_line)
     assert heatmap_line.startswith(f"Heatmap {data['plan_id']}: 3 points, ")

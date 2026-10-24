@@ -18,6 +18,7 @@ from routing.tests.fakes import (
     install_fake_http,
     upstream_rain_in_hr,
     upstream_temp_f,
+    upstream_town,
     upstream_wind_mph,
 )
 
@@ -56,6 +57,14 @@ def post_plan(api, departure: str):
     return api.post("/api/plan", body, format="json")
 
 
+def route_requests(upstream: FakeUpstream) -> list:
+    return [c for c in upstream.calls("api.tomtom.com") if c.url.path.startswith("/routing/")]
+
+
+def place_requests(upstream: FakeUpstream) -> list:
+    return [c for c in upstream.calls("api.tomtom.com") if c.url.path.startswith("/search/2/reverseGeocode/")]
+
+
 def stops(request) -> list[str]:
     """The places a TomTom route request goes through, as "lat,lon"."""
     return unquote(request.url.path.split("/")[4]).split(":")
@@ -89,7 +98,7 @@ def test_dallas_to_denver_plan_and_heatmap(api, upstream):
 
     # TomTom was asked for a truck route with alternatives. It had just the one, so the top-up
     # asked for the best route round the middle of it, then round the middle of both.
-    calls = upstream.calls("api.tomtom.com")
+    calls = route_requests(upstream)
     trip, *fallbacks = calls
     assert trip.method == "GET"
     assert trip.url.params["travelMode"] == "truck"
@@ -98,6 +107,10 @@ def test_dallas_to_denver_plan_and_heatmap(api, upstream):
     assert [c.method for c in fallbacks] == ["POST", "POST"]
     assert [len(json.loads(c.content)["avoidAreas"]["rectangles"]) for c in fallbacks] == [10, 10]
     assert all(stops(c) == stops(trip) for c in fallbacks)
+    # Then once per place a stretch starts in, for the journey report
+    towns = place_requests(upstream)
+    assert 0 < len(towns) <= tomtom.MAX_PLACE_LOOKUPS
+    assert len({t.url.path for t in towns}) == len(towns)
 
     routes = plan["routes"]
     assert len(routes) == 3
@@ -148,7 +161,8 @@ def test_dallas_to_denver_plan_and_heatmap(api, upstream):
         not_low = sum(v for level, v in miles.items() if level != "LOW")
         assert sum(s["miles"] for s in stretches) == pytest.approx(not_low, abs=0.1 * len(stretches))
         for s in stretches:
-            assert s["where"] == f"at mile {round(s['start_mile'])}"
+            start = cps[s["first_index"]]
+            assert s["where"] == f"near {upstream_town(round(start['lat'], 1), round(start['lon'], 1))}"
 
     keys = [
         recommend.ranking_key(
@@ -179,6 +193,30 @@ def test_dallas_to_denver_plan_and_heatmap(api, upstream):
 
     # Every request went to one of the two fakes; anything else would have raised
     assert {r.url.host for r in upstream.requests} == {"api.tomtom.com", "api.open-meteo.com"}
+
+
+@override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")
+def test_a_second_plan_takes_its_place_names_from_the_cache(api, upstream):
+    leave = tomorrow_in_dallas().strftime("%Y-%m-%dT%H:%M")
+    first = post_plan(api, leave).json()
+    asked = len(place_requests(upstream))
+    assert asked > 0
+    second = post_plan(api, leave).json()
+    assert len(place_requests(upstream)) == asked
+    names = [[s["where"] for s in r["report"]["stretches"]] for r in first["routes"]]
+    assert [[s["where"] for s in r["report"]["stretches"]] for r in second["routes"]] == names
+    assert any(where.startswith("near ") for route in names for where in route)
+
+
+@override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")
+def test_the_plan_still_works_when_place_names_fail(api, upstream):
+    upstream.no_place_names = True
+    res = post_plan(api, tomorrow_in_dallas().strftime("%Y-%m-%dT%H:%M"))
+    assert res.status_code == 200, res.json()
+    assert place_requests(upstream)
+    stretches = [s for route in res.json()["routes"] for s in route["report"]["stretches"]]
+    assert stretches
+    assert [s["where"] for s in stretches] == [f"at mile {round(s['start_mile'])}" for s in stretches]
 
 
 @override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")

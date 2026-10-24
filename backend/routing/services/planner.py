@@ -103,6 +103,11 @@ def build_plan(
     stretches = {rid: report.build_stretches(checkpoints[rid]) for rid in order}
     clock.lap("risk + ranking")
 
+    # In rank order, so when there are more places than lookups allowed, the best routes keep their names
+    starts = [s.start for rid in order for s in stretches[rid]]
+    names = dict(zip(starts, tomtom.place_names(starts, key, cache=cache)))
+    clock.lap("place names")
+
     # Checkpoints above were sampled on the full line; the map and the heatmap only need its shape
     shapes = {r.id: geometry.simplify(r.points, SIMPLIFY_TOLERANCE_M) for r in routes}
     clock.lap("simplify")
@@ -123,7 +128,7 @@ def build_plan(
     # Lettered in the order shown, so Route A is always the recommended one
     labels = {rid: f"Route {chr(65 + i)}" for i, rid in enumerate(order)}
     reports = {
-        rid: _report_json(by_id[rid], checkpoints[rid], stretches[rid], {}, origin, destination)
+        rid: _report_json(by_id[rid], checkpoints[rid], stretches[rid], names, origin, destination)
         for rid in order
     }
     return {
