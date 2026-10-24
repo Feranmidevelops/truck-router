@@ -28,9 +28,12 @@ export const levelColorExpression = [
   '#888888',
 ] as unknown as ExpressionSpecification
 
+// Round to the minute before splitting, so 59.5 min is "1 h 0 min", never "60 min".
+// Same half-up rule as the backend's recommendation reason, so the two always agree.
 export function formatDuration(seconds: number) {
-  const h = Math.floor(seconds / 3600)
-  const m = Math.round((seconds % 3600) / 60)
+  const minutes = Math.round(seconds / 60)
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
   return h ? `${h} h ${m} min` : `${m} min`
 }
 
