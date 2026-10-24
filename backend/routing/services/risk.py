@@ -59,7 +59,15 @@ def apply_load_rules(wind_mph: float, wind_level: Level, load_lb: float) -> Leve
     - 35-44 mph and load > 40,000 lb: SEVERE
     Never lowers a level.
     """
-    raise NotImplementedError("apply_load_rules")
+    if wind_mph >= 55:
+        rule_level = Level.NO_TRAVEL
+    elif 45 <= wind_mph < 55 and load_lb > 30_000:
+        rule_level = Level.NO_TRAVEL
+    elif 35 <= wind_mph < 45 and load_lb > 40_000:
+        rule_level = Level.SEVERE
+    else:
+        rule_level = Level.LOW
+    return max(wind_level, rule_level)
 
 
 def assess(wind_mph: float, rain_in_hr: float, snow_in_hr: float, load_lb: float) -> Assessment:

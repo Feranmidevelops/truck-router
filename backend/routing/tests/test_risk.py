@@ -108,6 +108,32 @@ def test_load_rules(mph, load, expected):
     assert apply_load_rules(mph, classify_wind(mph), load) == expected
 
 
+LOAD_EDGE_WEIGHTS = (30_000, 30_001, 40_000, 40_001)
+LOAD_EDGE_GRID = [
+    # mph    30,000  30,001  40,000  40,001
+    (34.9,  (M,      M,      M,      M)),  # no load rule below 35 mph
+    (35,    (H,      H,      H,      S)),
+    (44.9,  (H,      H,      H,      S)),
+    (45,    (S,      N,      N,      N)),
+    (54.9,  (S,      N,      N,      N)),
+    (55,    (N,      N,      N,      N)),
+]
+
+
+@pytest.mark.parametrize(
+    "mph, load, expected",
+    [(mph, load, level) for mph, row in LOAD_EDGE_GRID for load, level in zip(LOAD_EDGE_WEIGHTS, row)],
+)
+def test_load_rules_at_speed_and_weight_edges(mph, load, expected):
+    assert apply_load_rules(mph, classify_wind(mph), load) == expected
+
+
+@pytest.mark.parametrize("load", [0, 30_001, 40_001, 80_000])
+def test_load_rules_never_lower_the_wind_level(load):
+    assert apply_load_rules(40, N, load) == N
+    assert apply_load_rules(50, N, load) == N
+
+
 def test_assess_takes_worst_factor():
     a = assess(wind_mph=30, rain_in_hr=0.3, snow_in_hr=0, load_lb=10_000)
     assert a.level == H
