@@ -5,6 +5,7 @@ import pytest
 
 from routing.services import report, risk
 from routing.services.types import Checkpoint, LatLon, Level, WeatherSample
+from routing.views import load_fixture
 
 T0 = datetime(2026, 10, 26, 13, tzinfo=timezone.utc)
 INTERVAL = 25
@@ -125,6 +126,23 @@ def test_missing_temperatures_are_left_out_of_the_range():
     assert (some[0].min_temp_f, some[0].max_temp_f) == (40.0, 40.0)
     none = report.build_stretches(route({"rain": 0.3, "temp": None}))
     assert (none[0].min_temp_f, none[0].max_temp_f) == (None, None)
+
+
+def test_the_sample_plans_reports_match_its_checkpoints():
+    sample = load_fixture("plan.json")
+    for route in sample["routes"]:
+        cps, journey = route["checkpoints"], route["report"]
+        stretches = journey["stretches"]
+        bad = [cp["index"] for cp in cps if cp["risk"]["level"] != "LOW"]
+        assert [i for s in stretches for i in range(s["first_index"], s["last_index"] + 1)] == bad
+        assert all(b["first_index"] > a["last_index"] + 1 for a, b in zip(stretches, stretches[1:]))
+        for s in stretches:
+            run = cps[s["first_index"] : s["last_index"] + 1]
+            assert s["level"] == max((cp["risk"]["level"] for cp in run), key=Level.__getitem__)
+            assert s["miles"] == round(sum(cp["segment_miles"] for cp in run), 1)
+            assert (s["start_eta"], s["end_eta"]) == (run[0]["eta"], run[-1]["eta"])
+        assert journey["departure"]["weather"] == cps[0]["weather"]
+        assert journey["arrival"]["weather"] == cps[-1]["weather"]
 
 
 def test_where_names_the_place_or_falls_back_to_the_mile():

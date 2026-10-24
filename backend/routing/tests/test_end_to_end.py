@@ -136,6 +136,20 @@ def test_dallas_to_denver_plan_and_heatmap(api, upstream):
         miles = route["summary"]["miles_by_level"]
         assert sum(miles.values()) == pytest.approx(route["distance_miles"], abs=0.5)
 
+        # The report: leaving Dallas, every run of Moderate-or-worse checkpoints, arriving in Denver
+        journey = route["report"]
+        assert (journey["departure"]["place"], journey["arrival"]["place"]) == ("Dallas, TX", "Denver, CO")
+        assert journey["departure"]["weather"] == cps[0]["weather"]
+        assert journey["arrival"]["weather"] == cps[-1]["weather"]
+        stretches = journey["stretches"]
+        assert stretches, "the fake weather has wind and rain to report on every route"
+        bad = [cp["index"] for cp in cps if cp["risk"]["level"] != "LOW"]
+        assert [i for s in stretches for i in range(s["first_index"], s["last_index"] + 1)] == bad
+        not_low = sum(v for level, v in miles.items() if level != "LOW")
+        assert sum(s["miles"] for s in stretches) == pytest.approx(not_low, abs=0.1 * len(stretches))
+        for s in stretches:
+            assert s["where"] == f"at mile {round(s['start_mile'])}"
+
     keys = [
         recommend.ranking_key(
             RouteSummary(

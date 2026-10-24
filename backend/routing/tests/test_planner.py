@@ -122,6 +122,43 @@ def test_temperature_and_conditions_do_not_change_the_risk(faked, monkeypatch):
         assert {cp["weather"]["conditions"] for cp in b["checkpoints"]} == {"Heavy snow"}
 
 
+def test_every_route_has_a_report_from_departure_to_arrival(faked):
+    data = plan()
+    for route in data["routes"]:
+        cps, journey = route["checkpoints"], route["report"]
+        assert journey["departure"] == {
+            "place": "Dallas, TX",
+            "time": route["departure_time"],
+            "level": cps[0]["risk"]["level"],
+            "weather": cps[0]["weather"],
+        }
+        assert journey["arrival"] == {
+            "place": "Up the road",
+            "time": route["arrival_time"],
+            "level": cps[-1]["risk"]["level"],
+            "weather": cps[-1]["weather"],
+        }
+
+
+def test_report_stretches_follow_the_checkpoints(faked):
+    # The fake wind is the same along each whole route: LOW on one, MODERATE and HIGH on the others
+    low, moderate, high = plan()["routes"]
+    assert low["report"]["stretches"] == []
+    for route, level in ((moderate, "MODERATE"), (high, "HIGH")):
+        cps = route["checkpoints"]
+        [stretch] = route["report"]["stretches"]
+        assert (stretch["first_index"], stretch["last_index"]) == (0, len(cps) - 1)
+        assert (stretch["start_mile"], stretch["end_mile"]) == (0.0, cps[-1]["mile"])
+        assert (stretch["start_eta"], stretch["end_eta"]) == (cps[0]["eta"], cps[-1]["eta"])
+        assert stretch["miles"] == pytest.approx(route["distance_miles"], abs=0.1)
+        assert stretch["miles"] == route["summary"]["miles_by_level"][level]
+        assert (stretch["level"], stretch["drivers"]) == (level, ["wind"])
+        assert stretch["max_wind_mph"] == cps[0]["weather"]["wind_mph"]
+        assert stretch["max_gust_mph"] == cps[0]["weather"]["gust_mph"]
+        assert (stretch["max_rain_in_hr"], stretch["max_snow_in_hr"]) == (0.0, 0.0)
+        assert (stretch["min_temp_f"], stretch["max_temp_f"]) == (60.0, 60.0)
+
+
 def test_plan_and_heatmap_log_how_long_each_step_took(faked, caplog):
     data = plan()
     planner.build_heatmap(data["plan_id"])

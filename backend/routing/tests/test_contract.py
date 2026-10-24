@@ -138,7 +138,8 @@ def faked(monkeypatch):
 
 
 def test_types_ts_is_read(contract):
-    assert {"Place", "PlanRequest", "Plan", "Route", "Checkpoint", "Heatmap"} <= set(contract.interfaces)
+    expected = {"Place", "PlanRequest", "Plan", "Route", "Checkpoint", "Heatmap"}
+    assert expected | {"JourneyReport", "ReportStretch", "ReportStop"} <= set(contract.interfaces)
     assert all(contract.interfaces.values())
 
 
@@ -146,6 +147,7 @@ def test_plan_from_the_planner_matches_types_ts(contract, faked):
     data = plan()
     assert contract.errors(data, "Plan") == []
     assert data["routes"][0]["checkpoints"], "nothing to check in the checkpoints"
+    assert any(r["report"]["stretches"] for r in data["routes"]), "nothing to check in the stretches"
 
 
 def test_heatmap_from_the_planner_matches_types_ts(contract, faked):
@@ -181,6 +183,9 @@ def test_the_checker_catches_drift(contract, faked):
         "bad interval": lambda d: d["input"].update(interval_miles=30),
         "null number": lambda d: d["routes"][0]["checkpoints"][0]["weather"].update(gust_mph=None),
         "temperature as text": lambda d: d["routes"][0]["checkpoints"][0]["weather"].update(temp_f="60"),
+        "no report": lambda d: d["routes"][0].pop("report"),
+        "stretch without a place": lambda d: d["routes"][-1]["report"]["stretches"][0].pop("where"),
+        "stop without weather": lambda d: d["routes"][0]["report"]["arrival"].pop("weather"),
     }
     for label, break_it in cases.items():
         broken = copy.deepcopy(good)
