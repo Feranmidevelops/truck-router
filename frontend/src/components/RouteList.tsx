@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { Plan } from '../api/types'
 import { LEVELS, LEVEL_COLOR, LEVEL_LABEL, formatDuration, formatMiles, formatTime } from '../lib/risk'
 
@@ -7,7 +8,8 @@ interface Props {
   onSelect: (id: string) => void
 }
 
-export function RouteList({ plan, selectedRouteId, onSelect }: Props) {
+// memo: App re-renders for state these cards don't show (loading, later the heatmap hour)
+export const RouteList = memo(function RouteList({ plan, selectedRouteId, onSelect }: Props) {
   const best = plan.routes.find((r) => r.id === plan.recommended_route_id)
   // No Travel miles are the first ranking key, so if the best route has any, every route does
   const noSafeRoute = (best?.summary.miles_by_level.NO_TRAVEL ?? 0) > 0
@@ -74,4 +76,4 @@ export function RouteList({ plan, selectedRouteId, onSelect }: Props) {
       })}
     </section>
   )
-}
+})
