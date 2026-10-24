@@ -15,7 +15,7 @@ import uuid
 from django.conf import settings
 from django.core.cache import cache
 
-from . import corridor, geometry, recommend, risk, tomtom, weather
+from . import conditions, corridor, geometry, recommend, risk, tomtom, weather
 from .types import Checkpoint, LatLon, Level, RouteOption, RouteSummary
 
 PLAN_TTL_S = 60 * 60
@@ -211,6 +211,9 @@ def _checkpoint_json(cp: Checkpoint) -> dict:
             "gust_mph": round(w.gust_mph, 1),
             "rain_in_hr": round(w.rain_in_hr, 3),
             "snow_in_hr": round(w.snow_in_hr, 3),
+            "temp_f": None if w.temp_f is None else round(w.temp_f, 1),
+            "conditions": conditions.describe(w.weather_code),
+            "weather_code": w.weather_code,
             "forecast_time": w.forecast_time.isoformat(),
         },
         "risk": {

@@ -29,7 +29,10 @@ export interface CheckpointWeather {
   gust_mph: number
   rain_in_hr: number
   snow_in_hr: number
-  forecast_time: string
+  temp_f: number | null // shown, not scored; null when the forecast has no value
+  conditions: string // e.g. "Partly cloudy", "Light snow"; "Unknown" when weather_code is null
+  weather_code: number | null // WMO code that conditions describes, e.g. for picking an icon
+  forecast_time: string // the hour wind, gusts, temperature and conditions come from
 }
 
 export interface CheckpointRisk {
@@ -69,6 +72,8 @@ export interface Route {
   arrival_time: string
   geometry: Array<[number, number]> // [lon, lat]
   summary: RouteSummary
+  // The first is the origin at departure and the last the destination at this route's arrival,
+  // so their weather is what each place is like when the truck is there.
   checkpoints: Checkpoint[]
 }
 

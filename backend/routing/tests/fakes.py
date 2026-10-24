@@ -68,6 +68,8 @@ def fake_fetch_hourly(positions, start, end, **kwargs):
             gust_mph=[wind_at(p) + 10] * hours,
             rain_in_hr=[0.0] * hours,
             snow_in_hr=[0.0] * hours,
+            temp_f=[60.0] * hours,
+            weather_code=[2] * hours,
         )
         for p in positions
     ]
@@ -80,6 +82,8 @@ def fake_sample_at(series, when):
         rain_in_hr=series.rain_in_hr[0],
         snow_in_hr=series.snow_in_hr[0],
         forecast_time=weather.floor_hour(when),
+        temp_f=series.temp_f[0],
+        weather_code=series.weather_code[0],
     )
 
 
@@ -112,6 +116,8 @@ OPEN_METEO_UNITS = {
     "rain": "inch",
     "showers": "inch",
     "snowfall": "inch",
+    "temperature_2m": "°F",
+    "weather_code": "wmo code",
 }
 
 
@@ -124,6 +130,15 @@ def upstream_rain_in_hr(lat: float) -> float:
     return 0.3 if lat > 37.0 else 0.0  # a High rain band over Kansas and Colorado
 
 
+def upstream_temp_f(lat: float) -> float:
+    """70 °F at Dallas's latitude, 5 °F colder per degree north."""
+    return 70.0 - 5.0 * (lat - 32.0)
+
+
+def upstream_weather_code(lat: float) -> int:
+    return 65 if upstream_rain_in_hr(lat) else 1  # heavy rain in the rain band, mostly clear elsewhere
+
+
 class FakeUpstream:
     """Answers TomTom and Open-Meteo requests the way the real services do, from made-up data.
 
@@ -131,7 +146,8 @@ class FakeUpstream:
     the planner has to ask for routes round the one it has. A road asked to keep out of some
     boxes bends through a point beside the middle of the trip that keeps it clear of them all
     (see bend_round). The weather is the same every hour: wind from upstream_wind_mph, rain
-    from upstream_rain_in_hr.
+    from upstream_rain_in_hr, temperature from upstream_temp_f and the weather code from
+    upstream_weather_code.
     """
 
     def __init__(self):
@@ -216,7 +232,13 @@ class FakeUpstream:
         items = []
         for lat, lon in zip(lats, lons):
             wind = upstream_wind_mph(lon)
-            values = {"wind_speed_10m": wind, "wind_gusts_10m": wind * 1.4, "rain": upstream_rain_in_hr(lat)}
+            values = {
+                "wind_speed_10m": wind,
+                "wind_gusts_10m": wind * 1.4,
+                "rain": upstream_rain_in_hr(lat),
+                "temperature_2m": upstream_temp_f(lat),
+                "weather_code": upstream_weather_code(lat),
+            }
             items.append(
                 {
                     "latitude": lat,
