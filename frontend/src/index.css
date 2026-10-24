@@ -246,6 +246,10 @@ button[type='submit']:disabled {
   gap: var(--space-4);
 }
 
+.results {
+  scroll-margin-top: var(--space-3);
+}
+
 .results-body {
   transition: opacity 0.2s;
 }

@@ -1,6 +1,10 @@
+import { useEffect, useRef } from 'react'
 import type { Plan } from '../api/types'
 import { CheckpointTable } from './CheckpointTable'
 import { RouteList } from './RouteList'
+
+// Same breakpoint as index.css: below it the map sits under the sidebar
+const NARROW = '(max-width: 800px)'
 
 interface Props {
   plan: Plan | null
@@ -14,9 +18,17 @@ interface Props {
 // Everything under the form: loading and error states, route cards, checkpoint table.
 export function PlanResults({ plan, loading, error, selectedRouteId, onSelect, onRetry }: Props) {
   const selectedRoute = plan?.routes.find((r) => r.id === selectedRouteId)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // On a phone the new route cards land below the fold, so bring them up once per new plan
+  useEffect(() => {
+    if (!plan || !window.matchMedia(NARROW).matches) return
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ref.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+  }, [plan])
 
   return (
-    <div className="results">
+    <div ref={ref} className="results">
       {loading && (
         <p className="loading-note" role="status">
           <span className="spinner" aria-hidden />
