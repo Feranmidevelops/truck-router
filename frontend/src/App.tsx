@@ -2,9 +2,13 @@ import { useRef, useState } from 'react'
 import { ApiError, getHeatmap, isAbortError, planTrip } from './api/client'
 import type { Plan, PlanRequest } from './api/types'
 import type { HeatmapState } from './components/HeatmapSlider'
+import { Hero } from './components/Hero'
+import { HowItWorks } from './components/HowItWorks'
 import { MapView } from './components/MapView'
 import { PlanResults } from './components/PlanResults'
 import { SampleDataBanner } from './components/SampleDataBanner'
+import { SiteFooter } from './components/SiteFooter'
+import { SiteHeader } from './components/SiteHeader'
 import { TripForm } from './components/TripForm'
 
 export default function App() {
@@ -58,32 +62,37 @@ export default function App() {
   }
 
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <header>
-          <h1>Truck Route Weather</h1>
-          <p>Compare three truck routes by the weather you'll drive into, then pick the safest.</p>
-        </header>
-        <SampleDataBanner />
-        <TripForm loading={loading} onSubmit={handlePlan} />
-        <PlanResults
-          plan={plan}
-          loading={loading}
-          error={error?.message ?? null}
-          selectedRouteId={selectedRouteId}
-          onSelect={setSelectedRouteId}
-          onRetry={error?.retry ? () => lastRequest.current && handlePlan(lastRequest.current) : undefined}
-        />
-      </aside>
-      <main className="main">
-        <MapView
-          plan={plan}
-          loading={loading}
-          selectedRouteId={selectedRouteId}
-          onSelectRoute={setSelectedRouteId}
-          heatmap={heatmap}
-        />
+    <>
+      <SiteHeader />
+      <main id="top">
+        <Hero>
+          <SampleDataBanner />
+          <TripForm loading={loading} onSubmit={handlePlan} />
+        </Hero>
+        <section className="app" id="workspace" aria-label="Routes and map">
+          <div className="sidebar">
+            <PlanResults
+              plan={plan}
+              loading={loading}
+              error={error?.message ?? null}
+              selectedRouteId={selectedRouteId}
+              onSelect={setSelectedRouteId}
+              onRetry={error?.retry ? () => lastRequest.current && handlePlan(lastRequest.current) : undefined}
+            />
+          </div>
+          <div className="map-area">
+            <MapView
+              plan={plan}
+              loading={loading}
+              selectedRouteId={selectedRouteId}
+              onSelectRoute={setSelectedRouteId}
+              heatmap={heatmap}
+            />
+          </div>
+        </section>
+        <HowItWorks />
       </main>
-    </div>
+      <SiteFooter />
+    </>
   )
 }
