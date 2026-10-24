@@ -66,10 +66,10 @@ export function PlaceInput({ label, value, onChange }: Props) {
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && showOptions) {
-            e.preventDefault()
-            choose(search.places[0])
-          }
+          if (e.key !== 'Enter' || !showOptions) return
+          e.preventDefault()
+          // Only when the list answers what's in the box now, not an older query still on screen
+          if (search.q === q) choose(search.places[0])
         }}
       />
       {showOptions && (
