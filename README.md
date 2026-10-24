@@ -278,6 +278,7 @@ so Route A is always the recommended one.
   crosses into another time zone.
 - **US only.** Place search is limited to the US (`GEOCODE_COUNTRY_SET`), and the thresholds are
   in mph and inches.
-- **Free tiers.** TomTom allows 2,500 requests a day (830 to 2,500 plans, at 1-3 requests each), Open-Meteo 600 locations
-  a minute, and a free Render instance sleeps when idle, so the first request after a quiet
-  spell is slow.
+- **Free tiers.** TomTom allows 2,500 requests a day. A plan uses 1-3 routing requests plus up
+  to 6 town lookups for its report (cached for 30 days), so that's somewhere between about 280
+  and 2,500 plans. Open-Meteo allows 600 locations a minute, and a free Render instance sleeps
+  when idle, so the first request after a quiet spell is slow.
