@@ -51,7 +51,13 @@ def point_at_distance(points: list[LatLon], cumulative: list[float], meters: flo
 
 def seconds_at_distance(timing: list[TimingPoint], meters: float) -> float:
     """Travel time to `meters`, interpolated between timing points (clamped to the ends)."""
-    raise NotImplementedError("seconds_at_distance")
+    if meters <= timing[0].meters:
+        return timing[0].seconds
+    if meters >= timing[-1].meters:
+        return timing[-1].seconds
+    i = bisect_right(timing, meters, key=lambda t: t.meters)
+    a, b = timing[i - 1], timing[i]
+    return a.seconds + (b.seconds - a.seconds) * (meters - a.meters) / (b.meters - a.meters)
 
 
 def sample_checkpoints(

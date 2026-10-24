@@ -72,6 +72,22 @@ def test_seconds_at_distance_uses_timing_profile_not_average_speed():
     assert seconds_at_distance(timing, 500 * m) == pytest.approx(5400)
 
 
+def test_seconds_at_distance_hits_timing_points_and_clamps_below_zero():
+    m = METERS_PER_MILE
+    timing = [TimingPoint(0, 0), TimingPoint(10 * m, 1800), TimingPoint(80 * m, 5400)]
+    assert seconds_at_distance(timing, -5) == 0
+    assert seconds_at_distance(timing, 0) == 0
+    assert seconds_at_distance(timing, 10 * m) == pytest.approx(1800)
+    assert seconds_at_distance(timing, 80 * m) == 5400
+
+
+def test_seconds_at_distance_with_one_or_two_timing_points():
+    assert seconds_at_distance([TimingPoint(0, 0)], 1000) == 0
+    two = [TimingPoint(0, 0), TimingPoint(1000, 100)]
+    assert seconds_at_distance(two, 250) == pytest.approx(25)
+    assert seconds_at_distance(two, 1000) == 100
+
+
 def test_checkpoints_every_25_miles_plus_destination():
     pts = straight_line(110)
     cps = sample_checkpoints(pts, uniform_timing(pts, 50), T0, 25)
