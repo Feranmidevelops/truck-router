@@ -22,7 +22,7 @@ PLAN_TTL_S = 60 * 60
 HEATMAP_HOURS = 48
 METERS_PER_MILE = 1609.344
 # Route lines are drawn and gridded from a simplified copy. 20 m is inside a highway's width and
-# about 2 px at street zoom, and cuts a ~10,000-point TomTom route to under 1,000 points.
+# under 3 px up to city-level zoom (13), and cuts a ~10,000-point TomTom route to under 1,000 points.
 SIMPLIFY_TOLERANCE_M = 20
 NO_ROUTE_MESSAGE = "No truck route found between these places."
 
