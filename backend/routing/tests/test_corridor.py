@@ -155,6 +155,19 @@ def test_too_many_cells_coarsens_the_grid_until_it_fits_the_cap():
     assert all(is_centre(p.lat, cell) and is_centre(p.lon, cell) for p in capped)
 
 
+def test_default_cap_keeps_250_points_and_coarsens_at_251():
+    # Straight routes whose 0.25 deg grids have exactly 250 and 251 cells.
+    fits = polyline(LatLon(30.0, -100.05), LatLon(44.03, -100.05))
+    one_over = polyline(LatLon(30.0, -100.05), LatLon(44.13, -100.05))
+    assert len(build_grid([fits], max_points=NO_CAP)) == 250
+    assert len(build_grid([one_over], max_points=NO_CAP)) == 251
+
+    assert build_grid([fits]) == build_grid([fits], max_points=NO_CAP)
+    coarse = build_grid([one_over])
+    assert len(coarse) < 250
+    assert all(is_centre(p.lat, 0.375) and is_centre(p.lon, 0.375) for p in coarse)
+
+
 def test_coarse_cells_still_cover_the_whole_route():
     # Coast to coast needs three coarsenings, to cells of about 58 x 45 miles. A cell
     # the road crosses near its corner then has its centre more than 30 miles away.
