@@ -1,8 +1,7 @@
 import type { Plan } from '../api/types'
 import type { Channel } from '../lib/channel'
-import { formatDuration } from '../lib/risk'
 import { AlongRoute } from './AlongRoute'
-import { RouteList } from './RouteList'
+import { RiskBar, RouteFigures, RouteList } from './RouteList'
 
 interface Props {
   plan: Plan | null
@@ -65,16 +64,18 @@ export function PlanPeek({ plan, loading, error, selectedRouteId, onRetry }: Pee
   if (error) return <PlanError message={error} onRetry={onRetry} />
   if (loading && !plan) return <LoadingNote />
   if (!plan || !route) return <p className="peek-note">No trip yet. Plan one above and the routes show up here.</p>
+  const recommended = route.id === plan.recommended_route_id
+  // As on the cards: with No Travel on every route, the best one is only the least risky
+  const noSafeRoute = route.summary.miles_by_level.NO_TRAVEL > 0
   return (
     <div className={loading ? 'peek-route stale' : 'peek-route'}>
       <p className="peek-label">
         <strong>{route.label}</strong>
-        {route.id === plan.recommended_route_id && <span className="tag tag-dark">Recommended</span>}
+        {recommended && <span className="tag tag-dark">{noSafeRoute ? 'Least risky' : 'Recommended'}</span>}
+        <span className="peek-hint">{loading ? 'Planning the new trip…' : 'Swipe up for details'}</span>
       </p>
-      <p className="peek-numbers">
-        {formatDuration(route.duration_s)} · {route.distance_miles.toFixed(0)} mi
-      </p>
-      <p className="peek-hint">{loading ? 'Planning the new trip…' : 'Swipe up for every route and checkpoint'}</p>
+      <RouteFigures route={route} />
+      <RiskBar route={route} />
     </div>
   )
 }
@@ -120,10 +121,13 @@ function RouteSkeleton() {
     <div className="routes" aria-hidden>
       {[0, 1, 2].map((i) => (
         <div key={i} className="skeleton-card">
-          <span className="skeleton-line wide" />
+          <span className="skeleton-line short" />
+          <span className="skeleton-figures">
+            <span className="skeleton-line figure" />
+            <span className="skeleton-line figure narrow" />
+          </span>
           <span className="skeleton-line" />
           <span className="skeleton-line bar" />
-          <span className="skeleton-line short" />
         </div>
       ))}
     </div>

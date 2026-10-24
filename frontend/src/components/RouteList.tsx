@@ -58,9 +58,7 @@ interface CardProps {
 // A button may only hold inline content, so the rows are spans laid out by CSS.
 function RouteCard({ route, tag, reason, selected, timeZone, onSelect }: CardProps) {
   const { miles_by_level: miles, avg_risk } = route.summary
-  const total = LEVELS.reduce((sum, l) => sum + miles[l], 0) || 1
   const risky = LEVELS.filter((l) => l !== 'LOW' && miles[l] > 0)
-  const { h, m } = durationParts(route.duration_s)
 
   return (
     <button
@@ -73,31 +71,9 @@ function RouteCard({ route, tag, reason, selected, timeZone, onSelect }: CardPro
         <span className="route-name">{route.label}</span>
         {tag && <span className="tag tag-dark">{tag}</span>}
       </span>
-      {/* The units say which is which: no labels, so three cards fit a laptop's panel */}
-      <span className="route-figures">
-        <span className="route-figure">
-          {h > 0 && (
-            <>
-              {h}
-              <small>h</small>{' '}
-            </>
-          )}
-          {m}
-          <small>min</small>
-        </span>
-        <span className="route-figure">
-          {route.distance_miles.toFixed(0)}
-          <small>mi</small>
-        </span>
-      </span>
+      <RouteFigures route={route} />
       <span className="route-arrival">Arrives {formatTime(route.arrival_time, timeZone)}</span>
-      <span className="risk-bar" aria-hidden>
-        {LEVELS.map((l) =>
-          miles[l] > 0 ? (
-            <span key={l} style={{ width: `${(miles[l] / total) * 100}%`, background: LEVEL_COLOR[l] }} />
-          ) : null,
-        )}
-      </span>
+      <RiskBar route={route} />
       <span className="route-levels">
         {risky.length ? (
           risky.map((l) => (
@@ -112,5 +88,44 @@ function RouteCard({ route, tag, reason, selected, timeZone, onSelect }: CardPro
       </span>
       {reason && <span className="route-reason">{reason}</span>}
     </button>
+  )
+}
+
+// Drive time and distance, big. The units say which is which, so there are no labels and
+// three cards fit a laptop's panel.
+export function RouteFigures({ route }: { route: Route }) {
+  const { h, m } = durationParts(route.duration_s)
+  return (
+    <span className="route-figures">
+      <span className="route-figure">
+        {h > 0 && (
+          <>
+            {h}
+            <small>h</small>{' '}
+          </>
+        )}
+        {m}
+        <small>min</small>
+      </span>
+      <span className="route-figure">
+        {route.distance_miles.toFixed(0)}
+        <small>mi</small>
+      </span>
+    </span>
+  )
+}
+
+// The route's miles at each level, end to end in the level colours
+export function RiskBar({ route }: { route: Route }) {
+  const miles = route.summary.miles_by_level
+  const total = LEVELS.reduce((sum, l) => sum + miles[l], 0) || 1
+  return (
+    <span className="risk-bar" aria-hidden>
+      {LEVELS.map((l) =>
+        miles[l] > 0 ? (
+          <span key={l} style={{ width: `${(miles[l] / total) * 100}%`, background: LEVEL_COLOR[l] }} />
+        ) : null,
+      )}
+    </span>
   )
 }

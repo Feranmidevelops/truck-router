@@ -96,7 +96,7 @@
 .peek-route {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
   transition: opacity var(--duration);
 }
 
@@ -108,17 +108,12 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-}
-
-.peek-numbers {
-  font-size: var(--text-2xl);
-  font-weight: var(--weight-heavy);
-  font-stretch: var(--stretch-display);
-  letter-spacing: var(--tracking-tight);
-  line-height: 1.1;
+  font-stretch: var(--stretch-wide);
 }
 
 .peek-hint {
-  font-size: var(--text-sm);
+  margin-left: auto;
+  font-size: var(--text-xs);
+  font-stretch: 100%;
   color: var(--muted);
 }

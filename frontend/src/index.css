@@ -483,35 +483,46 @@ a {
   animation: spin 0.8s linear infinite;
 }
 
+/* Same shape as a route card, so nothing jumps when the routes arrive */
 .skeleton-card {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-3);
+  padding: var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
 }
 
 .skeleton-line {
-  width: 70%;
+  width: 60%;
   height: var(--space-2);
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
   animation: pulse 1.2s ease-in-out infinite alternate;
 }
 
-.skeleton-line.wide {
-  width: 85%;
+.skeleton-line.short {
+  width: 30%;
   height: var(--space-3);
 }
 
-.skeleton-line.short {
+.skeleton-figures {
+  display: flex;
+  gap: var(--space-6);
+}
+
+.skeleton-line.figure {
   width: 40%;
+  height: var(--space-6);
+}
+
+.skeleton-line.figure.narrow {
+  width: 22%;
 }
 
 .skeleton-line.bar {
   width: 100%;
-  height: var(--space-2);
+  height: 6px;
 }
 
 @keyframes spin {
