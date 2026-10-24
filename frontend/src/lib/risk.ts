@@ -28,9 +28,10 @@ export const levelColorExpression = [
   '#888888',
 ] as unknown as ExpressionSpecification
 
-// One decimal under 10 mi, so a short stretch never prints as "0 mi"
+// One decimal, as the API rounds them, so the card matches the recommendation reason
+// ("Fewest no-travel miles (12.5 vs 25.0)") and a short stretch never prints as "0 mi"
 export function formatMiles(miles: number) {
-  return `${miles < 9.95 ? miles.toFixed(1) : miles.toFixed(0)} mi`
+  return `${miles.toFixed(1)} mi`
 }
 
 // Round to the minute before splitting, so 59.5 min is "1 h 0 min", never "60 min".
@@ -45,7 +46,7 @@ export function formatDuration(seconds: number) {
 // Plan times show in the plan's zone (the origin's), not the viewer's: "Mon 9:49 PM CDT".
 // timeZone undefined means the viewer's own zone.
 export function formatTime(iso: string, timeZone?: string) {
-  return new Date(iso).toLocaleString(undefined, {
+  return nearestMinute(iso).toLocaleString(undefined, {
     weekday: 'short',
     hour: 'numeric',
     minute: '2-digit',
@@ -62,10 +63,16 @@ export function timeFormatter(timeZone?: string) {
   const clock = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone })
   const zone = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short', timeZone })
   return {
-    day: (iso: string) => day.format(new Date(iso)),
-    clock: (iso: string) => clock.format(new Date(iso)),
-    zone: (iso: string) => zone.formatToParts(new Date(iso)).find((p) => p.type === 'timeZoneName')?.value ?? '',
+    day: (iso: string) => day.format(nearestMinute(iso)),
+    clock: (iso: string) => clock.format(nearestMinute(iso)),
+    zone: (iso: string) => zone.formatToParts(nearestMinute(iso)).find((p) => p.type === 'timeZoneName')?.value ?? '',
   }
+}
+
+// Times print to the minute, rounded like formatDuration, so a 12:00 PM departure plus
+// "5 h 59 min" arrives at 5:59 PM. Intl would drop the seconds and print 5:58:59 as 5:58.
+function nearestMinute(iso: string) {
+  return new Date(Math.round(Date.parse(iso) / 60_000) * 60_000)
 }
 
 export type TimeFormatter = ReturnType<typeof timeFormatter>

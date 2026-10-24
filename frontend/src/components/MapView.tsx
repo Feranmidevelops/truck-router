@@ -42,18 +42,20 @@ type Radius = number | ExpressionSpecification
 
 interface Props {
   plan: Plan | null
+  loading: boolean // a new plan is on its way; any plan on the map is out of date
   selectedRouteId: string | null
   onSelectRoute: (id: string) => void
   heatmap: HeatmapState
 }
 
-export function MapView({ plan, selectedRouteId, onSelectRoute, heatmap }: Props) {
+export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const onSelectRef = useRef(onSelectRoute)
   // The map's event handlers are bound once, so they read the latest props from refs.
   const planRef = useRef(plan)
   const selectedRef = useRef(selectedRouteId)
+  const loadingRef = useRef(loading)
   const popupRef = useRef<Popup | null>(null)
   const panelRef = useRef<HTMLElement>(null)
   const [ready, setReady] = useState(false)
@@ -61,12 +63,20 @@ export function MapView({ plan, selectedRouteId, onSelectRoute, heatmap }: Props
   const errorDismissed = useRef(false)
   const [showHeat, setShowHeat] = useState(true)
   const heatData = heatmap.status === 'ready' ? heatmap.data : null
+  const stale = loading && plan !== null
 
   useEffect(() => {
     onSelectRef.current = onSelectRoute
     planRef.current = plan
     selectedRef.current = selectedRouteId
-  }, [onSelectRoute, plan, selectedRouteId])
+    loadingRef.current = loading
+  }, [onSelectRoute, plan, selectedRouteId, loading])
+
+  // Like the sidebar, the old plan stays on screen dimmed until the new one lands. Its routes
+  // stop answering hovers and clicks (see bindCheckpointPopup); panning and zooming still work.
+  useEffect(() => {
+    if (loading) popupRef.current?.remove()
+  }, [loading])
 
   // Create the map once. Sources and layers are added once; later updates only call setData.
   useEffect(() => {
@@ -182,7 +192,7 @@ export function MapView({ plan, selectedRouteId, onSelectRoute, heatmap }: Props
         },
       })
 
-      bindCheckpointPopup(map, popup, planRef, selectedRef, onSelectRef)
+      bindCheckpointPopup(map, popup, planRef, selectedRef, onSelectRef, loadingRef)
       setReady(true)
     })
 
@@ -243,7 +253,7 @@ export function MapView({ plan, selectedRouteId, onSelectRoute, heatmap }: Props
   }, [plan, ready])
 
   return (
-    <div className="map-wrap">
+    <div className={stale ? 'map-wrap stale' : 'map-wrap'}>
       <div ref={containerRef} className="map" />
       {mapError && (
         <div className="map-notice" role="status">
@@ -264,6 +274,7 @@ export function MapView({ plan, selectedRouteId, onSelectRoute, heatmap }: Props
         ref={panelRef}
         state={heatmap}
         timeZone={plan?.input.timezone}
+        inert={stale}
         visible={showHeat}
         onToggle={toggleHeat}
         onHourChange={onHourChange}
@@ -291,6 +302,7 @@ function bindCheckpointPopup(
   planRef: { current: Plan | null },
   selectedRef: { current: string | null },
   onSelectRef: { current: (id: string) => void },
+  loadingRef: { current: boolean },
 ) {
   let shown: string | null = null
   let pinned = false
@@ -299,7 +311,9 @@ function bindCheckpointPopup(
     pinned = false
   })
 
-  const hitsAt = (point: PointLike) => map.queryRenderedFeatures(point, { layers: ['checkpoints', 'routes-hit'] })
+  // Nothing to hit while a new plan loads: the routes on screen are the old plan's
+  const hitsAt = (point: PointLike) =>
+    loadingRef.current ? [] : map.queryRenderedFeatures(point, { layers: ['checkpoints', 'routes-hit'] })
 
   // Where checkpoints overlap, prefer the selected route's, since that's the one drawn on top.
   const checkpointIn = (hits: MapGeoJSONFeature[]) => {

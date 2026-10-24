@@ -12,7 +12,7 @@ interface Props {
   error: string | null
   selectedRouteId: string | null
   onSelect: (id: string) => void
-  onRetry: () => void
+  onRetry?: () => void // only when the same request again could work
 }
 
 // Everything under the form: loading and error states, route cards, checkpoint table.
@@ -38,9 +38,11 @@ export function PlanResults({ plan, loading, error, selectedRouteId, onSelect, o
       {error && (
         <div className="banner banner-danger plan-error" role="alert">
           <p>{error}</p>
-          <button type="button" className="button" onClick={onRetry}>
-            Try again
-          </button>
+          {onRetry && (
+            <button type="button" className="button" onClick={onRetry}>
+              Try again
+            </button>
+          )}
         </div>
       )}
       {loading && !plan && <RouteSkeleton />}
