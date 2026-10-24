@@ -1,0 +1,208 @@
+.hero {
+  /* Black washes over the photo, strongest behind the text */
+  --hero-wash-side: linear-gradient(
+    90deg,
+    rgb(10 10 11 / 0.86) 0%,
+    rgb(10 10 11 / 0.76) 40%,
+    rgb(10 10 11 / 0.5) 52%,
+    rgb(10 10 11 / 0.12) 64%,
+    rgb(10 10 11 / 0) 100%
+  );
+  --hero-wash-ends: linear-gradient(
+    180deg,
+    rgb(10 10 11 / 0.7) 0%,
+    rgb(10 10 11 / 0.4) 9%,
+    rgb(10 10 11 / 0) 26%,
+    rgb(10 10 11 / 0) 60%,
+    rgb(10 10 11 / 0.9) 100%
+  );
+  --hero-rule: rgb(255 255 255 / 0.26);
+  --hero-card-shadow: 0 2px 6px rgb(0 0 0 / 0.2), 0 32px 80px rgb(0 0 0 / 0.4);
+  --focus-ring: var(--on-dark);
+
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  overflow: hidden;
+  background: var(--black);
+  color: var(--on-dark);
+}
+
+.hero-photo img {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Keeps the cab in the gap between the headline and the card */
+  object-position: 85% 60%;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: var(--hero-wash-ends), var(--hero-wash-side);
+}
+
+.hero-inner {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
+  align-items: center;
+  gap: clamp(var(--space-8), 5vw, var(--space-24));
+  width: 100%;
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: calc(var(--header-height) + var(--space-10)) var(--page-gutter) var(--space-12);
+}
+
+.hero-title {
+  max-width: 11ch;
+  font-size: clamp(2.6rem, 0.9rem + 4.6vw, 5.5rem);
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+}
+
+.hero-lede {
+  max-width: 32rem;
+  margin: var(--space-6) 0 0;
+  font-size: clamp(1rem, 0.92rem + 0.35vw, 1.1875rem);
+  line-height: var(--leading-body);
+  color: var(--on-dark-muted);
+}
+
+.hero-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-8);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+  color: inherit;
+}
+
+.hero-link:hover {
+  text-decoration: underline;
+}
+
+.hero-card {
+  --focus-ring: var(--ink);
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-8) var(--space-8) var(--space-6);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--hero-card-shadow);
+  scroll-margin-top: var(--space-6);
+}
+
+.hero-card-title {
+  font-size: var(--text-xl);
+  font-stretch: var(--stretch-wide);
+  letter-spacing: -0.01em;
+}
+
+.hero-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-6);
+  width: 100%;
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 0 var(--page-gutter) var(--space-10);
+  list-style: none;
+}
+
+.hero-stats li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--hero-rule);
+}
+
+.hero-stat-value {
+  font-size: clamp(1.75rem, 1.2rem + 1.6vw, 2.75rem);
+}
+
+.hero-stat-label {
+  font-size: var(--text-md);
+  color: var(--on-dark-muted);
+}
+
+/* Stacked: the photo sits at the top and fades into black, the card and facts follow */
+@media (max-width: 1023px) {
+  .hero {
+    --hero-photo-height: min(78svh, 680px);
+    --hero-wash-side: linear-gradient(rgb(10 10 11 / 0.2), rgb(10 10 11 / 0.2));
+    --hero-wash-ends: linear-gradient(
+      180deg,
+      rgb(10 10 11 / 0.72) 0%,
+      rgb(10 10 11 / 0.6) 48%,
+      rgb(10 10 11 / 0.8) 75%,
+      rgb(10 10 11 / 1) 100%
+    );
+  }
+
+  .hero-photo img,
+  .hero::before {
+    bottom: auto;
+    height: var(--hero-photo-height);
+  }
+
+  .hero-inner {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-10);
+    padding-top: calc(var(--header-height) + var(--space-12));
+  }
+
+  .hero-title {
+    max-width: 12ch;
+  }
+
+  .hero-card {
+    width: 100%;
+    max-width: 560px;
+  }
+
+  .hero-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-6) var(--space-4);
+  }
+}
+
+@media (max-width: 640px) {
+  .hero {
+    --hero-photo-height: min(92svh, 620px);
+  }
+
+  .hero-photo img {
+    object-position: 50% 70%;
+  }
+
+  .hero-inner {
+    padding-top: calc(var(--header-height) + var(--space-8));
+  }
+
+  .hero-lede {
+    margin-top: var(--space-4);
+  }
+
+  .hero-link {
+    margin-top: var(--space-6);
+  }
+
+  .hero-card {
+    padding: var(--space-6) var(--space-5) var(--space-5);
+    border-radius: var(--radius-lg);
+  }
+}

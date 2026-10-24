@@ -5,6 +5,30 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Truck Route Weather</title>
+    <meta
+      name="description"
+      content="Compare three truck routes by the wind, rain and snow forecast for the hour you reach each stretch of road."
+    />
+    <!-- The hero photo is the largest thing on the first screen: fetch it before the app's code
+         runs. Same files and breakpoint as the <picture> in Hero.tsx. -->
+    <link
+      rel="preload"
+      as="image"
+      type="image/webp"
+      media="(max-width: 640px)"
+      imagesrcset="/images/truck-highway-portrait-960.webp 960w, /images/truck-highway-portrait-1440.webp 1440w"
+      imagesizes="100vw"
+      fetchpriority="high"
+    />
+    <link
+      rel="preload"
+      as="image"
+      type="image/webp"
+      media="(min-width: 641px)"
+      imagesrcset="/images/truck-highway-1280.webp 1280w, /images/truck-highway-1920.webp 1920w"
+      imagesizes="100vw"
+      fetchpriority="high"
+    />
     <!-- The page font, so text doesn't wait for the app's code to ask for it -->
     <link
       rel="preload"
