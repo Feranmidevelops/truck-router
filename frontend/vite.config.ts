@@ -6,7 +6,16 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   build: {
-    chunkSizeWarningLimit: 1500, // maplibre-gl alone is ~1 MB minified
+    chunkSizeWarningLimit: 1100, // the maplibre-gl chunk alone is ~1 MB minified
+    rolldownOptions: {
+      output: {
+        // maplibre-gl gets its own chunk: it downloads in parallel with the app code
+        // and stays cached when only our code changes.
+        codeSplitting: {
+          groups: [{ name: 'maplibre', test: /node_modules[\\/]maplibre-gl[\\/]/ }],
+        },
+      },
+    },
   },
   server: {
     proxy: {
