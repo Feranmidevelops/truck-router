@@ -3,6 +3,7 @@ import { LngLatBounds, Map as MapLibreMap, NavigationControl, type GeoJSONSource
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '../lib/maplibre'
+import './MapView.css'
 import type { FeatureCollection, LineString, Point } from 'geojson'
 import type { Plan } from '../api/types'
 import { LEVELS, LEVEL_COLOR, LEVEL_LABEL, levelColorExpression } from '../lib/risk'
@@ -26,6 +27,8 @@ export function MapView({ plan, selectedRouteId, onSelectRoute }: Props) {
   const mapRef = useRef<MapLibreMap | null>(null)
   const onSelectRef = useRef(onSelectRoute)
   const [ready, setReady] = useState(false)
+  const [mapError, setMapError] = useState<string | null>(null)
+  const errorDismissed = useRef(false)
 
   useEffect(() => {
     onSelectRef.current = onSelectRoute
@@ -41,6 +44,17 @@ export function MapView({ plan, selectedRouteId, onSelectRoute }: Props) {
       zoom: 3.6,
     })
     map.addControl(new NavigationControl({ showCompass: false }), 'top-right')
+
+    // Without a listener MapLibre only logs to the console and the map stays blank.
+    map.on('error', (e) => {
+      console.error(e.error)
+      if (errorDismissed.current) return
+      setMapError(
+        'sourceId' in e
+          ? "Some map tiles didn't load. Check your connection."
+          : "The map didn't load, but the route list still works.",
+      )
+    })
 
     map.on('load', () => {
       // promoteId lets setFeatureState address features by route id. Checkpoints
@@ -158,6 +172,21 @@ export function MapView({ plan, selectedRouteId, onSelectRoute }: Props) {
   return (
     <div className="map-wrap">
       <div ref={containerRef} className="map" />
+      {mapError && (
+        <div className="map-notice" role="status">
+          <span>{mapError}</span>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => {
+              errorDismissed.current = true
+              setMapError(null)
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
       <ul className="legend" aria-label="Risk levels">
         {LEVELS.map((l) => (
           <li key={l}>
