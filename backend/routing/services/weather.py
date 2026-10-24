@@ -83,12 +83,14 @@ def fetch_hourly(
 
     Positions are rounded to COORD_DECIMALS and de-duplicated before the request,
     so nearby checkpoints cost one location. Each result keeps its original position.
+    The cells are sorted before chunking, so the same cells in any order make the
+    same requests and hit the same cache entries.
     """
     if not positions:
         return []
     start_h, end_h = floor_hour(start), ceil_hour(end)
     cells = [_snap(p) for p in positions]
-    unique = list(dict.fromkeys(cells))
+    unique = sorted(set(cells), key=lambda c: (c.lat, c.lon))
     chunks = [unique[i : i + CHUNK_SIZE] for i in range(0, len(unique), CHUNK_SIZE)]
     own_client = client is None
     client = client or httpx.Client(timeout=20)

@@ -166,15 +166,17 @@ class DictCache(dict):
         self[key] = value
 
 
-def test_nearby_positions_on_a_later_trip_come_from_the_cache():
+def test_the_same_cells_asked_for_again_in_any_order_come_from_the_cache():
     calls: list = []
     cache = DictCache()  # empty, so falsy: the cache must still be used
-    client = mock_client(location_payload(), calls)
-    weather.fetch_hourly([LatLon(39.74, -104.99)], T0, T0 + timedelta(hours=2), client=client, cache=cache)
-    [s] = weather.fetch_hourly([LatLon(39.66, -105.04)], T0, T0 + timedelta(hours=2), client=client, cache=cache)
+    client = echo_client(calls)
+    weather.fetch_hourly([LatLon(39.74, -104.99), LatLon(32.78, -96.80)], T0, T0, client=client, cache=cache)
+    # Other positions in the same two cells, in the other order.
+    nearby = [LatLon(32.81, -96.77), LatLon(39.66, -105.04)]
+    series = weather.fetch_hourly(nearby, T0, T0, client=client, cache=cache)
     assert len(calls) == 1
-    assert s.position == LatLon(39.66, -105.04)
-    assert s.wind_mph == [10.0, 20.0, 30.0]
+    assert [s.position for s in series] == nearby
+    assert [echoed_cell(s) for s in series] == [(32.8, -96.8), (39.7, -105.0)]
 
 
 def scripted_client(responses: list[httpx.Response], calls: list):
