@@ -78,10 +78,25 @@ Types: `frontend/src/api/types.ts`.
 
 ## Decisions
 
-Where the brief left room for interpretation.
+Where the brief left room for interpretation, and what I chose.
 
-- TODO: summarise the boundary convention, checkpoint ownership, ETA method, the No Travel rule
-  in ranking, and the average-risk rounding.
+### Risk rules
+
+- **Shared boundaries go to the higher, safer band.** Rain 0.25 in/hr is High, snow 1.0 in/hr is
+  High, wind 35 mph is High.
+- **An explicit operator in the brief wins.** No Travel is "> 1.00" for rain and "> 3.0" for snow,
+  so exactly 1.00 and 3.0 stay Severe.
+- **Wind bands are half-open.** The brief writes 25-34 and 35-44 as whole numbers; 34.9 mph is
+  Moderate.
+- **Load rules use a strict "greater than".** Exactly 30,000 lb at 50 mph stays Severe; 30,001 lb
+  is No Travel. A load rule can raise the wind level but never lower it.
+- **A checkpoint's level is the worst of wind (after load rules), rain and snow.** Every factor at
+  that level is listed as a driver.
+- **Wind means sustained wind at 10 m.** Gusts are shown in the popup but not scored.
+- **Rain rate is Open-Meteo `rain + showers` for the hour; snow rate is `snowfall`.** Units are
+  read from the response and converted.
+- **Load weight is cargo weight.** The truck weight sent to TomTom is cargo plus an assumed
+  35,000 lb empty tractor-trailer.
 
 ## Tests
 
