@@ -52,11 +52,22 @@
   pointer-events: none;
 }
 
+.results-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 .results-title {
-  margin-bottom: var(--space-4);
   font-size: var(--text-xl);
   font-stretch: var(--stretch-wide);
   letter-spacing: -0.01em;
+}
+
+.results-meta {
+  font-size: var(--text-sm);
+  color: var(--muted);
 }
 
 .no-trip {

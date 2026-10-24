@@ -1,6 +1,8 @@
 import { memo } from 'react'
-import type { Plan } from '../api/types'
-import { LEVELS, LEVEL_COLOR, LEVEL_LABEL, formatDuration, formatMiles, formatTime } from '../lib/risk'
+import type { Plan, Route } from '../api/types'
+import { LEVELS, LEVEL_COLOR, LEVEL_LABEL, durationParts, formatMiles, formatTime } from '../lib/risk'
+import { LevelBadge } from './Level'
+import './RouteList.css'
 
 interface Props {
   plan: Plan
@@ -28,54 +30,95 @@ export const RouteList = memo(function RouteList({ plan, selectedRouteId, onSele
             : `TomTom found only ${plan.routes.length} distinct routes for this trip.`}
         </p>
       )}
-      {plan.routes.map((r) => {
-        const recommended = r.id === plan.recommended_route_id
-        const total = LEVELS.reduce((sum, l) => sum + r.summary.miles_by_level[l], 0) || 1
-        // A button may only hold inline content, so the card's rows are spans; the card is a
-        // flex column, which lays them out as blocks
-        return (
-          <button
-            key={r.id}
-            type="button"
-            className={`route-card${r.id === selectedRouteId ? ' selected' : ''}`}
-            onClick={() => onSelect(r.id)}
-            aria-pressed={r.id === selectedRouteId}
-          >
-            <span className="route-head">
-              <strong>{r.label}</strong>
-              {recommended && (
-                <span className="badge">
-                  {noSafeRoute ? 'Least risky' : 'Recommended'}
-                </span>
-              )}
-            </span>
-            <span className="route-stats">
-              <span>{r.distance_miles.toFixed(0)} mi</span>
-              <span>{formatDuration(r.duration_s)}</span>
-              <span>Arrive {formatTime(r.arrival_time, plan.input.timezone)}</span>
-            </span>
-            <span className="risk-bar" aria-hidden>
-              {LEVELS.map((l) =>
-                r.summary.miles_by_level[l] > 0 ? (
-                  <span
-                    key={l}
-                    style={{ width: `${(r.summary.miles_by_level[l] / total) * 100}%`, background: LEVEL_COLOR[l] }}
-                  />
-                ) : null,
-              )}
-            </span>
-            <span className="route-risk">
-              {LEVELS.filter((l) => l !== 'LOW' && r.summary.miles_by_level[l] > 0).map((l) => (
-                <span key={l}>
-                  {LEVEL_LABEL[l]}: {formatMiles(r.summary.miles_by_level[l])}
-                </span>
-              ))}
-              <span>Avg risk {r.summary.avg_risk.toFixed(2)}</span>
-            </span>
-            {recommended && <span className="reason">{plan.recommendation_reason}</span>}
-          </button>
-        )
-      })}
+      {plan.routes.map((r) => (
+        <RouteCard
+          key={r.id}
+          route={r}
+          tag={r.id === plan.recommended_route_id ? (noSafeRoute ? 'Least risky' : 'Recommended') : null}
+          reason={r.id === plan.recommended_route_id ? plan.recommendation_reason : null}
+          selected={r.id === selectedRouteId}
+          timeZone={plan.input.timezone}
+          onSelect={onSelect}
+        />
+      ))}
     </section>
   )
 })
+
+interface CardProps {
+  route: Route
+  tag: string | null // "Recommended", or "Least risky" when every route has No Travel miles
+  reason: string | null // why it's the recommended one
+  selected: boolean
+  timeZone: string
+  onSelect: (id: string) => void
+}
+
+// Stat-card style: the two numbers a driver compares first, big; the weather risk under them.
+// A button may only hold inline content, so the rows are spans laid out by CSS.
+function RouteCard({ route, tag, reason, selected, timeZone, onSelect }: CardProps) {
+  const { miles_by_level: miles, avg_risk } = route.summary
+  const total = LEVELS.reduce((sum, l) => sum + miles[l], 0) || 1
+  const risky = LEVELS.filter((l) => l !== 'LOW' && miles[l] > 0)
+  const { h, m } = durationParts(route.duration_s)
+
+  return (
+    <button
+      type="button"
+      className={selected ? 'route-card selected' : 'route-card'}
+      aria-pressed={selected}
+      onClick={() => onSelect(route.id)}
+    >
+      <span className="route-head">
+        <span className="route-name">{route.label}</span>
+        {tag && <span className="tag tag-dark">{tag}</span>}
+        {route.source === 'via-fallback' && (
+          <span
+            className="tag"
+            title="A detour through a point off the direct line, added because TomTom found fewer than three routes"
+          >
+            Fallback
+          </span>
+        )}
+      </span>
+      {/* The units say which is which: no labels, so three cards fit a laptop's panel */}
+      <span className="route-figures">
+        <span className="route-figure">
+          {h > 0 && (
+            <>
+              {h}
+              <small>h</small>{' '}
+            </>
+          )}
+          {m}
+          <small>min</small>
+        </span>
+        <span className="route-figure">
+          {route.distance_miles.toFixed(0)}
+          <small>mi</small>
+        </span>
+      </span>
+      <span className="route-arrival">Arrives {formatTime(route.arrival_time, timeZone)}</span>
+      <span className="risk-bar" aria-hidden>
+        {LEVELS.map((l) =>
+          miles[l] > 0 ? (
+            <span key={l} style={{ width: `${(miles[l] / total) * 100}%`, background: LEVEL_COLOR[l] }} />
+          ) : null,
+        )}
+      </span>
+      <span className="route-levels">
+        {risky.length ? (
+          risky.map((l) => (
+            <LevelBadge key={l} level={l}>
+              {LEVEL_LABEL[l]} {formatMiles(miles[l])}
+            </LevelBadge>
+          ))
+        ) : (
+          <LevelBadge level="LOW">Low all the way</LevelBadge>
+        )}
+        <span className="route-avg">Avg risk {avg_risk.toFixed(2)}</span>
+      </span>
+      {reason && <span className="route-reason">{reason}</span>}
+    </button>
+  )
+}

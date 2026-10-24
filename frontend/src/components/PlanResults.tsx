@@ -20,7 +20,10 @@ export function PlanResults({ plan, loading, error, selectedRouteId, onSelect, o
 
   return (
     <div className="results">
-      <h2 className="results-title">Routes</h2>
+      <div className="results-head">
+        <h2 className="results-title">Routes</h2>
+        {plan && <span className="results-meta">{plan.routes.length} compared, safest first</span>}
+      </div>
       {loading && <LoadingNote />}
       {error && <PlanError message={error} onRetry={onRetry} />}
       {loading && !plan && <RouteSkeleton />}
@@ -48,7 +51,7 @@ export function PlanPeek({ plan, loading, error, selectedRouteId, onRetry }: Pee
     <div className={loading ? 'peek-route stale' : 'peek-route'}>
       <p className="peek-label">
         <strong>{route.label}</strong>
-        {route.id === plan.recommended_route_id && <span className="badge">Recommended</span>}
+        {route.id === plan.recommended_route_id && <span className="tag tag-dark">Recommended</span>}
       </p>
       <p className="peek-numbers">
         {formatDuration(route.duration_s)} · {route.distance_miles.toFixed(0)} mi

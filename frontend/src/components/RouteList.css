@@ -1,0 +1,114 @@
+.routes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.routes-note {
+  margin: 0;
+  font-size: var(--text-md);
+  color: var(--muted);
+}
+
+.route-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease),
+    box-shadow var(--duration-fast) var(--ease);
+}
+
+.route-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-card);
+}
+
+/* Black ring, as the selected route is the black line on the map */
+.route-card.selected {
+  border-color: var(--ink);
+  box-shadow:
+    inset 0 0 0 1px var(--ink),
+    var(--shadow-card);
+}
+
+.route-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.route-name {
+  margin-right: auto;
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+  font-stretch: var(--stretch-wide);
+}
+
+.route-figures {
+  display: flex;
+  gap: var(--space-6);
+}
+
+.route-figure {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-heavy);
+  font-stretch: var(--stretch-wide);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.route-figure small {
+  margin-left: 2px;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
+  color: var(--muted);
+}
+
+.route-arrival {
+  margin-top: calc(-1 * var(--space-1));
+  font-size: var(--text-sm);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-bar {
+  display: flex;
+  height: 6px;
+  margin-top: 2px;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--line);
+}
+
+.route-levels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) 6px;
+}
+
+.route-avg {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.route-reason {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
