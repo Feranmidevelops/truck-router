@@ -47,6 +47,13 @@ class RoutingError(Exception):
     pass
 
 
+NO_ROUTE_MESSAGE = "No truck route found between these places."
+
+
+class NoRouteError(RoutingError):
+    """TomTom answered, but has no truck route between the places."""
+
+
 @dataclass(frozen=True)
 class Place:
     label: str
@@ -108,7 +115,7 @@ def calculate_routes(
     payload = _get(url, params, client)
     routes = parse_routes(payload, departure, source=source, id_prefix=id_prefix)
     if not routes:
-        raise RoutingError("No truck route found between these places.")
+        raise NoRouteError(NO_ROUTE_MESSAGE)
     return routes
 
 
@@ -359,11 +366,23 @@ def _get(url: str, params: dict, client: httpx.Client | None) -> dict:
         if own:
             client.close()
     if resp.status_code != 200:
+        # An unroutable trip (e.g. Honolulu to Denver) comes back as a 400, not as an empty list
+        if _error_code(resp) == "NO_ROUTE_FOUND":
+            raise NoRouteError(NO_ROUTE_MESSAGE)
         raise RoutingError(f"TomTom {resp.status_code}: {resp.text[:200]}")
     try:
         return resp.json()
     except ValueError as exc:
         raise RoutingError(f"TomTom sent a reply that is not JSON: {resp.text[:200]}") from exc
+
+
+def _error_code(resp: httpx.Response) -> str | None:
+    try:
+        body = resp.json()
+    except ValueError:
+        return None
+    detail = body.get("detailedError") if isinstance(body, dict) else None
+    return detail.get("code") if isinstance(detail, dict) else None
 
 
 def _parse_time(value: str | None) -> datetime | None:

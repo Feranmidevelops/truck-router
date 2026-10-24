@@ -412,10 +412,42 @@ def test_a_reply_that_is_not_json_is_a_routing_error():
 
 
 @pytest.mark.parametrize("body", [{"routes": []}, {}])
-def test_a_200_reply_without_routes_is_a_routing_error(body):
+def test_a_200_reply_without_routes_is_no_route(body):
     client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, json=body)))
-    with pytest.raises(tomtom.RoutingError, match="No truck route found"):
+    with pytest.raises(tomtom.NoRouteError, match="No truck route found"):
         tomtom.calculate_routes(WEST, EAST, T0, 20_000, "test-key", client=client)
+
+
+# TomTom's real answer for Honolulu to Denver
+NO_ROUTE_400 = {
+    "formatVersion": "0.0.12",
+    "detailedError": {
+        "message": "Engine error while executing route request: NO_ROUTE_FOUND: No valid route found",
+        "code": "NO_ROUTE_FOUND",
+    },
+}
+
+
+def test_tomtoms_no_route_found_reply_is_no_route():
+    client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(400, json=NO_ROUTE_400)))
+    with pytest.raises(tomtom.NoRouteError, match="No truck route found"):
+        tomtom.calculate_routes(WEST, EAST, T0, 20_000, "test-key", client=client)
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.Response(400, json={"detailedError": {"code": "BAD_INPUT", "message": "Invalid request"}}),
+        httpx.Response(400, text="Bad request"),
+        httpx.Response(403, json={"detailedError": "Forbidden"}),
+    ],
+    ids=["other-code", "not-json", "unexpected-shape"],
+)
+def test_other_errors_are_not_mistaken_for_no_route(response):
+    client = httpx.Client(transport=httpx.MockTransport(lambda request: response))
+    with pytest.raises(tomtom.RoutingError) as exc_info:
+        tomtom.calculate_routes(WEST, EAST, T0, 20_000, "test-key", client=client)
+    assert not isinstance(exc_info.value, tomtom.NoRouteError)
 
 
 def test_when_every_fallback_fails_the_fastest_route_comes_back_alone():
