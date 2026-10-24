@@ -1,0 +1,44 @@
+.map-wrap {
+  --map-ui-bg: rgb(255 255 255 / 0.96);
+  --map-ui-text: var(--text, #1b2330);
+  --map-ui-muted: var(--muted, #5b6678);
+  --map-ui-border: var(--border, #dde2ea);
+  --map-ui-shadow: 0 2px 10px rgb(0 0 0 / 0.12);
+  --map-ui-radius: 8px;
+  --map-ui-inset: 12px;
+  --map-ui-gap: 8px;
+  --map-ui-pad-y: 8px;
+  --map-ui-pad-x: 12px;
+  --map-ui-font: 0.85rem;
+  --map-ui-font-small: 0.75rem;
+  --map-ui-warn-bg: #fff4e5;
+  --map-ui-warn-text: #8a4b00;
+  --map-ui-warn-border: #f5c98b;
+}
+
+.map-notice {
+  position: absolute;
+  top: var(--map-ui-inset);
+  left: var(--map-ui-inset);
+  max-width: min(360px, calc(100% - 4 * var(--map-ui-inset) - 30px));
+  display: flex;
+  align-items: flex-start;
+  gap: var(--map-ui-gap);
+  padding: var(--map-ui-pad-y) var(--map-ui-pad-x);
+  background: var(--map-ui-warn-bg);
+  color: var(--map-ui-warn-text);
+  border: 1px solid var(--map-ui-warn-border);
+  border-radius: var(--map-ui-radius);
+  box-shadow: var(--map-ui-shadow);
+  font-size: var(--map-ui-font);
+}
+
+.map-notice button {
+  font: inherit;
+  line-height: 1;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
