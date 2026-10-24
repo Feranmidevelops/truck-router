@@ -13,7 +13,16 @@ from .types import Assessment, Level
 
 def classify_wind(mph: float) -> Level:
     """<25 LOW, 25-34 MODERATE, 35-44 HIGH, 45-54 SEVERE, >=55 NO_TRAVEL."""
-    raise NotImplementedError("classify_wind")
+    # Bands are half-open, so 34.9 is MODERATE and 35 is HIGH.
+    if mph >= 55:
+        return Level.NO_TRAVEL
+    if mph >= 45:
+        return Level.SEVERE
+    if mph >= 35:
+        return Level.HIGH
+    if mph >= 25:
+        return Level.MODERATE
+    return Level.LOW
 
 
 def classify_rain(in_per_hr: float) -> Level:

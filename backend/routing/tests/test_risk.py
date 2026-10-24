@@ -23,6 +23,19 @@ def test_wind(mph, expected):
 
 
 @pytest.mark.parametrize(
+    "mph, expected",
+    [
+        (24.99, L), (25, M), (25.01, M),
+        (34.99, M), (35, H), (35.01, H),
+        (44.99, H), (45, S), (45.01, S),
+        (54.99, S), (55, N), (55.01, N),
+    ],
+)
+def test_wind_either_side_of_each_boundary(mph, expected):
+    assert classify_wind(mph) == expected
+
+
+@pytest.mark.parametrize(
     "rate, expected",
     [
         (0, L), (0.09, L),
