@@ -1,8 +1,9 @@
 """Stand-ins for TomTom and Open-Meteo, so planner tests never touch the network.
 
 Two levels:
-- install_service_fakes replaces the routing and weather functions the planner calls, so only
-  the planner's own glue runs.
+- install_service_fakes replaces TomTom's route requests, the route top-up and the weather
+  functions. What still runs is the planner's own glue, and the step that sends the first
+  route requests together.
 - FakeUpstream answers HTTP requests the way TomTom and Open-Meteo do, so the real clients,
   route fallbacks, weather sampling and heatmap grid run too. install_fake_http sends every
   httpx.Client through it and makes any other real request fail.
@@ -133,6 +134,7 @@ class FakeUpstream:
 
     def __init__(self):
         self.no_route = False  # answer route requests like TomTom does when nothing connects
+        self.no_direct_route = False  # the same, but only for requests with no via point
         self.requests: list[httpx.Request] = []
         self._lock = threading.Lock()  # fallbacks and weather chunks arrive from worker threads
 
@@ -150,7 +152,9 @@ class FakeUpstream:
         return [r for r in self.requests if r.url.host == host]
 
     def _route(self, request: httpx.Request) -> httpx.Response:
-        if self.no_route:
+        locations = unquote(request.url.path.split("/")[4])
+        stops = [LatLon(*(float(v) for v in stop.split(","))) for stop in locations.split(":")]
+        if self.no_route or (self.no_direct_route and len(stops) == 2):
             return httpx.Response(
                 400,
                 json={
@@ -158,8 +162,6 @@ class FakeUpstream:
                     "detailedError": {"message": "NO_ROUTE_FOUND: No valid route found", "code": "NO_ROUTE_FOUND"},
                 },
             )
-        locations = unquote(request.url.path.split("/")[4])
-        stops = [LatLon(*(float(v) for v in stop.split(","))) for stop in locations.split(":")]
         legs = []  # one leg per pair of stops, each including both ends, like TomTom's
         for a, b in zip(stops, stops[1:]):
             n = max(2, round(haversine_m(a, b) / POINT_SPACING_M))

@@ -2,6 +2,7 @@
 checkpoints, weather sampling, risk, ranking and the heatmap grid, talking to fake servers."""
 
 from datetime import datetime, timedelta
+from urllib.parse import unquote
 from zoneinfo import ZoneInfo
 
 from django.test import override_settings
@@ -48,6 +49,11 @@ def post_plan(api, departure: str):
     return api.post("/api/plan", body, format="json")
 
 
+def stops(request) -> list[str]:
+    """The places a TomTom route request goes through, as "lat,lon"."""
+    return unquote(request.url.path.split("/")[4]).split(":")
+
+
 def levels_near(lat: float, lon: float) -> set[Level]:
     """Risk levels the fake weather gives within NEARBY_DEG of a point, at the trip's load."""
     return {
@@ -74,13 +80,14 @@ def test_dallas_to_denver_plan_and_heatmap(api, upstream):
     assert datetime.fromisoformat(plan["input"]["departure_time"]) == leave
     assert plan["input"]["departure_time"] == leave.isoformat()
 
-    # TomTom was asked for a truck route with alternatives, then for fallbacks through via points
+    # TomTom was asked for a truck route with alternatives, and at the same time for two
+    # fallbacks through via points. Those made three distinct routes, so there was no top-up.
     calls = upstream.calls("api.tomtom.com")
-    first = calls[0].url.params
-    assert first["travelMode"] == "truck"
-    assert first["maxAlternatives"] == "2"
-    assert first["vehicleWeight"] == str(tomtom.vehicle_weight_kg(LOAD_LB))
-    assert len(calls) > 1
+    [trip] = [c for c in calls if len(stops(c)) == 2]
+    assert trip.url.params["travelMode"] == "truck"
+    assert trip.url.params["maxAlternatives"] == "2"
+    assert trip.url.params["vehicleWeight"] == str(tomtom.vehicle_weight_kg(LOAD_LB))
+    assert len(calls) == 3
 
     routes = plan["routes"]
     assert len(routes) == 3
@@ -149,6 +156,14 @@ def test_dallas_to_denver_plan_and_heatmap(api, upstream):
 @override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")
 def test_no_truck_route_through_the_real_client_is_a_422(api, upstream):
     upstream.no_route = True
+    res = post_plan(api, tomorrow_in_dallas().strftime("%Y-%m-%dT%H:%M"))
+    assert res.status_code == 422
+    assert res.json() == {"detail": "No truck route found between these places."}
+
+
+@override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")
+def test_no_route_for_the_trip_is_a_422_even_when_routes_through_via_points_come_back(api, upstream):
+    upstream.no_direct_route = True
     res = post_plan(api, tomorrow_in_dallas().strftime("%Y-%m-%dT%H:%M"))
     assert res.status_code == 422
     assert res.json() == {"detail": "No truck route found between these places."}

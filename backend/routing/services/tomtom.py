@@ -14,13 +14,15 @@ A real route response, trimmed, is in routing/tests/data/tomtom_dallas_denver.js
 from __future__ import annotations
 
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Iterable
+from concurrent.futures import Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from functools import cached_property
+from functools import cached_property, partial
 from itertools import accumulate
 import math
 from operator import attrgetter
+import threading
 from urllib.parse import quote
 
 import httpx
@@ -35,6 +37,18 @@ LB_TO_KG = 0.45359237
 MAX_SLOWDOWN = 1.5  # drop a route taking over 1.5x the fastest route's time
 MAX_OVERLAP = 0.9  # drop a route when over 90% of it runs along a route already kept
 FALLBACK_OFFSETS = (0.15, 0.25)  # via point distance from the route, as a share of the straight-line trip
+MAX_FALLBACK_CALLS = 6  # via-point requests per plan, at most
+SAME_VIA_SHARE = 0.01  # a via point this close to one already asked (share of the trip) isn't asked again
+
+REQUEST_TIMEOUT_S = 20
+# A via-point request answered in 2-3 s live. One still silent after 10 s is skipped like any
+# failed fallback, so it can't hold the plan up for the full 20 s.
+FALLBACK_TIMEOUT_S = 10
+# How much longer to wait for the early fallbacks once the main request is back. Live, the main
+# request took 6-10 s and a via-point request 2-3 s, so sent together the fallbacks are normally
+# back first. One that isn't has already taken twice its usual time, and a fresh pair from the
+# top-up takes 2-3 s, so waiting more than 2 s for it is rarely worth it.
+EARLY_GRACE_S = 2
 
 OVERLAP_STEP_M = 5 * METERS_PER_MILE  # sample spacing along the candidate route
 OVERLAP_NEAR_M = 0.5 * METERS_PER_MILE  # a sample this close to the other route counts as shared road
@@ -92,6 +106,7 @@ def calculate_routes(
     max_alternatives: int = 2,
     source: str = "tomtom",
     id_prefix: str = "r",
+    timeout: float = REQUEST_TIMEOUT_S,
     client: httpx.Client | None = None,
 ) -> list[RouteOption]:
     stops = [origin, *(via or []), destination]
@@ -112,7 +127,7 @@ def calculate_routes(
         "routeRepresentation": "polyline",
         "instructionsType": "coded",
     }
-    payload = _get(url, params, client)
+    payload = _get(url, params, client, timeout)
     routes = parse_routes(payload, departure, source=source, id_prefix=id_prefix)
     if not routes:
         raise NoRouteError(NO_ROUTE_MESSAGE)
@@ -163,6 +178,73 @@ def _timing_profile(instructions: list[dict], length: float, duration: float) ->
     return profile
 
 
+@dataclass(frozen=True)
+class Candidates:
+    """TomTom's routes for the trip, and the early fallbacks asked for alongside them."""
+
+    routes: list[RouteOption]
+    early: list[RouteOption]  # through the early via points, from those that answered in time
+    asked: list[LatLon]  # every via point asked for, answered or not
+
+
+def calculate_routes_and_fallbacks(
+    origin: LatLon,
+    destination: LatLon,
+    departure: datetime,
+    load_lb: float,
+    api_key: str,
+    *,
+    client: httpx.Client | None = None,
+) -> Candidates:
+    """TomTom's routes for the trip, with the first pair of fallbacks asked for at the same time.
+
+    TomTom often sends fewer than 3 routes, and asking for fallbacks only once its answer was
+    in put the slowest requests end to end. So the first pair goes out alongside the main
+    request. Their via points can't wait for the fastest route's midpoint, so they sit 15% of
+    the trip left and right of the straight origin->destination line's midpoint instead.
+
+    Once the main request is back, a fallback still out gets EARLY_GRACE_S more, then its
+    answer is ignored and it finishes in the background. If the main request fails, so does
+    this, straight away, whatever the fallbacks found: a route through a via point is no
+    answer when TomTom has none for the trip itself.
+    """
+    share = FALLBACK_OFFSETS[0]
+    vias = offset_via_points([origin, destination], origin, destination, share)
+    own = client is None
+    client = client or httpx.Client()
+    fetch = partial(_fallback, origin, destination, departure, load_lb, api_key, client=client)
+    pool = ThreadPoolExecutor(max_workers=max(1, len(vias)))
+    pending = [pool.submit(fetch, via, f"early{round(share * 100)}{side}-") for side, via in zip("LR", vias)]
+    pool.shutdown(wait=False)  # its threads end with their requests; nothing here waits on them
+    try:
+        routes = calculate_routes(origin, destination, departure, load_lb, api_key, client=client)
+        done, _ = wait(pending, timeout=EARLY_GRACE_S)
+    finally:
+        if own:
+            _close_when_done(client, pending)
+    early = [r for f in pending if f in done for r in f.result()]
+    return Candidates(routes, early, vias)
+
+
+def _close_when_done(client: httpx.Client, requests: list[Future]) -> None:
+    """Close the client once the last of `requests` has finished, without waiting for it here."""
+    left = len(requests)
+    lock = threading.Lock()
+
+    def one_done(_: Future) -> None:
+        nonlocal left
+        with lock:
+            left -= 1
+            last = left == 0
+        if last:
+            client.close()
+
+    if not requests:
+        client.close()
+    for f in requests:
+        f.add_done_callback(one_done)
+
+
 def ensure_three_routes(
     routes: list[RouteOption],
     origin: LatLon,
@@ -171,6 +253,8 @@ def ensure_three_routes(
     load_lb: float,
     api_key: str,
     *,
+    early: Iterable[RouteOption] = (),
+    asked: Iterable[LatLon] = (),
     client: httpx.Client | None = None,
 ) -> list[RouteOption]:
     """Up to 3 distinct routes, fastest first, topped up with via-point fallbacks if needed.
@@ -179,10 +263,13 @@ def ensure_three_routes(
     is dropped when it takes over 1.5x the fastest route's time, or when over 90% of it runs
     along a route already kept.
 
-    While fewer than 3 are kept, ask TomTom for a route through a point left and one right of
-    the fastest route's midpoint, 15% of the straight-line trip away, then 25%. That is at most
-    4 extra calls, sent two at a time. A fallback that fails is skipped. If fewer than 3
-    survive, the caller gets what is left.
+    `early` are fallbacks found before this was called, through the via points in `asked`.
+    They are tried after TomTom's own routes. While fewer than 3 are kept, ask TomTom for a
+    route through a point left and one right of the fastest route's midpoint, 15% of the
+    straight-line trip away, then 25%, two at a time. A via point within 1% of the trip of one
+    already asked is skipped, since TomTom would send the same road back, and no more than 6
+    via points are asked per plan, `asked` included. A fallback that fails is skipped. If fewer
+    than 3 survive, the caller gets what is left.
 
     A fallback can, rarely, beat TomTom's fastest route. The 1.5x limit is then checked again
     against it at the end, so a route kept earlier, even TomTom's fastest, can still drop out.
@@ -202,30 +289,62 @@ def ensure_three_routes(
         kept.append(route)
         traces.append(trace)
 
-    def fetch(via: LatLon, id_prefix: str) -> list[RouteOption]:
-        try:
-            return calculate_routes(
-                origin, destination, departure, load_lb, api_key,
-                via=[via], source="via-fallback", id_prefix=id_prefix, client=client,
-            )
-        except (RoutingError, KeyError, ValueError):
-            return []  # e.g. no road near the via point, or a reply we can't read
-
     for route in sorted(routes, key=_duration):
         consider(route)
+    if not kept:
+        return []  # no route for the trip itself, so a route through a via point would mislead
+    for route in sorted(early, key=_duration):
+        consider(route)
 
-    for share in FALLBACK_OFFSETS:
-        if not kept or len(kept) >= 3:
-            break
-        vias = offset_via_points(kept[0].points, origin, destination, share)
-        prefixes = [f"via{round(share * 100)}{side}-" for side in "LR"]
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            candidates = [r for found in pool.map(fetch, vias, prefixes) for r in found]
-        for route in sorted(candidates, key=_duration):
-            consider(route)
+    asked = list(asked)
+    same_via_m = SAME_VIA_SHARE * haversine_m(origin, destination)
+    own = client is None
+    client = client or httpx.Client()
+    fetch = partial(_fallback, origin, destination, departure, load_lb, api_key, client=client)
+    try:
+        for share in FALLBACK_OFFSETS:
+            if len(kept) >= 3:
+                break
+            todo = [
+                (via, f"via{round(share * 100)}{side}-")
+                for side, via in zip("LR", offset_via_points(kept[0].points, origin, destination, share))
+                if all(haversine_m(via, a) >= same_via_m for a in asked)
+            ][: max(0, MAX_FALLBACK_CALLS - len(asked))]
+            if not todo:
+                continue
+            vias, prefixes = zip(*todo)
+            asked += vias
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                candidates = [r for found in pool.map(fetch, vias, prefixes) for r in found]
+            for route in sorted(candidates, key=_duration):
+                consider(route)
+    finally:
+        if own:
+            client.close()
 
     kept.sort(key=_duration)
     return [r for r in kept if r.duration_s <= MAX_SLOWDOWN * kept[0].duration_s]
+
+
+def _fallback(
+    origin: LatLon,
+    destination: LatLon,
+    departure: datetime,
+    load_lb: float,
+    api_key: str,
+    via: LatLon,
+    id_prefix: str,
+    *,
+    client: httpx.Client,
+) -> list[RouteOption]:
+    """TomTom's route through one via point, or nothing if it fails."""
+    try:
+        return calculate_routes(
+            origin, destination, departure, load_lb, api_key, via=[via], source="via-fallback",
+            id_prefix=id_prefix, timeout=FALLBACK_TIMEOUT_S, client=client,
+        )
+    except (RoutingError, KeyError, ValueError):
+        return []  # e.g. no road near the via point, or a reply we can't read
 
 
 def offset_via_points(route: list[LatLon], origin: LatLon, destination: LatLon, share: float) -> list[LatLon]:
@@ -355,11 +474,11 @@ def _dist2_to_segment(x: float, y: float, ax: float, ay: float, bx: float, by: f
     return ex * ex + ey * ey
 
 
-def _get(url: str, params: dict, client: httpx.Client | None) -> dict:
+def _get(url: str, params: dict, client: httpx.Client | None, timeout: float = REQUEST_TIMEOUT_S) -> dict:
     own = client is None
-    client = client or httpx.Client(timeout=20)
+    client = client or httpx.Client()
     try:
-        resp = client.get(url, params=params)
+        resp = client.get(url, params=params, timeout=timeout)
     except httpx.HTTPError as exc:
         raise RoutingError(f"TomTom request failed: {exc}") from exc
     finally:
