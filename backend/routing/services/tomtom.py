@@ -14,7 +14,6 @@ the docs. Check them against the first live response.
 
 from __future__ import annotations
 
-from bisect import bisect_left
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -27,7 +26,7 @@ from urllib.parse import quote
 
 import httpx
 
-from .geometry import cumulative_m, haversine_m
+from .geometry import METERS_PER_MILE, cumulative_m, haversine_m, point_at_distance
 from .types import LatLon, RouteOption, TimingPoint
 
 BASE_URL = "https://api.tomtom.com"
@@ -38,7 +37,6 @@ MAX_SLOWDOWN = 1.5  # drop a route taking over 1.5x the fastest route's time
 MAX_OVERLAP = 0.9  # drop a route when over 90% of it runs along a route already kept
 FALLBACK_OFFSETS = (0.15, 0.25)  # via point distance from the route, as a share of the straight-line trip
 
-METERS_PER_MILE = 1609.344
 OVERLAP_STEP_M = 5 * METERS_PER_MILE  # sample spacing along the candidate route
 OVERLAP_NEAR_M = 0.5 * METERS_PER_MILE  # a sample this close to the other route counts as shared road
 _M_PER_DEG_LAT = haversine_m(LatLon(0, 0), LatLon(1, 0))
@@ -227,7 +225,7 @@ def offset_via_points(route: list[LatLon], origin: LatLon, destination: LatLon, 
     offset would lean east-west and the left and right points would end up uneven.
     """
     cum = cumulative_m(route)
-    mid = _point_at(route, cum, cum[-1] / 2)
+    mid = point_at_distance(route, cum, cum[-1] / 2)
     k = math.cos(math.radians(mid.lat))
     east, north = (destination.lon - origin.lon) * k, destination.lat - origin.lat
     length = math.hypot(east, north)
@@ -330,18 +328,6 @@ class _Trace:
         if not samples:
             return 0.0
         return sum(other.is_near(x, y) for x, y in samples) / len(samples)
-
-
-def _point_at(points: list[LatLon], cumulative: list[float], meters: float) -> LatLon:
-    """Position `meters` along the polyline, interpolated between the points either side."""
-    i = bisect_left(cumulative, meters)
-    if i == 0:
-        return points[0]
-    if i == len(points):
-        return points[-1]
-    a, b = points[i - 1], points[i]
-    t = (meters - cumulative[i - 1]) / (cumulative[i] - cumulative[i - 1])
-    return LatLon(a.lat + t * (b.lat - a.lat), a.lon + t * (b.lon - a.lon))
 
 
 def _dist2_to_segment(x: float, y: float, ax: float, ay: float, bx: float, by: float) -> float:
