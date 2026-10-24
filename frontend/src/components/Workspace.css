@@ -7,7 +7,9 @@
   isolation: isolate;
   height: calc(100svh - var(--trip-bar-height));
   min-height: 560px;
+  /* clip, not hidden: nothing (a focused row, scrollIntoView) can scroll the stage itself */
   overflow: hidden;
+  overflow: clip;
   background: var(--surface-sunken);
 }
 
