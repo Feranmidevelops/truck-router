@@ -1,9 +1,11 @@
+import hashlib
 import json
 from functools import lru_cache
 import logging
 from pathlib import Path
 
 from django.conf import settings
+from django.core.cache import cache
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -12,6 +14,8 @@ from .serializers import PlanRequestSerializer
 from .services import planner, timezones, tomtom, weather
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
+
+PLACES_CACHE_S = 24 * 60 * 60  # place names and their positions hardly ever change
 
 ROUTES_DOWN = "Couldn't get routes from TomTom right now. Try again in a minute."
 SEARCH_DOWN = "Couldn't search for places right now. Try again in a minute."
@@ -57,14 +61,20 @@ class GeocodeView(APIView):
             return Response({"results": places[:5]})
         if not settings.TOMTOM_API_KEY:
             return Response({"detail": "TOMTOM_API_KEY is not set."}, status=503)
-        try:
-            places = tomtom.geocode(query, settings.TOMTOM_API_KEY, country_set=settings.GEOCODE_COUNTRY_SET)
-        except tomtom.RoutingError as exc:
-            return upstream_failed("TomTom search", exc, SEARCH_DOWN)
-        # The zone lets the form say which local time the departure is in
-        return Response(
-            {"results": [{**p.__dict__, "timezone": timezones.zone_name(p.lat, p.lon)} for p in places]}
-        )
+        # Typing "salt", "salt l", "salt la"... asks again for every prefix, and other drivers type
+        # the same towns, so answers are cached and a repeat costs no TomTom request.
+        normalized = " ".join(query.lower().split())
+        key = "places:" + hashlib.sha1(f"{settings.GEOCODE_COUNTRY_SET}|{normalized}".encode()).hexdigest()
+        results = cache.get(key)
+        if results is None:
+            try:
+                places = tomtom.geocode(query, settings.TOMTOM_API_KEY, country_set=settings.GEOCODE_COUNTRY_SET)
+            except tomtom.RoutingError as exc:
+                return upstream_failed("TomTom search", exc, SEARCH_DOWN)
+            # The zone lets the form say which local time the departure is in
+            results = [{**p.__dict__, "timezone": timezones.zone_name(p.lat, p.lon)} for p in places]
+            cache.set(key, results, PLACES_CACHE_S)
+        return Response({"results": results})
 
 
 class PlanView(APIView):

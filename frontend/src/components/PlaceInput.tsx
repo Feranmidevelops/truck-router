@@ -6,6 +6,9 @@ interface Props {
   label: string
   value: Place | null
   onChange: (place: Place | null) => void
+  // What's in the box, so the form can look up a place the driver typed but didn't pick
+  onTextChange?: (text: string) => void
+  error?: string | null
 }
 
 // The latest finished search: what was asked, and what came back
@@ -15,28 +18,45 @@ interface Search {
   failed: boolean
 }
 
-export function PlaceInput({ label, value, onChange }: Props) {
+// Answers already seen this visit, so backspacing or retyping a town shows its places at once
+const recent = new Map<string, Place[]>()
+const SEARCH_DELAY_MS = 150
+
+export function PlaceInput({ label, value, onChange, onTextChange, error }: Props) {
   const id = useId()
   const [text, setText] = useState(value?.label ?? '')
   const [search, setSearch] = useState<Search>({ q: '', places: [], failed: false })
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1) // option highlighted with the arrow keys, -1 for none
 
+  // The form can pick a place for us (the best match for what was typed), so show its name.
+  // Adjusted while rendering rather than in an effect, so there's no extra render.
+  const [shownValue, setShownValue] = useState(value)
+  if (value !== shownValue) {
+    setShownValue(value)
+    if (value) setText(value.label)
+  }
+
   useEffect(() => {
     if (value && text === value.label) return
     const q = text.trim()
     if (q.length < 2) return
+    const known = recent.get(q.toLowerCase())
     const ctrl = new AbortController()
-    const timer = setTimeout(() => {
-      geocode(q, ctrl.signal)
-        .then((places) => {
-          setSearch({ q, places, failed: false })
-          setActive(-1)
-        })
-        .catch((e: unknown) => {
-          if (!isAbortError(e)) setSearch({ q, places: [], failed: true })
-        })
-    }, 250)
+    const timer = setTimeout(
+      () => {
+        ;(known ? Promise.resolve(known) : geocode(q, ctrl.signal))
+          .then((places) => {
+            recent.set(q.toLowerCase(), places)
+            setSearch({ q, places, failed: false })
+            setActive(-1)
+          })
+          .catch((e: unknown) => {
+            if (!isAbortError(e)) setSearch({ q, places: [], failed: true })
+          })
+      },
+      known ? 0 : SEARCH_DELAY_MS,
+    )
     return () => {
       clearTimeout(timer)
       ctrl.abort()
@@ -45,7 +65,11 @@ export function PlaceInput({ label, value, onChange }: Props) {
 
   const q = text.trim()
   const searching = !value && q.length >= 2
-  const showOptions = open && searching && search.places.length > 0
+  // While the next search runs, keep showing places for what was typed so far ("salt" while
+  // "salt l" is on its way), but never ones for something else
+  const stillRelevant = search.q !== '' && q.toLowerCase().startsWith(search.q.toLowerCase())
+  const showOptions = open && searching && search.places.length > 0 && stillRelevant
+  const showSearching = open && searching && search.q !== q && !showOptions
   const noMatches = open && searching && search.q === q && !search.failed && search.places.length === 0
   const activePlace = showOptions ? search.places[active] : undefined
 
@@ -94,8 +118,11 @@ export function PlaceInput({ label, value, onChange }: Props) {
         value={text}
         autoComplete="off"
         placeholder="City or address"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
         onChange={(e) => {
           setText(e.target.value)
+          onTextChange?.(e.target.value)
           setOpen(true)
           setActive(-1)
           if (value) onChange(null)
@@ -120,7 +147,16 @@ export function PlaceInput({ label, value, onChange }: Props) {
           ))}
         </ul>
       )}
-      {(searching && search.failed) || noMatches ? (
+      {showSearching && (
+        <div className="suggestions suggestions-status" role="status">
+          Searching…
+        </div>
+      )}
+      {error ? (
+        <p id={`${id}-error`} className="place-status failed" role="alert">
+          {error}
+        </p>
+      ) : (searching && search.failed && search.q === q) || noMatches ? (
         <p className={search.failed ? 'place-status failed' : 'place-status'} role="status">
           {search.failed ? "Place search isn't working right now." : 'No places found.'}
         </p>
