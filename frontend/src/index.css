@@ -57,6 +57,9 @@
   --page-max: 1320px;
   --page-gutter: clamp(16px, 4vw, 48px);
   --header-height: 72px;
+  --trip-bar-height: 60px;
+  --stage-inset: 16px; /* gap between the map's edge and the panels floating on it */
+  --sheet-peek: 148px; /* how much of the phone's results sheet shows while it's down */
 
   --radius-sm: 6px;
   --radius: 10px;
@@ -144,24 +147,6 @@ a {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-.app {
-  display: grid;
-  grid-template-columns: 380px 1fr;
-  height: 100svh;
-  border-top: 1px solid var(--line);
-}
-
-.sidebar {
-  --sidebar-padding: var(--space-5);
-  overflow-y: auto;
-  padding: var(--sidebar-padding);
-  background: var(--surface);
-  border-right: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
 }
 
 /* Small grey tag, as on the How it works cards */
@@ -663,11 +648,11 @@ a {
   white-space: normal;
 }
 
-/* Sticks to the top edge of the scrolling sidebar. Sticky offsets count from inside the
+/* Sticks to the top edge of the scrolling panel. Sticky offsets count from inside the
    scroller's padding, hence the negative top. */
 .checkpoint-table thead th {
   position: sticky;
-  top: calc(-1 * var(--sidebar-padding));
+  top: calc(-1 * var(--panel-padding-top, 0px));
   z-index: 1;
   font-weight: var(--weight-semibold);
   color: var(--muted);
@@ -724,7 +709,6 @@ a {
   color: var(--muted);
 }
 
-.map-area,
 .map-wrap {
   position: relative;
   min-height: 0;
@@ -735,28 +719,4 @@ a {
 .map-wrap .map {
   position: absolute;
   inset: 0;
-}
-
-@media (max-width: 800px) {
-  .app {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 60dvh;
-    height: auto;
-  }
-
-  .sidebar {
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-    --sidebar-padding: var(--space-4);
-    /* The page scrolls here, not the sidebar; a scroll container would stop sticky headers */
-    overflow: visible;
-  }
-
-  .checkpoint-table thead th {
-    top: 0;
-  }
-
-  .map-area {
-    height: 60dvh;
-  }
 }

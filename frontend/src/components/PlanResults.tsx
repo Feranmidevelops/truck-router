@@ -1,10 +1,7 @@
-import { useEffect, useRef } from 'react'
 import type { Plan } from '../api/types'
+import { formatDuration } from '../lib/risk'
 import { CheckpointTable } from './CheckpointTable'
 import { RouteList } from './RouteList'
-
-// Same breakpoint as index.css: below it the map sits under the sidebar
-const NARROW = '(max-width: 800px)'
 
 interface Props {
   plan: Plan | null
@@ -13,39 +10,21 @@ interface Props {
   selectedRouteId: string | null
   onSelect: (id: string) => void
   onRetry?: () => void // only when the same request again could work
+  onPlanTrip: () => void // back to the form
 }
 
-// Everything under the form: loading and error states, route cards, checkpoint table.
-export function PlanResults({ plan, loading, error, selectedRouteId, onSelect, onRetry }: Props) {
+// The results panel (the bottom sheet on phones): loading and error states, route cards,
+// checkpoints. Each part is a section with its own heading, so more can slot in.
+export function PlanResults({ plan, loading, error, selectedRouteId, onSelect, onRetry, onPlanTrip }: Props) {
   const selectedRoute = plan?.routes.find((r) => r.id === selectedRouteId)
-  const ref = useRef<HTMLDivElement>(null)
-
-  // On a phone the new route cards land below the fold, so bring them up once per new plan
-  useEffect(() => {
-    if (!plan || !window.matchMedia(NARROW).matches) return
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    ref.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
-  }, [plan])
 
   return (
-    <div ref={ref} className="results">
-      {loading && (
-        <p className="loading-note" role="status">
-          <span className="spinner" aria-hidden />
-          Getting routes and forecasts…
-        </p>
-      )}
-      {error && (
-        <div className="banner banner-alert plan-error" role="alert">
-          <p>{error}</p>
-          {onRetry && (
-            <button type="button" className="button button-outline" onClick={onRetry}>
-              Try again
-            </button>
-          )}
-        </div>
-      )}
+    <div className="results">
+      <h2 className="results-title">Routes</h2>
+      {loading && <LoadingNote />}
+      {error && <PlanError message={error} onRetry={onRetry} />}
       {loading && !plan && <RouteSkeleton />}
+      {!plan && !loading && !error && <NoTrip onPlanTrip={onPlanTrip} />}
       {plan && (
         // The previous plan stays on screen, dimmed and inert, until the new one arrives
         <div className={loading ? 'results-body stale' : 'results-body'} inert={loading}>
@@ -53,6 +32,64 @@ export function PlanResults({ plan, loading, error, selectedRouteId, onSelect, o
           {selectedRoute && <CheckpointTable route={selectedRoute} timeZone={plan.input.timezone} />}
         </div>
       )}
+    </div>
+  )
+}
+
+type PeekProps = Pick<Props, 'plan' | 'loading' | 'error' | 'selectedRouteId' | 'onRetry'>
+
+// What a phone shows with its sheet down: where the plan is at, in a few lines
+export function PlanPeek({ plan, loading, error, selectedRouteId, onRetry }: PeekProps) {
+  const route = plan?.routes.find((r) => r.id === selectedRouteId)
+  if (error) return <PlanError message={error} onRetry={onRetry} />
+  if (loading && !plan) return <LoadingNote />
+  if (!plan || !route) return <p className="peek-note">No trip yet. Plan one above and the routes show up here.</p>
+  return (
+    <div className={loading ? 'peek-route stale' : 'peek-route'}>
+      <p className="peek-label">
+        <strong>{route.label}</strong>
+        {route.id === plan.recommended_route_id && <span className="badge">Recommended</span>}
+      </p>
+      <p className="peek-numbers">
+        {formatDuration(route.duration_s)} · {route.distance_miles.toFixed(0)} mi
+      </p>
+      <p className="peek-hint">{loading ? 'Planning the new trip…' : 'Swipe up for every route and checkpoint'}</p>
+    </div>
+  )
+}
+
+function LoadingNote() {
+  return (
+    <p className="loading-note" role="status">
+      <span className="spinner" aria-hidden />
+      Getting routes and forecasts…
+    </p>
+  )
+}
+
+function PlanError({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div className="banner banner-alert plan-error" role="alert">
+      <p>{message}</p>
+      {onRetry && (
+        <button type="button" className="button button-outline" onClick={onRetry}>
+          Try again
+        </button>
+      )}
+    </div>
+  )
+}
+
+function NoTrip({ onPlanTrip }: { onPlanTrip: () => void }) {
+  return (
+    <div className="no-trip">
+      <p>
+        Plan a trip to compare routes here. Each route goes on the map with a dot for every checkpoint, coloured by
+        the weather risk when the truck gets there.
+      </p>
+      <button type="button" className="button" onClick={onPlanTrip}>
+        Plan a trip
+      </button>
     </div>
   )
 }

@@ -4,12 +4,14 @@ import type { Plan, PlanRequest } from './api/types'
 import type { HeatmapState } from './components/HeatmapSlider'
 import { Hero } from './components/Hero'
 import { HowItWorks } from './components/HowItWorks'
-import { MapView } from './components/MapView'
-import { PlanResults } from './components/PlanResults'
 import { SampleDataBanner } from './components/SampleDataBanner'
 import { SiteFooter } from './components/SiteFooter'
 import { SiteHeader } from './components/SiteHeader'
 import { TripForm } from './components/TripForm'
+import { Workspace } from './components/Workspace'
+import { scrollToElement } from './lib/layout'
+
+const PLAN_TRIP_ID = 'plan-trip'
 
 export default function App() {
   const [plan, setPlan] = useState<Plan | null>(null)
@@ -61,36 +63,34 @@ export default function App() {
     }
   }
 
+  // Back up to the form, ready to type a new origin
+  function editTrip() {
+    const card = document.getElementById(PLAN_TRIP_ID)
+    card?.querySelector('input')?.focus({ preventScroll: true })
+    scrollToElement(card, 'center')
+  }
+
   return (
     <>
       <SiteHeader />
       <main id="top">
-        <Hero>
+        <Hero cardId={PLAN_TRIP_ID}>
           <SampleDataBanner />
           <TripForm loading={loading} onSubmit={handlePlan} />
         </Hero>
-        <section className="app" id="workspace" aria-label="Routes and map">
-          <div className="sidebar">
-            <PlanResults
-              plan={plan}
-              loading={loading}
-              error={error?.message ?? null}
-              selectedRouteId={selectedRouteId}
-              onSelect={setSelectedRouteId}
-              onRetry={error?.retry ? () => lastRequest.current && handlePlan(lastRequest.current) : undefined}
-            />
-          </div>
-          <div className="map-area">
-            <MapView
-              plan={plan}
-              loading={loading}
-              selectedRouteId={selectedRouteId}
-              onSelectRoute={setSelectedRouteId}
-              heatmap={heatmap}
-            />
-          </div>
-        </section>
-        <HowItWorks />
+        <div className="below-hero">
+          <Workspace
+            plan={plan}
+            loading={loading}
+            error={error?.message ?? null}
+            onRetry={error?.retry ? () => lastRequest.current && handlePlan(lastRequest.current) : undefined}
+            selectedRouteId={selectedRouteId}
+            onSelectRoute={setSelectedRouteId}
+            heatmap={heatmap}
+            onPlanTrip={editTrip}
+          />
+          <HowItWorks />
+        </div>
       </main>
       <SiteFooter />
     </>

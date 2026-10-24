@@ -1,0 +1,111 @@
+.workspace {
+  --panel-width: clamp(340px, 30vw, 412px);
+  /* Where the map's own floating controls start, to the right of the panel */
+  --map-left-inset: calc(var(--panel-width) + 2 * var(--stage-inset));
+
+  position: relative;
+  isolation: isolate;
+  height: calc(100svh - var(--trip-bar-height));
+  min-height: 560px;
+  overflow: hidden;
+  background: var(--surface-sunken);
+}
+
+.workspace > .map-wrap {
+  position: absolute;
+  inset: 0;
+}
+
+.results-panel {
+  --panel-padding: var(--space-5);
+  --panel-padding-top: var(--panel-padding);
+
+  position: absolute;
+  z-index: 4;
+  top: var(--stage-inset);
+  left: var(--stage-inset);
+  width: var(--panel-width);
+  max-height: calc(100% - 2 * var(--stage-inset));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--panel-padding);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+/* Phones: no side panel, the sheet instead */
+@media (max-width: 899px) {
+  .workspace {
+    --map-left-inset: var(--stage-inset);
+
+    min-height: 480px;
+  }
+}
+
+.sheet-dock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--sheet-peek);
+  pointer-events: none;
+}
+
+.results-title {
+  margin-bottom: var(--space-4);
+  font-size: var(--text-xl);
+  font-stretch: var(--stretch-wide);
+  letter-spacing: -0.01em;
+}
+
+.no-trip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.no-trip p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.peek-note,
+.peek-route p {
+  margin: 0;
+}
+
+.peek-note {
+  color: var(--muted);
+}
+
+.peek-route {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  transition: opacity var(--duration);
+}
+
+.peek-route.stale {
+  opacity: var(--stale-opacity);
+}
+
+.peek-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.peek-numbers {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-heavy);
+  font-stretch: var(--stretch-display);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.1;
+}
+
+.peek-hint {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
