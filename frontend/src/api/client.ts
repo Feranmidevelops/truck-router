@@ -6,6 +6,7 @@ export class ApiError extends Error {
   readonly status: number
   constructor(status: number, message: string) {
     super(message)
+    this.name = 'ApiError'
     this.status = status
   }
 }
@@ -15,24 +16,40 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { 'Content-Type': 'application/json', ...init?.headers },
   })
-  const body = await res.json().catch(() => ({}))
+  const body = parseJson(await res.text())
   if (!res.ok) {
     throw new ApiError(res.status, formatError(body) ?? `Request failed (${res.status})`)
+  }
+  // e.g. a misconfigured deploy answering /api/... with index.html
+  if (!isObject(body)) {
+    throw new ApiError(res.status, 'The server sent an unexpected response. Try again in a moment.')
   }
   return body as T
 }
 
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 // DRF errors come back as {detail: "..."} or {field: ["..."]}
 function formatError(body: unknown): string | undefined {
-  if (!body || typeof body !== 'object') return undefined
-  const b = body as Record<string, unknown>
-  if (typeof b.detail === 'string') return b.detail
-  const parts = Object.entries(b).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(' ') : JSON.stringify(v)}`)
+  if (!isObject(body)) return undefined
+  if (typeof body.detail === 'string') return body.detail
+  const parts = Object.entries(body).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(' ') : JSON.stringify(v)}`)
   return parts.length ? parts.join('; ') : undefined
 }
 
-export function geocode(q: string, signal?: AbortSignal) {
-  return request<{ results: Place[] }>(`/api/geocode?q=${encodeURIComponent(q)}`, { signal })
+export async function geocode(q: string, signal?: AbortSignal): Promise<Place[]> {
+  const body = await request<{ results?: Place[] }>(`/api/geocode?q=${encodeURIComponent(q)}`, { signal })
+  return Array.isArray(body.results) ? body.results : []
 }
 
 export function planTrip(body: PlanRequest, signal?: AbortSignal) {

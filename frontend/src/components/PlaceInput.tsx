@@ -21,7 +21,7 @@ export function PlaceInput({ label, value, onChange }: Props) {
     const ctrl = new AbortController()
     const timer = setTimeout(() => {
       geocode(q, ctrl.signal)
-        .then((r) => setOptions(r.results))
+        .then(setOptions)
         .catch(() => setOptions([]))
     }, 250)
     return () => {
