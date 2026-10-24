@@ -8,23 +8,39 @@ Calculate Route: https://docs.tomtom.com/routing-api/documentation/tomtom-maps/v
   measured from the route start, which gives us a timing profile for ETAs.
 Fuzzy Search: https://docs.tomtom.com/search-api/documentation/search-service/fuzzy-search/
 
-Field names in the route response (summary.*, legs[].points[]) were taken from
-the docs. Check them against the first live response.
+A real route response, trimmed, is in routing/tests/data/tomtom_dallas_denver.json.
 """
 
 from __future__ import annotations
 
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from functools import cached_property
+from itertools import accumulate
+import math
+from operator import attrgetter
 from urllib.parse import quote
 
 import httpx
 
+from .geometry import METERS_PER_MILE, cumulative_m, haversine_m, point_at_distance
 from .types import LatLon, RouteOption, TimingPoint
 
 BASE_URL = "https://api.tomtom.com"
 TRUCK_TARE_LB = 35_000  # assumed empty tractor-trailer weight; the user enters cargo weight
 LB_TO_KG = 0.45359237
+
+MAX_SLOWDOWN = 1.5  # drop a route taking over 1.5x the fastest route's time
+MAX_OVERLAP = 0.9  # drop a route when over 90% of it runs along a route already kept
+FALLBACK_OFFSETS = (0.15, 0.25)  # via point distance from the route, as a share of the straight-line trip
+
+OVERLAP_STEP_M = 5 * METERS_PER_MILE  # sample spacing along the candidate route
+OVERLAP_NEAR_M = 0.5 * METERS_PER_MILE  # a sample this close to the other route counts as shared road
+_M_PER_DEG_LAT = haversine_m(LatLon(0, 0), LatLon(1, 0))
+
+_duration = attrgetter("duration_s")
 
 
 class RoutingError(Exception):
@@ -75,7 +91,8 @@ def calculate_routes(
     locations = ":".join(f"{p.lat:.6f},{p.lon:.6f}" for p in stops)
     url = f"{BASE_URL}/routing/1/calculateRoute/{locations}/json"
     now = datetime.now(timezone.utc)
-    depart_at = "now" if departure <= now + timedelta(minutes=1) else departure.isoformat()
+    # Whole seconds, like the dateTime examples in TomTom's docs: no ".123456" fraction.
+    depart_at = "now" if departure <= now + timedelta(minutes=1) else departure.isoformat(timespec="seconds")
     params = {
         "key": api_key,
         "travelMode": "truck",
@@ -89,7 +106,10 @@ def calculate_routes(
         "instructionsType": "coded",
     }
     payload = _get(url, params, client)
-    return parse_routes(payload, departure, source=source, id_prefix=id_prefix)
+    routes = parse_routes(payload, departure, source=source, id_prefix=id_prefix)
+    if not routes:
+        raise RoutingError("No truck route found between these places.")
+    return routes
 
 
 def parse_routes(payload: dict, departure: datetime, *, source: str, id_prefix: str) -> list[RouteOption]:
@@ -146,20 +166,186 @@ def ensure_three_routes(
     *,
     client: httpx.Client | None = None,
 ) -> list[RouteOption]:
-    """Top up to 3 distinct routes when TomTom returns fewer.
+    """Up to 3 distinct routes, fastest first, topped up with via-point fallbacks if needed.
 
-    Approach:
-    1. Take the midpoint of the fastest route.
-    2. Offset it perpendicular to the origin->destination line, left and right,
-       by ~15% of the straight-line distance (try 25% if still too similar).
-    3. Request a route through each offset point with calculate_routes(via=[...]),
-       source="via-fallback".
-    4. Drop candidates that overlap an existing route by >90% (sample every ~5 mi
-       and count points within 0.5 mi of the other route).
-    Return at most 3 routes, fastest first. If still under 3, return what you
-    have; the UI must handle 1 or 2 routes.
+    TomTom's fastest route is kept first. Any other route, TomTom's own alternatives included,
+    is dropped when it takes over 1.5x the fastest route's time, or when over 90% of it runs
+    along a route already kept.
+
+    While fewer than 3 are kept, ask TomTom for a route through a point left and one right of
+    the fastest route's midpoint, 15% of the straight-line trip away, then 25%. That is at most
+    4 extra calls, sent two at a time. A fallback that fails is skipped. If fewer than 3
+    survive, the caller gets what is left.
+
+    A fallback can, rarely, beat TomTom's fastest route. The 1.5x limit is then checked again
+    against it at the end, so a route kept earlier, even TomTom's fastest, can still drop out.
     """
-    raise NotImplementedError("ensure_three_routes")
+    lat0 = (origin.lat + destination.lat) / 2
+    kept: list[RouteOption] = []  # kept[0] is the fastest route TomTom gave us
+    traces: list[_Trace] = []  # kept[i] projected for the overlap test
+
+    def consider(route: RouteOption) -> None:
+        if len(kept) >= 3:
+            return
+        if kept and route.duration_s > MAX_SLOWDOWN * kept[0].duration_s:
+            return
+        trace = _Trace(route.points, lat0)
+        if any(trace.overlap(other) > MAX_OVERLAP for other in traces):
+            return
+        kept.append(route)
+        traces.append(trace)
+
+    def fetch(via: LatLon, id_prefix: str) -> list[RouteOption]:
+        try:
+            return calculate_routes(
+                origin, destination, departure, load_lb, api_key,
+                via=[via], source="via-fallback", id_prefix=id_prefix, client=client,
+            )
+        except (RoutingError, KeyError, ValueError):
+            return []  # e.g. no road near the via point, or a reply we can't read
+
+    for route in sorted(routes, key=_duration):
+        consider(route)
+
+    for share in FALLBACK_OFFSETS:
+        if not kept or len(kept) >= 3:
+            break
+        vias = offset_via_points(kept[0].points, origin, destination, share)
+        prefixes = [f"via{round(share * 100)}{side}-" for side in "LR"]
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            candidates = [r for found in pool.map(fetch, vias, prefixes) for r in found]
+        for route in sorted(candidates, key=_duration):
+            consider(route)
+
+    kept.sort(key=_duration)
+    return [r for r in kept if r.duration_s <= MAX_SLOWDOWN * kept[0].duration_s]
+
+
+def offset_via_points(route: list[LatLon], origin: LatLon, destination: LatLon, share: float) -> list[LatLon]:
+    """Points left and right of the route's halfway point, at right angles to the straight
+    origin->destination line and `share` of its length away. Left first.
+
+    The right angle is found in a flat local projection around the halfway point. There a
+    degree of longitude is only cos(lat) as long as a degree of latitude, so longitudes are
+    multiplied by cos(lat) on the way in and divided by it on the way out. Without that, the
+    offset would lean east-west and the left and right points would end up uneven.
+    """
+    cum = cumulative_m(route)
+    mid = point_at_distance(route, cum, cum[-1] / 2)
+    k = math.cos(math.radians(mid.lat))
+    east, north = (destination.lon - origin.lon) * k, destination.lat - origin.lat
+    length = math.hypot(east, north)
+    if length == 0:
+        return []
+    away = share * haversine_m(origin, destination) / _M_PER_DEG_LAT  # in degrees of latitude
+    # A quarter turn anticlockwise takes the direction of travel (east, north) to (-north, east),
+    # which points to the driver's left.
+    left_east, left_north = -north / length * away, east / length * away
+    return [
+        LatLon(mid.lat + left_north, mid.lon + left_east / k),
+        LatLon(mid.lat - left_north, mid.lon - left_east / k),
+    ]
+
+
+def overlap_fraction(route: list[LatLon], other: list[LatLon]) -> float:
+    """Share of `route`, sampled every ~5 miles, that lies within 0.5 mile of `other`."""
+    if not route or not other:
+        return 0.0
+    lat0 = (route[0].lat + route[-1].lat) / 2
+    return _Trace(route, lat0).overlap(_Trace(other, lat0))
+
+
+class _Trace:
+    """A route in flat local metres, plus what the overlap test needs, built on first use.
+
+    Longitude degrees are scaled by cos(lat0) so that x and y are both metres. One lat0 for
+    the whole trip is close enough. North-south gaps come out exact, but an east-west gap at
+    latitude lat comes out cos(lat0) / cos(lat) times its true size, so there the 0.5 mile test
+    acts like 0.5 * cos(lat) / cos(lat0) mile: 0.48-0.52 mile on Dallas->Denver, 0.42-0.56 mile
+    on the longest north-south US trips (Laredo->Duluth, Miami->Seattle). Shared road lies
+    within metres of itself and separate roads are usually miles apart, so that is fine.
+    """
+
+    def __init__(self, points: list[LatLon], lat0: float):
+        kx = _M_PER_DEG_LAT * math.cos(math.radians(lat0))
+        self.xy = [(p.lon * kx, p.lat * _M_PER_DEG_LAT) for p in points]
+
+    @cached_property
+    def samples(self) -> list[tuple[float, float]]:
+        """The centre of each of n equal slices of the route, n chosen so slices are ~5 miles.
+
+        Centres rather than slice ends, so the start and end that every route shares don't count.
+        """
+        xy = self.xy
+        if len(xy) < 2:
+            return list(xy)
+        cum = list(accumulate(map(math.dist, xy, xy[1:]), initial=0.0))
+        total = cum[-1]
+        n = max(1, round(total / OVERLAP_STEP_M))
+        out = []
+        i = 0
+        for k in range(n):
+            d = (k + 0.5) * total / n
+            while cum[i + 1] < d:
+                i += 1
+            seg = cum[i + 1] - cum[i]
+            t = (d - cum[i]) / seg if seg else 0.0
+            (ax, ay), (bx, by) = xy[i], xy[i + 1]
+            out.append((ax + t * (bx - ax), ay + t * (by - ay)))
+        return out
+
+    @cached_property
+    def cells(self) -> dict[tuple[int, int], list[tuple[float, float, float, float]]]:
+        """Segments bucketed into square cells one OVERLAP_NEAR_M wide.
+
+        Long segments are cut into pieces no longer than a cell first, so a piece lands in
+        at most 2x2 cells and a straight 30 km stretch doesn't fill a huge bounding box.
+        """
+        size = OVERLAP_NEAR_M
+        cells = defaultdict(list)
+        for (ax, ay), (bx, by) in zip(self.xy, self.xy[1:]):
+            i, j = math.floor(ax / size), math.floor(ay / size)
+            if i == math.floor(bx / size) and j == math.floor(by / size):
+                cells[(i, j)].append((ax, ay, bx, by))  # the usual case on a dense polyline
+                continue
+            pieces = max(1, math.ceil(math.dist((ax, ay), (bx, by)) / size))
+            dx, dy = (bx - ax) / pieces, (by - ay) / pieces
+            for k in range(pieces):
+                px, py = ax + k * dx, ay + k * dy
+                qx, qy = px + dx, py + dy
+                piece = (px, py, qx, qy)
+                for i in range(math.floor(min(px, qx) / size), math.floor(max(px, qx) / size) + 1):
+                    for j in range(math.floor(min(py, qy) / size), math.floor(max(py, qy) / size) + 1):
+                        cells[(i, j)].append(piece)
+        return cells
+
+    def is_near(self, x: float, y: float) -> bool:
+        # Any road within OVERLAP_NEAR_M of (x, y) must pass through this cell or one of its
+        # eight neighbours, because cells are exactly that wide.
+        size = OVERLAP_NEAR_M
+        i, j = math.floor(x / size), math.floor(y / size)
+        cells = self.cells
+        for ci in (i - 1, i, i + 1):
+            for cj in (j - 1, j, j + 1):
+                for piece in cells.get((ci, cj), ()):
+                    if _dist2_to_segment(x, y, *piece) <= size * size:
+                        return True
+        return False
+
+    def overlap(self, other: _Trace) -> float:
+        samples = self.samples
+        if not samples:
+            return 0.0
+        return sum(other.is_near(x, y) for x, y in samples) / len(samples)
+
+
+def _dist2_to_segment(x: float, y: float, ax: float, ay: float, bx: float, by: float) -> float:
+    """Squared distance from (x, y) to the segment a-b, in flat coordinates."""
+    dx, dy = bx - ax, by - ay
+    length2 = dx * dx + dy * dy
+    t = 0.0 if length2 == 0 else max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / length2))
+    ex, ey = ax + t * dx - x, ay + t * dy - y
+    return ex * ex + ey * ey
 
 
 def _get(url: str, params: dict, client: httpx.Client | None) -> dict:
@@ -174,7 +360,10 @@ def _get(url: str, params: dict, client: httpx.Client | None) -> dict:
             client.close()
     if resp.status_code != 200:
         raise RoutingError(f"TomTom {resp.status_code}: {resp.text[:200]}")
-    return resp.json()
+    try:
+        return resp.json()
+    except ValueError as exc:
+        raise RoutingError(f"TomTom sent a reply that is not JSON: {resp.text[:200]}") from exc
 
 
 def _parse_time(value: str | None) -> datetime | None:
