@@ -85,9 +85,11 @@ export function timeFormatter(timeZone?: string) {
   const day = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'short', day: 'numeric', timeZone })
   const clock = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone })
   const zone = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short', timeZone })
+  const dayClock = new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit', timeZone })
   return {
     day: (iso: string) => day.format(nearestMinute(iso)),
     clock: (iso: string) => clock.format(nearestMinute(iso)),
+    dayClock: (iso: string) => dayClock.format(nearestMinute(iso)), // "Mon 5:44 PM"
     zone: (iso: string) => zone.formatToParts(nearestMinute(iso)).find((p) => p.type === 'timeZoneName')?.value ?? '',
   }
 }

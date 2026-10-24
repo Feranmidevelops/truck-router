@@ -1,6 +1,6 @@
 import type { Plan } from '../api/types'
 import { formatDuration } from '../lib/risk'
-import { CheckpointTable } from './CheckpointTable'
+import { AlongRoute } from './AlongRoute'
 import { RouteList } from './RouteList'
 
 interface Props {
@@ -32,7 +32,13 @@ export function PlanResults({ plan, loading, error, selectedRouteId, onSelect, o
         // The previous plan stays on screen, dimmed and inert, until the new one arrives
         <div className={loading ? 'results-body stale' : 'results-body'} inert={loading}>
           <RouteList plan={plan} selectedRouteId={selectedRouteId} onSelect={onSelect} />
-          {selectedRoute && <CheckpointTable route={selectedRoute} timeZone={plan.input.timezone} />}
+          {selectedRoute && (
+            <AlongRoute
+              route={selectedRoute}
+              timeZone={plan.input.timezone}
+              intervalMiles={plan.input.interval_miles}
+            />
+          )}
         </div>
       )}
     </div>
