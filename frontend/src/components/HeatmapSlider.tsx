@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type Ref } from 'react'
 import type { Heatmap } from '../api/types'
 import { LEVELS, LEVEL_COLOR, LEVEL_LABEL, formatTime } from '../lib/risk'
 import './HeatmapSlider.css'
@@ -17,13 +17,14 @@ interface Props {
   visible: boolean
   onToggle: () => void
   onHourChange: (hour: number) => void
+  ref?: Ref<HTMLElement>
 }
 
 // Map overlay: weather on/off, the 0-48 h slider and the colour legend.
-export function HeatmapSlider({ state, visible, onToggle, onHourChange }: Props) {
+export function HeatmapSlider({ state, visible, onToggle, onHourChange, ref }: Props) {
   const { status } = state
   return (
-    <section className="heat-panel" aria-label="Weather overlay">
+    <section ref={ref} className="heat-panel" aria-label="Weather overlay">
       {(status === 'loading' || status === 'ready') && (
         <button type="button" className="heat-toggle" aria-pressed={visible} onClick={onToggle}>
           <span className="heat-switch" aria-hidden />

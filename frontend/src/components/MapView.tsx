@@ -55,6 +55,7 @@ export function MapView({ plan, selectedRouteId, onSelectRoute, heatmap }: Props
   const planRef = useRef(plan)
   const selectedRef = useRef(selectedRouteId)
   const popupRef = useRef<Popup | null>(null)
+  const panelRef = useRef<HTMLElement>(null)
   const [ready, setReady] = useState(false)
   const [mapError, setMapError] = useState<string | null>(null)
   const errorDismissed = useRef(false)
@@ -238,7 +239,7 @@ export function MapView({ plan, selectedRouteId, onSelectRoute, heatmap }: Props
     if (!map || !ready || !plan) return
     const bounds = new LngLatBounds()
     plan.routes.forEach((r) => r.geometry.forEach((c) => bounds.extend(c)))
-    map.fitBounds(bounds, { padding: 60, duration: 600 })
+    map.fitBounds(bounds, { padding: fitPadding(map, panelRef.current), duration: 600 })
   }, [plan, ready])
 
   return (
@@ -259,9 +260,26 @@ export function MapView({ plan, selectedRouteId, onSelectRoute, heatmap }: Props
           </button>
         </div>
       )}
-      <HeatmapSlider state={heatmap} visible={showHeat} onToggle={toggleHeat} onHourChange={onHourChange} />
+      <HeatmapSlider
+        ref={panelRef}
+        state={heatmap}
+        visible={showHeat}
+        onToggle={toggleHeat}
+        onHourChange={onHourChange}
+      />
     </div>
   )
+}
+
+// Keeps the routes clear of the overlay panel, whichever edge it sits on.
+function fitPadding(map: MapLibreMap, panel: HTMLElement | null) {
+  const pad = { top: 48, right: 48, bottom: 48, left: 48 }
+  if (!panel) return pad
+  const box = map.getContainer().getBoundingClientRect()
+  const p = panel.getBoundingClientRect()
+  if (p.top - box.top < box.height / 2) pad.top += p.bottom - box.top
+  else pad.bottom += box.bottom - p.top
+  return pad
 }
 
 // Hover shows a checkpoint's details; a click or tap pins them and selects its route.

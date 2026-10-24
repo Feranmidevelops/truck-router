@@ -18,6 +18,7 @@
 
 .map-notice {
   position: absolute;
+  z-index: 2;
   top: var(--map-ui-inset);
   left: var(--map-ui-inset);
   max-width: min(360px, calc(100% - 4 * var(--map-ui-inset) - 30px));
@@ -41,4 +42,12 @@
   background: none;
   color: inherit;
   cursor: pointer;
+}
+
+/* The weather panel takes the top of the map on narrow screens. */
+@media (max-width: 800px) {
+  .map-notice {
+    top: auto;
+    bottom: calc(var(--map-ui-inset) + 40px);
+  }
 }
