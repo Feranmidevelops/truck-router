@@ -163,9 +163,8 @@ so Route A is always the recommended one.
   0.3 mile of road it drove at least 3 miles earlier. A cloverleaf ramp loops back within a mile
   and a parallel road is further than 0.3 mile away, so neither counts. None of the 15 TomTom
   routes on these trips, nor the 14 it sent back round avoided areas, had a single quarter mile
-  like that. Where the
-  fastest route itself turns round (at an exit near the start, say), every route does, so that
-  part doesn't count.
+  like that. Where the fastest route itself turns round (at an exit near the start, say), every
+  route does, so that part doesn't count.
 - **The top-up waits for TomTom's own routes.** The via-point requests used to go out alongside
   the main one to save 2-3 s, but 6 of the 7 routes they brought back doubled back. Boxes round
   the straight line's middle, all an early request could use, would have added a route on none
