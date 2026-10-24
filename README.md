@@ -62,6 +62,8 @@ any API keys.
 | `USE_FIXTURES` | backend | `true` serves canned data |
 | `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS` | backend | Django |
 | `CORS_ALLOWED_ORIGINS` | backend | Frontend origin(s), comma-separated |
+| `NUM_PROXIES` | backend | Proxies that append to `X-Forwarded-For` (0 locally, 2 on Render) |
+| `GEOCODE_COUNTRY_SET` | backend | Countries for place search (default `US`) |
 | `VITE_API_BASE_URL` | frontend | Backend URL in production (empty in dev) |
 | `VITE_MAP_STYLE_URL` | frontend | Optional map style override |
 
