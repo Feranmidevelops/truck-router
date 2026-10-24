@@ -97,6 +97,50 @@ def test_a_departure_already_passed_is_sent_as_now():
     assert depart_at_sent_for(datetime.now(timezone.utc) - timedelta(minutes=30)) == "now"
 
 
+def sent_for(**kwargs) -> httpx.Request:
+    sent = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, json=SAMPLE)
+
+    client = httpx.Client(transport=httpx.MockTransport(respond))
+    origin, destination = LatLon(32.0, -97.0), LatLon(32.09, -97.0)
+    tomtom.calculate_routes(origin, destination, T0, 20_000, "test-key", client=client, **kwargs)
+    [request] = sent
+    return request
+
+
+def test_a_route_request_is_a_get_with_no_body():
+    request = sent_for()
+    assert request.method == "GET"
+    assert request.content == b""
+
+
+def test_avoid_areas_are_posted_as_json_with_the_same_query():
+    boxes = [tomtom.Box(34.5, -99.25, 35.123456789, -98.5), tomtom.Box(35.0, -98.75, 35.5, -98.0)]
+    request = sent_for(avoid=boxes, max_alternatives=1)
+    assert request.method == "POST"
+    assert request.headers["content-type"] == "application/json"
+    assert json.loads(request.content) == {
+        "avoidAreas": {
+            "rectangles": [
+                {
+                    "southWestCorner": {"latitude": 34.5, "longitude": -99.25},
+                    "northEastCorner": {"latitude": 35.123457, "longitude": -98.5},
+                },
+                {
+                    "southWestCorner": {"latitude": 35.0, "longitude": -98.75},
+                    "northEastCorner": {"latitude": 35.5, "longitude": -98.0},
+                },
+            ]
+        }
+    }
+    assert dict(request.url.params) == dict(sent_for(max_alternatives=1).url.params)
+    assert request.url.params["key"] == "test-key"
+    assert request.url.params["maxAlternatives"] == "1"
+
+
 WEST, MIDDLE, EAST = LatLon(35.0, -100.0), LatLon(35.0, -95.0), LatLon(35.0, -90.0)
 
 

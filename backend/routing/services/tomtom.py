@@ -6,6 +6,8 @@ Calculate Route: https://docs.tomtom.com/routing-api/documentation/tomtom-maps/v
 - departAt is RFC 3339 and must not be in the past; send "now" when it is.
 - guidance.instructions[].routeOffsetInMeters / travelTimeInSeconds are both
   measured from the route start, which gives us a timing profile for ETAs.
+- avoidAreas go in a POST body (the query stays the same): up to 10 rectangles, each a
+  southWestCorner and northEastCorner, at most about 160 x 160 km.
 Fuzzy Search: https://docs.tomtom.com/search-api/documentation/search-service/fuzzy-search/
 
 A real route response, trimmed, is in routing/tests/data/tomtom_dallas_denver.json.
@@ -82,6 +84,25 @@ class Place:
     lon: float
 
 
+@dataclass(frozen=True)
+class Box:
+    """An area for TomTom to route around, in degrees."""
+
+    south: float
+    west: float
+    north: float
+    east: float
+
+    def contains(self, p: LatLon) -> bool:
+        return self.south <= p.lat <= self.north and self.west <= p.lon <= self.east
+
+    def to_tomtom(self) -> dict:
+        return {
+            "southWestCorner": {"latitude": round(self.south, 6), "longitude": round(self.west, 6)},
+            "northEastCorner": {"latitude": round(self.north, 6), "longitude": round(self.east, 6)},
+        }
+
+
 def vehicle_weight_kg(load_lb: float) -> int:
     return round((load_lb + TRUCK_TARE_LB) * LB_TO_KG)
 
@@ -99,7 +120,7 @@ def geocode(
         "countrySet": country_set,
         "idxSet": "Geo,Addr,PAD,Str",
     }
-    payload = _get(url, params, client)
+    payload = _request(url, params, client)
     return [
         Place(
             label=r["address"]["freeformAddress"],
@@ -118,12 +139,14 @@ def calculate_routes(
     api_key: str,
     *,
     via: list[LatLon] | None = None,
+    avoid: list[Box] | None = None,
     max_alternatives: int = 2,
     source: str = "tomtom",
     id_prefix: str = "r",
     timeout: float = REQUEST_TIMEOUT_S,
     client: httpx.Client | None = None,
 ) -> list[RouteOption]:
+    """TomTom's truck routes for the trip, fastest first. With `avoid`, none goes into those boxes."""
     stops = [origin, *(via or []), destination]
     locations = ":".join(f"{p.lat:.6f},{p.lon:.6f}" for p in stops)
     url = f"{BASE_URL}/routing/1/calculateRoute/{locations}/json"
@@ -142,7 +165,8 @@ def calculate_routes(
         "routeRepresentation": "polyline",
         "instructionsType": "coded",
     }
-    payload = _get(url, params, client, timeout)
+    body = {"avoidAreas": {"rectangles": [b.to_tomtom() for b in avoid]}} if avoid else None
+    payload = _request(url, params, client, timeout, body)
     routes = parse_routes(payload, departure, source=source, id_prefix=id_prefix)
     if not routes:
         raise NoRouteError(NO_ROUTE_MESSAGE)
@@ -527,11 +551,17 @@ def _dist2_to_segment(x: float, y: float, ax: float, ay: float, bx: float, by: f
     return ex * ex + ey * ey
 
 
-def _get(url: str, params: dict, client: httpx.Client | None, timeout: float = REQUEST_TIMEOUT_S) -> dict:
+def _request(
+    url: str, params: dict, client: httpx.Client | None, timeout: float = REQUEST_TIMEOUT_S, body: dict | None = None
+) -> dict:
+    """GET `url`, or POST `body` to it as JSON when there is one, and return the JSON reply."""
     own = client is None
     client = client or httpx.Client()
     try:
-        resp = client.get(url, params=params, timeout=timeout)
+        if body is None:
+            resp = client.get(url, params=params, timeout=timeout)
+        else:
+            resp = client.post(url, params=params, json=body, timeout=timeout)
     except httpx.HTTPError as exc:
         raise RoutingError(f"TomTom request failed: {exc}") from exc
     finally:
