@@ -20,8 +20,8 @@ services:
         sync: false
       - key: USE_FIXTURES
         value: "false"
-      # Rate limits key on the last X-Forwarded-For entry, which Render's proxy appends, so a
-      # client cannot fake it. Only raise this after a live request shows more Render hops:
-      # a count above the real one lets clients choose their own address again.
+      # Render puts Cloudflare in front of its own proxy and both append to X-Forwarded-For
+      # ("<client-sent...>, <client>, <Cloudflare edge>"), so the visitor is 2 from the end.
+      # 1 would key every limit on a Cloudflare address shared by strangers.
       - key: NUM_PROXIES
-        value: "1"
+        value: "2"

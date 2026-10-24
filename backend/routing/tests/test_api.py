@@ -152,17 +152,18 @@ def test_without_a_proxy_forwarded_for_is_ignored(api):
     assert res.status_code == 429
 
 
-@override_settings(USE_FIXTURES=True, REST_FRAMEWORK={**settings.REST_FRAMEWORK, "NUM_PROXIES": 1})
-def test_behind_one_proxy_the_limit_follows_the_last_forwarded_address(api):
-    # The proxy appends the address it saw, so only the last entry can be trusted. Everything
-    # before it is whatever the client chose to send.
-    def via_proxy(forwarded_for):
+@override_settings(USE_FIXTURES=True, REST_FRAMEWORK={**settings.REST_FRAMEWORK, "NUM_PROXIES": 2})
+def test_behind_render_the_limit_follows_the_visitor_not_cloudflare(api):
+    # On Render the header reads "<client-sent...>, <visitor>, <Cloudflare edge>". The visitor
+    # is 2 from the end; anything further left is whatever the client chose to send.
+    def via_render(forwarded_for):
         return post_plan(api, REMOTE_ADDR="10.0.0.5", HTTP_X_FORWARDED_FOR=forwarded_for)
 
     for i in range(10):
-        via_proxy(f"1.2.3.{i}, 198.51.100.7")
-    assert via_proxy("9.9.9.9, 198.51.100.7").status_code == 429
-    assert via_proxy("198.51.100.8").status_code == 200
+        via_render(f"1.2.3.{i}, 198.51.100.7, 172.70.{i % 3}.10")
+    assert via_render("9.9.9.9, 198.51.100.7, 172.70.0.10").status_code == 429
+    # A different visitor through the same Cloudflare edge has a limit of their own.
+    assert via_render("198.51.100.8, 172.70.0.10").status_code == 200
 
 
 @override_settings(USE_FIXTURES=True)
