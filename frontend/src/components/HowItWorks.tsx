@@ -4,7 +4,7 @@ const STEPS = [
   {
     tag: 'Routes',
     title: 'Three truck routes',
-    text: "TomTom plans the trip in truck mode with your load's weight. When it finds fewer than three distinct routes, detours through points either side of the direct line fill the gap.",
+    text: "TomTom plans the trip in truck mode with your load's weight. When it finds fewer than three, it's asked again to keep out of the middle of the ones it has, which finds another corridor rather than a detour.",
   },
   {
     tag: 'Checkpoints',
