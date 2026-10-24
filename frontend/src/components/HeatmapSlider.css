@@ -1,20 +1,20 @@
 .heat-panel {
-  --heat-bg: rgb(255 255 255 / 0.95);
-  --heat-text: var(--text, #1b2330);
-  --heat-muted: var(--muted, #5b6678);
-  --heat-accent: var(--accent, #1f5fbf);
-  --heat-error: var(--danger, #b42318);
-  --heat-track: var(--border, #dde2ea);
-  --heat-shadow: 0 2px 10px rgb(0 0 0 / 0.12);
-  --heat-radius: 8px;
-  --heat-inset: 12px;
+  --heat-bg: rgb(255 255 255 / 0.96);
+  --heat-text: var(--ink);
+  --heat-muted: var(--muted);
+  --heat-accent: var(--accent);
+  --heat-error: var(--danger);
+  --heat-track: var(--line-strong);
+  --heat-shadow: var(--shadow-float);
+  --heat-radius: var(--radius);
+  --heat-inset: var(--space-3);
   --heat-width: 340px;
-  --heat-pad: 10px 12px;
+  --heat-pad: var(--space-3);
   --heat-gap: 6px;
-  --heat-legend-gap: 4px 10px;
-  --heat-font: 0.8rem;
-  --heat-font-small: 0.72rem;
-  --heat-font-time: 0.9rem;
+  --heat-legend-gap: var(--space-1) var(--space-3);
+  --heat-font: var(--text-sm);
+  --heat-font-small: var(--text-xs);
+  --heat-font-time: var(--text-base);
   --heat-swatch: 10px;
   --heat-switch-w: 26px;
   --heat-switch-h: 14px;
@@ -43,7 +43,7 @@
   gap: var(--heat-gap);
   padding: 0;
   font: inherit;
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   color: inherit;
   background: none;
   border: 0;
@@ -101,13 +101,13 @@
 
 .heat-time {
   font-size: var(--heat-font-time);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   font-variant-numeric: tabular-nums;
 }
 
 .heat-muted {
   color: var(--heat-muted);
-  font-weight: 400;
+  font-weight: var(--weight-regular);
   font-size: var(--heat-font);
 }
 
@@ -180,7 +180,7 @@
   display: inline-flex;
   align-items: center;
   gap: calc(var(--heat-gap) / 2);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 
 .heat-jump {
