@@ -14,17 +14,27 @@ the docs. Check them against the first live response.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from functools import cached_property
+from itertools import accumulate
+import math
 from urllib.parse import quote
 
 import httpx
 
+from .geometry import haversine_m
 from .types import LatLon, RouteOption, TimingPoint
 
 BASE_URL = "https://api.tomtom.com"
 TRUCK_TARE_LB = 35_000  # assumed empty tractor-trailer weight; the user enters cargo weight
 LB_TO_KG = 0.45359237
+
+METERS_PER_MILE = 1609.344
+OVERLAP_STEP_M = 5 * METERS_PER_MILE  # sample spacing along the candidate route
+OVERLAP_NEAR_M = 0.5 * METERS_PER_MILE  # a sample this close to the other route counts as shared road
+_M_PER_DEG_LAT = haversine_m(LatLon(0, 0), LatLon(1, 0))
 
 
 class RoutingError(Exception):
@@ -160,6 +170,103 @@ def ensure_three_routes(
     have; the UI must handle 1 or 2 routes.
     """
     raise NotImplementedError("ensure_three_routes")
+
+
+def overlap_fraction(route: list[LatLon], other: list[LatLon]) -> float:
+    """Share of `route`, sampled every ~5 miles, that lies within 0.5 mile of `other`."""
+    if not route or not other:
+        return 0.0
+    lat0 = (route[0].lat + route[-1].lat) / 2
+    return _Trace(route, lat0).overlap(_Trace(other, lat0))
+
+
+class _Trace:
+    """A route in flat local metres, plus what the overlap test needs, built on first use.
+
+    Longitude degrees are scaled by cos(lat0) so that x and y are both metres. One lat0 for
+    the whole trip is plenty: over a 0.5 mile test the scale error is a few metres.
+    """
+
+    def __init__(self, points: list[LatLon], lat0: float):
+        kx = _M_PER_DEG_LAT * math.cos(math.radians(lat0))
+        self.xy = [(p.lon * kx, p.lat * _M_PER_DEG_LAT) for p in points]
+
+    @cached_property
+    def samples(self) -> list[tuple[float, float]]:
+        """The centre of each of n equal slices of the route, n chosen so slices are ~5 miles.
+
+        Centres rather than slice ends, so the start and end that every route shares don't count.
+        """
+        xy = self.xy
+        if len(xy) < 2:
+            return list(xy)
+        cum = list(accumulate(map(math.dist, xy, xy[1:]), initial=0.0))
+        total = cum[-1]
+        n = max(1, round(total / OVERLAP_STEP_M))
+        out = []
+        i = 0
+        for k in range(n):
+            d = (k + 0.5) * total / n
+            while cum[i + 1] < d:
+                i += 1
+            seg = cum[i + 1] - cum[i]
+            t = (d - cum[i]) / seg if seg else 0.0
+            (ax, ay), (bx, by) = xy[i], xy[i + 1]
+            out.append((ax + t * (bx - ax), ay + t * (by - ay)))
+        return out
+
+    @cached_property
+    def cells(self) -> dict[tuple[int, int], list[tuple[float, float, float, float]]]:
+        """Segments bucketed into square cells one OVERLAP_NEAR_M wide.
+
+        Long segments are cut into pieces no longer than a cell first, so a piece lands in
+        at most 2x2 cells and a straight 30 km stretch doesn't fill a huge bounding box.
+        """
+        size = OVERLAP_NEAR_M
+        cells = defaultdict(list)
+        for (ax, ay), (bx, by) in zip(self.xy, self.xy[1:]):
+            i, j = math.floor(ax / size), math.floor(ay / size)
+            if i == math.floor(bx / size) and j == math.floor(by / size):
+                cells[(i, j)].append((ax, ay, bx, by))  # the usual case on a dense polyline
+                continue
+            pieces = max(1, math.ceil(math.dist((ax, ay), (bx, by)) / size))
+            dx, dy = (bx - ax) / pieces, (by - ay) / pieces
+            for k in range(pieces):
+                px, py = ax + k * dx, ay + k * dy
+                qx, qy = px + dx, py + dy
+                piece = (px, py, qx, qy)
+                for i in range(math.floor(min(px, qx) / size), math.floor(max(px, qx) / size) + 1):
+                    for j in range(math.floor(min(py, qy) / size), math.floor(max(py, qy) / size) + 1):
+                        cells[(i, j)].append(piece)
+        return cells
+
+    def is_near(self, x: float, y: float) -> bool:
+        # Any road within OVERLAP_NEAR_M of (x, y) must pass through this cell or one of its
+        # eight neighbours, because cells are exactly that wide.
+        size = OVERLAP_NEAR_M
+        i, j = math.floor(x / size), math.floor(y / size)
+        cells = self.cells
+        for ci in (i - 1, i, i + 1):
+            for cj in (j - 1, j, j + 1):
+                for piece in cells.get((ci, cj), ()):
+                    if _dist2_to_segment(x, y, *piece) <= size * size:
+                        return True
+        return False
+
+    def overlap(self, other: _Trace) -> float:
+        samples = self.samples
+        if not samples:
+            return 0.0
+        return sum(other.is_near(x, y) for x, y in samples) / len(samples)
+
+
+def _dist2_to_segment(x: float, y: float, ax: float, ay: float, bx: float, by: float) -> float:
+    """Squared distance from (x, y) to the segment a-b, in flat coordinates."""
+    dx, dy = bx - ax, by - ay
+    length2 = dx * dx + dy * dy
+    t = 0.0 if length2 == 0 else max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / length2))
+    ex, ey = ax + t * dx - x, ay + t * dy - y
+    return ex * ex + ey * ey
 
 
 def _get(url: str, params: dict, client: httpx.Client | None) -> dict:
