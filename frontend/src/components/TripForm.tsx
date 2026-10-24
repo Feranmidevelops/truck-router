@@ -53,6 +53,7 @@ export function TripForm({ loading, onSubmit }: Props) {
     <form className="trip-form" onSubmit={submit}>
       <PlaceInput label="Origin" value={origin} onChange={setOrigin} />
       <PlaceInput label="Destination" value={destination} onChange={setDestination} />
+      {(!origin || !destination) && <p className="hint">Pick a place from the suggestions</p>}
       <div className="field">
         <label htmlFor="departure">Departure</label>
         <input
