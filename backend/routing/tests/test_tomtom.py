@@ -23,6 +23,7 @@ def line(a: LatLon, b: LatLon, n: int) -> list[LatLon]:
 def shifted(points: list[LatLon], miles_north: float) -> list[LatLon]:
     return [LatLon(p.lat + miles_north * DEG_LAT_PER_MILE, p.lon) for p in points]
 
+
 SAMPLE = {
     "routes": [
         {
@@ -278,8 +279,10 @@ def test_tomtom_routes_are_sorted_before_filtering():
 def test_overlap_is_the_share_of_the_candidate_that_runs_along_a_kept_route():
     # The fastest road, except for a loop 50 miles north around 28 miles of it. 84% of the
     # loop route runs along the fastest one, while 96% of the fastest runs along the loop route.
-    leave, top, rejoin = LatLon(35.0, -95.25), LatLon(35.0 + 50 * DEG_LAT_PER_MILE, -95.0), LatLon(35.0, -94.75)
-    loop = line(WEST, leave, 500) + line(leave, top, 100)[1:] + line(top, rejoin, 100)[1:] + line(rejoin, EAST, 500)[1:]
+    leave, rejoin = LatLon(35.0, -95.25), LatLon(35.0, -94.75)
+    top = LatLon(35.0 + 50 * DEG_LAT_PER_MILE, -95.0)
+    loop = line(WEST, leave, 500) + line(leave, top, 100)[1:] + line(top, rejoin, 100)[1:]
+    loop += line(rejoin, EAST, 500)[1:]
     assert tomtom.overlap_fraction(loop, FASTEST) == pytest.approx(0.84, abs=0.01)
     assert tomtom.overlap_fraction(FASTEST, loop) == pytest.approx(0.96, abs=0.01)
     assert [r.id for r in ensure([drive("r0", FASTEST), drive("r1", loop)], FakeTomTom())] == ["r0", "r1"]
@@ -296,7 +299,8 @@ def test_a_route_exactly_90_percent_along_a_kept_one_is_kept():
     bypass = line(at(0, 0), at(20, 0), 40) + [at(20, 1), at(24, 1)] + line(at(24, 0), at(50, 0), 60)
     assert tomtom.overlap_fraction(bypass, road) == 0.9
     routes = [drive("r0", road), drive("r1", bypass)]
-    kept = tomtom.ensure_three_routes(routes, at(0, 0), at(50, 0), T0, 20_000, "test-key", client=FakeTomTom().client)
+    fake = FakeTomTom()
+    kept = tomtom.ensure_three_routes(routes, at(0, 0), at(50, 0), T0, 20_000, "test-key", client=fake.client)
     assert [r.id for r in kept] == ["r0", "r1"]
 
 
