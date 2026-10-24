@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react'
-import { geocode } from '../api/client'
+import { geocode, isAbortError } from '../api/client'
 import type { Place } from '../api/types'
 
 interface Props {
@@ -8,10 +8,17 @@ interface Props {
   onChange: (place: Place | null) => void
 }
 
+// The latest finished search: what was asked, and what came back
+interface Search {
+  q: string
+  places: Place[]
+  failed: boolean
+}
+
 export function PlaceInput({ label, value, onChange }: Props) {
   const id = useId()
   const [text, setText] = useState(value?.label ?? '')
-  const [options, setOptions] = useState<Place[]>([])
+  const [search, setSearch] = useState<Search>({ q: '', places: [], failed: false })
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
@@ -21,8 +28,10 @@ export function PlaceInput({ label, value, onChange }: Props) {
     const ctrl = new AbortController()
     const timer = setTimeout(() => {
       geocode(q, ctrl.signal)
-        .then((r) => setOptions(r.results))
-        .catch(() => setOptions([]))
+        .then((places) => setSearch({ q, places, failed: false }))
+        .catch((e: unknown) => {
+          if (!isAbortError(e)) setSearch({ q, places: [], failed: true })
+        })
     }, 250)
     return () => {
       clearTimeout(timer)
@@ -30,7 +39,10 @@ export function PlaceInput({ label, value, onChange }: Props) {
     }
   }, [text, value])
 
-  const showOptions = open && text.trim().length >= 2 && options.length > 0
+  const q = text.trim()
+  const searching = !value && q.length >= 2
+  const showOptions = open && searching && search.places.length > 0
+  const noMatches = open && searching && search.q === q && !search.failed && search.places.length === 0
 
   function choose(place: Place) {
     onChange(place)
@@ -54,21 +66,26 @@ export function PlaceInput({ label, value, onChange }: Props) {
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && showOptions) {
-            e.preventDefault()
-            choose(options[0])
-          }
+          if (e.key !== 'Enter' || !showOptions) return
+          e.preventDefault()
+          // Only when the list answers what's in the box now, not an older query still on screen
+          if (search.q === q) choose(search.places[0])
         }}
       />
       {showOptions && (
         <ul className="suggestions" role="listbox">
-          {options.map((p) => (
+          {search.places.map((p) => (
             <li key={`${p.lat},${p.lon}`} role="option" aria-selected={false} onMouseDown={() => choose(p)}>
               {p.label}
             </li>
           ))}
         </ul>
       )}
+      {(searching && search.failed) || noMatches ? (
+        <p className={search.failed ? 'place-status failed' : 'place-status'} role="status">
+          {search.failed ? "Place search isn't working right now." : 'No places found.'}
+        </p>
+      ) : null}
     </div>
   )
 }

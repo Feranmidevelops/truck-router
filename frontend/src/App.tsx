@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { planTrip } from './api/client'
+import { isAbortError, planTrip } from './api/client'
 import type { Plan, PlanRequest } from './api/types'
 import { MapView } from './components/MapView'
 import { RouteList } from './components/RouteList'
@@ -24,7 +24,7 @@ export default function App() {
       setSelectedRouteId(result.recommended_route_id)
       // TODO(day 3): fetch getHeatmap(result.plan_id) here and pass it to MapView + a 0-48h slider.
     } catch (e) {
-      if ((e as Error).name !== 'AbortError') setError((e as Error).message)
+      if (!isAbortError(e)) setError(e instanceof Error ? e.message : String(e))
     } finally {
       if (pending.current === ctrl) setLoading(false)
     }

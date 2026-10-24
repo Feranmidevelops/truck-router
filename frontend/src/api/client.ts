@@ -2,41 +2,119 @@ import type { Heatmap, Place, Plan, PlanRequest } from './types'
 
 const BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
+const OFFLINE_MESSAGE = "Can't reach the server. Check your connection and try again."
+// A live plan takes 5-10 s; past this something is stuck
+const PLAN_TIMEOUT_S = 45
+
 export class ApiError extends Error {
-  readonly status: number
+  readonly status: number // 0 when no HTTP response came back
   constructor(status: number, message: string) {
     super(message)
+    this.name = 'ApiError'
     this.status = status
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-  })
-  const body = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    throw new ApiError(res.status, formatError(body) ?? `Request failed (${res.status})`)
+// The caller cancelled (a newer search or plan replaced this one). Not worth showing.
+export function isAbortError(e: unknown) {
+  return e instanceof Error && e.name === 'AbortError'
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers)
+  // Only with a body: on a cross-origin GET this header would force a CORS preflight per request
+  if (init.body != null) headers.set('Content-Type', 'application/json')
+
+  let res: Response
+  let text: string
+  try {
+    res = await fetch(`${BASE}${path}`, { ...init, headers })
+    text = await res.text()
+  } catch (e) {
+    if (isAbortError(e)) throw e
+    // AbortSignal.timeout() rejects with a TimeoutError rather than an AbortError
+    if (e instanceof Error && e.name === 'TimeoutError') {
+      throw new ApiError(0, `The server took longer than ${PLAN_TIMEOUT_S} seconds to answer. Try again in a moment.`)
+    }
+    throw new ApiError(0, OFFLINE_MESSAGE)
+  }
+
+  const body = parseJson(text)
+  if (!res.ok) throw new ApiError(res.status, errorMessage(res.status, body))
+  // e.g. a misconfigured deploy answering /api/... with index.html
+  if (!isObject(body)) {
+    throw new ApiError(res.status, 'The server sent an unexpected response. Try again in a moment.')
   }
   return body as T
 }
 
-// DRF errors come back as {detail: "..."} or {field: ["..."]}
-function formatError(body: unknown): string | undefined {
-  if (!body || typeof body !== 'object') return undefined
-  const b = body as Record<string, unknown>
-  if (typeof b.detail === 'string') return b.detail
-  const parts = Object.entries(b).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(' ') : JSON.stringify(v)}`)
-  return parts.length ? parts.join('; ') : undefined
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
 }
 
-export function geocode(q: string, signal?: AbortSignal) {
-  return request<{ results: Place[] }>(`/api/geocode?q=${encodeURIComponent(q)}`, { signal })
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function errorMessage(status: number, body: unknown): string {
+  const detail = isObject(body) && typeof body.detail === 'string' ? body.detail : undefined
+  if (status === 429) {
+    // DRF: "Request was throttled. Expected available in 42 seconds."
+    const wait = detail?.match(/(\d+) seconds?/)?.[1]
+    return wait
+      ? `Too many requests. Try again in ${wait} second${wait === '1' ? '' : 's'}.`
+      : 'Too many requests. Try again in a minute.'
+  }
+  if (detail) return detail
+  const fields = validationMessages(body)
+  if (fields.length) return fields.join(' ')
+  if (status >= 500) return `The server had a problem (${status}). Try again in a moment.`
+  return `Request failed (${status}).`
+}
+
+const FIELD_LABEL: Record<string, string> = {
+  origin: 'Origin',
+  destination: 'Destination',
+  departure_time: 'Departure',
+  load_weight_lb: 'Load',
+  interval_miles: 'Weather interval',
+}
+
+// DRF validation errors: {field: ["..."]}, {origin: {lat: ["..."]}} or {non_field_errors: ["..."]}
+function validationMessages(body: unknown): string[] {
+  if (!isObject(body)) return []
+  return Object.entries(body).flatMap(([key, value]) => {
+    const text = leafMessages(value).join(' ')
+    if (!text) return []
+    if (key === 'non_field_errors') return [text]
+    const label = FIELD_LABEL[key] ?? key.charAt(0).toUpperCase() + key.slice(1).replaceAll('_', ' ')
+    return [`${label}: ${text}`]
+  })
+}
+
+function leafMessages(value: unknown): string[] {
+  if (typeof value === 'string') return [value]
+  if (Array.isArray(value)) return value.flatMap(leafMessages)
+  if (isObject(value)) return Object.values(value).flatMap(leafMessages)
+  return []
+}
+
+export async function geocode(q: string, signal?: AbortSignal): Promise<Place[]> {
+  const body = await request<{ results?: Place[] }>(`/api/geocode?q=${encodeURIComponent(q)}`, { signal })
+  return Array.isArray(body.results) ? body.results : []
 }
 
 export function planTrip(body: PlanRequest, signal?: AbortSignal) {
-  return request<Plan>('/api/plan', { method: 'POST', body: JSON.stringify(body), signal })
+  const timeout = AbortSignal.timeout(PLAN_TIMEOUT_S * 1000)
+  return request<Plan>('/api/plan', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+  })
 }
 
 export function getHeatmap(planId: string, signal?: AbortSignal) {
