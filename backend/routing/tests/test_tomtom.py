@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
+import json
 import math
+from pathlib import Path
 import threading
 import time
 
@@ -7,7 +9,7 @@ import httpx
 import pytest
 
 from routing.services import tomtom
-from routing.services.geometry import cumulative_m, haversine_m
+from routing.services.geometry import METERS_PER_MILE, cumulative_m, haversine_m
 from routing.services.types import LatLon, RouteOption, TimingPoint
 
 T0 = datetime(2026, 10, 24, 12, tzinfo=timezone.utc)
@@ -465,3 +467,36 @@ def test_both_sides_are_requested_at_the_same_time():
         return fallbacks()(via)
 
     assert len(ensure([drive("r0", FASTEST)], FakeTomTom(answer))) == 3
+
+
+# A real TomTom truck response for Dallas -> Denver with two alternatives, trimmed to every
+# 100th polyline point and four fields per instruction.
+REAL = json.loads((Path(__file__).parent / "data" / "tomtom_dallas_denver.json").read_text(encoding="utf-8"))
+
+
+def real_routes() -> list[RouteOption]:
+    return tomtom.parse_routes(REAL, T0, source="tomtom", id_prefix="r")
+
+
+def test_parse_routes_reads_a_real_tomtom_response():
+    routes = real_routes()
+    assert [r.id for r in routes] == ["r0", "r1", "r2"]
+    assert [round(r.distance_m / METERS_PER_MILE, 1) for r in routes] == [882.3, 798.4, 850.4]
+    assert [round(r.duration_s / 3600, 2) for r in routes] == [11.89, 12.42, 13.14]
+    for r in routes:
+        assert r.timing[0] == TimingPoint(0, 0)
+        assert r.timing[-1] == TimingPoint(r.distance_m, r.duration_s)
+        assert all(a.meters < b.meters for a, b in zip(r.timing, r.timing[1:]))
+        # Dallas is on Central time, Denver on Mountain time.
+        assert r.departure_time.utcoffset() == timedelta(hours=-5)
+        assert r.arrival_time.utcoffset() == timedelta(hours=-6)
+        assert r.arrival_time - r.departure_time == timedelta(seconds=r.duration_s)
+
+
+def test_the_three_real_routes_are_all_kept_with_no_extra_requests():
+    routes = real_routes()
+    origin, destination = routes[0].points[0], routes[0].points[-1]
+    fake = FakeTomTom()
+    kept = tomtom.ensure_three_routes(routes, origin, destination, T0, 20_000, "test-key", client=fake.client)
+    assert [r.id for r in kept] == ["r0", "r1", "r2"]
+    assert fake.vias == []

@@ -1,0 +1,2478 @@
+{
+ "formatVersion": "0.0.12",
+ "routes": [
+  {
+   "summary": {
+    "lengthInMeters": 1419857,
+    "travelTimeInSeconds": 42800,
+    "trafficDelayInSeconds": 138,
+    "trafficLengthInMeters": 9527,
+    "departureTime": "2026-10-24T05:13:52-05:00",
+    "arrivalTime": "2026-10-24T16:07:12-06:00"
+   },
+   "legs": [
+    {
+     "summary": {
+      "lengthInMeters": 1419857,
+      "travelTimeInSeconds": 42800,
+      "trafficDelayInSeconds": 138,
+      "trafficLengthInMeters": 9527,
+      "departureTime": "2026-10-24T05:13:52-05:00",
+      "arrivalTime": "2026-10-24T16:07:12-06:00"
+     },
+     "points": [
+      {
+       "latitude": 32.77667,
+       "longitude": -96.79699
+      },
+      {
+       "latitude": 32.78427,
+       "longitude": -96.81182
+      },
+      {
+       "latitude": 32.81208,
+       "longitude": -96.86083
+      },
+      {
+       "latitude": 32.86081,
+       "longitude": -96.89239
+      },
+      {
+       "latitude": 32.91665,
+       "longitude": -96.89797
+      },
+      {
+       "latitude": 32.96568,
+       "longitude": -96.91786
+      },
+      {
+       "latitude": 33.00284,
+       "longitude": -96.96451
+      },
+      {
+       "latitude": 33.04989,
+       "longitude": -97.00947
+      },
+      {
+       "latitude": 33.11765,
+       "longitude": -97.03112
+      },
+      {
+       "latitude": 33.17426,
+       "longitude": -97.09092
+      },
+      {
+       "latitude": 33.20185,
+       "longitude": -97.14748
+      },
+      {
+       "latitude": 33.26369,
+       "longitude": -97.17776
+      },
+      {
+       "latitude": 33.36207,
+       "longitude": -97.18148
+      },
+      {
+       "latitude": 33.44136,
+       "longitude": -97.16407
+      },
+      {
+       "latitude": 33.58318,
+       "longitude": -97.16563
+      },
+      {
+       "latitude": 33.64186,
+       "longitude": -97.15566
+      },
+      {
+       "latitude": 33.72583,
+       "longitude": -97.16065
+      },
+      {
+       "latitude": 33.81592,
+       "longitude": -97.13174
+      },
+      {
+       "latitude": 33.94456,
+       "longitude": -97.13479
+      },
+      {
+       "latitude": 34.06127,
+       "longitude": -97.14917
+      },
+      {
+       "latitude": 34.16712,
+       "longitude": -97.16723
+      },
+      {
+       "latitude": 34.25331,
+       "longitude": -97.16466
+      },
+      {
+       "latitude": 34.35438,
+       "longitude": -97.14857
+      },
+      {
+       "latitude": 34.44203,
+       "longitude": -97.1285
+      },
+      {
+       "latitude": 34.53388,
+       "longitude": -97.18732
+      },
+      {
+       "latitude": 34.63368,
+       "longitude": -97.21722
+      },
+      {
+       "latitude": 34.73877,
+       "longitude": -97.2622
+      },
+      {
+       "latitude": 34.83635,
+       "longitude": -97.31308
+      },
+      {
+       "latitude": 34.94423,
+       "longitude": -97.36763
+      },
+      {
+       "latitude": 35.08153,
+       "longitude": -97.41003
+      },
+      {
+       "latitude": 35.18663,
+       "longitude": -97.49069
+      },
+      {
+       "latitude": 35.27003,
+       "longitude": -97.48547
+      },
+      {
+       "latitude": 35.3568,
+       "longitude": -97.49463
+      },
+      {
+       "latitude": 35.43551,
+       "longitude": -97.48605
+      },
+      {
+       "latitude": 35.47343,
+       "longitude": -97.46621
+      },
+      {
+       "latitude": 35.53839,
+       "longitude": -97.46086
+      },
+      {
+       "latitude": 35.60479,
+       "longitude": -97.42629
+      },
+      {
+       "latitude": 35.69816,
+       "longitude": -97.41614
+      },
+      {
+       "latitude": 35.83438,
+       "longitude": -97.39889
+      },
+      {
+       "latitude": 35.98552,
+       "longitude": -97.35297
+      },
+      {
+       "latitude": 36.15768,
+       "longitude": -97.32732
+      },
+      {
+       "latitude": 36.31517,
+       "longitude": -97.32829
+      },
+      {
+       "latitude": 36.50859,
+       "longitude": -97.33666
+      },
+      {
+       "latitude": 36.65915,
+       "longitude": -97.34574
+      },
+      {
+       "latitude": 36.85687,
+       "longitude": -97.34511
+      },
+      {
+       "latitude": 37.0278,
+       "longitude": -97.33804
+      },
+      {
+       "latitude": 37.23086,
+       "longitude": -97.33868
+      },
+      {
+       "latitude": 37.34424,
+       "longitude": -97.32255
+      },
+      {
+       "latitude": 37.48867,
+       "longitude": -97.32362
+      },
+      {
+       "latitude": 37.6034,
+       "longitude": -97.32355
+      },
+      {
+       "latitude": 37.64799,
+       "longitude": -97.30942
+      },
+      {
+       "latitude": 37.71536,
+       "longitude": -97.32184
+      },
+      {
+       "latitude": 37.76624,
+       "longitude": -97.32284
+      },
+      {
+       "latitude": 37.84784,
+       "longitude": -97.32648
+      },
+      {
+       "latitude": 38.00337,
+       "longitude": -97.32797
+      },
+      {
+       "latitude": 38.07591,
+       "longitude": -97.33019
+      },
+      {
+       "latitude": 38.15507,
+       "longitude": -97.42962
+      },
+      {
+       "latitude": 38.24794,
+       "longitude": -97.53839
+      },
+      {
+       "latitude": 38.37399,
+       "longitude": -97.62047
+      },
+      {
+       "latitude": 38.51673,
+       "longitude": -97.61988
+      },
+      {
+       "latitude": 38.72931,
+       "longitude": -97.61857
+      },
+      {
+       "latitude": 38.81313,
+       "longitude": -97.63337
+      },
+      {
+       "latitude": 38.87467,
+       "longitude": -97.64559
+      },
+      {
+       "latitude": 38.87947,
+       "longitude": -97.88013
+      },
+      {
+       "latitude": 38.86894,
+       "longitude": -98.06791
+      },
+      {
+       "latitude": 38.84887,
+       "longitude": -98.16376
+      },
+      {
+       "latitude": 38.84907,
+       "longitude": -98.41356
+      },
+      {
+       "latitude": 38.85677,
+       "longitude": -98.60218
+      },
+      {
+       "latitude": 38.85902,
+       "longitude": -98.81693
+      },
+      {
+       "latitude": 38.86397,
+       "longitude": -99.05259
+      },
+      {
+       "latitude": 38.8786,
+       "longitude": -99.23023
+      },
+      {
+       "latitude": 38.91299,
+       "longitude": -99.35603
+      },
+      {
+       "latitude": 38.94999,
+       "longitude": -99.56186
+      },
+      {
+       "latitude": 38.99359,
+       "longitude": -99.77916
+      },
+      {
+       "latitude": 39.02344,
+       "longitude": -100.01036
+      },
+      {
+       "latitude": 39.07577,
+       "longitude": -100.27935
+      },
+      {
+       "latitude": 39.11165,
+       "longitude": -100.49316
+      },
+      {
+       "latitude": 39.12651,
+       "longitude": -100.81425
+      },
+      {
+       "latitude": 39.30974,
+       "longitude": -100.96889
+      },
+      {
+       "latitude": 39.36585,
+       "longitude": -101.15548
+      },
+      {
+       "latitude": 39.33059,
+       "longitude": -101.39553
+      },
+      {
+       "latitude": 39.32806,
+       "longitude": -101.73076
+      },
+      {
+       "latitude": 39.32887,
+       "longitude": -101.91283
+      },
+      {
+       "latitude": 39.31024,
+       "longitude": -102.23877
+      },
+      {
+       "latitude": 39.29406,
+       "longitude": -102.43946
+      },
+      {
+       "latitude": 39.29396,
+       "longitude": -102.74127
+      },
+      {
+       "latitude": 39.28578,
+       "longitude": -103.05952
+      },
+      {
+       "latitude": 39.28096,
+       "longitude": -103.35306
+      },
+      {
+       "latitude": 39.26488,
+       "longitude": -103.55346
+      },
+      {
+       "latitude": 39.27271,
+       "longitude": -103.68222
+      },
+      {
+       "latitude": 39.31382,
+       "longitude": -103.82589
+      },
+      {
+       "latitude": 39.43024,
+       "longitude": -103.91812
+      },
+      {
+       "latitude": 39.57211,
+       "longitude": -104.01765
+      },
+      {
+       "latitude": 39.69287,
+       "longitude": -104.14286
+      },
+      {
+       "latitude": 39.73479,
+       "longitude": -104.33792
+      },
+      {
+       "latitude": 39.7397,
+       "longitude": -104.56834
+      },
+      {
+       "latitude": 39.74028,
+       "longitude": -104.71858
+      },
+      {
+       "latitude": 39.77219,
+       "longitude": -104.82375
+      },
+      {
+       "latitude": 39.78021,
+       "longitude": -104.93978
+      },
+      {
+       "latitude": 39.7807,
+       "longitude": -104.98953
+      },
+      {
+       "latitude": 39.75511,
+       "longitude": -105.01313
+      },
+      {
+       "latitude": 39.74004,
+       "longitude": -105.00354
+      },
+      {
+       "latitude": 39.7392,
+       "longitude": -104.99027
+      }
+     ]
+    }
+   ],
+   "guidance": {
+    "instructions": [
+     {
+      "routeOffsetInMeters": 0,
+      "travelTimeInSeconds": 0,
+      "maneuver": "DEPART",
+      "street": "Marilla St"
+     },
+     {
+      "routeOffsetInMeters": 120,
+      "travelTimeInSeconds": 23,
+      "maneuver": "TURN_LEFT",
+      "street": "S Akard St"
+     },
+     {
+      "routeOffsetInMeters": 221,
+      "travelTimeInSeconds": 46,
+      "maneuver": "KEEP_LEFT",
+      "street": "S Akard St"
+     },
+     {
+      "routeOffsetInMeters": 392,
+      "travelTimeInSeconds": 68,
+      "maneuver": "TURN_RIGHT",
+      "street": "Canton St"
+     },
+     {
+      "routeOffsetInMeters": 409,
+      "travelTimeInSeconds": 79,
+      "maneuver": "KEEP_LEFT",
+      "street": "Canton St"
+     },
+     {
+      "routeOffsetInMeters": 911,
+      "travelTimeInSeconds": 107,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 1198,
+      "travelTimeInSeconds": 120,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 2409,
+      "travelTimeInSeconds": 177,
+      "maneuver": "ENTER_FREEWAY",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 10039,
+      "travelTimeInSeconds": 444,
+      "maneuver": "KEEP_RIGHT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 10559,
+      "travelTimeInSeconds": 462,
+      "maneuver": "FOLLOW",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 20646,
+      "travelTimeInSeconds": 805,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 21904,
+      "travelTimeInSeconds": 850,
+      "maneuver": "STRAIGHT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 23600,
+      "travelTimeInSeconds": 914,
+      "maneuver": "STRAIGHT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 24120,
+      "travelTimeInSeconds": 934,
+      "maneuver": "FOLLOW",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 28694,
+      "travelTimeInSeconds": 1100,
+      "maneuver": "STRAIGHT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 29229,
+      "travelTimeInSeconds": 1119,
+      "maneuver": "FOLLOW",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 35615,
+      "travelTimeInSeconds": 1328,
+      "maneuver": "KEEP_RIGHT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 37718,
+      "travelTimeInSeconds": 1396,
+      "maneuver": "STRAIGHT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 38298,
+      "travelTimeInSeconds": 1414,
+      "maneuver": "FOLLOW",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 43041,
+      "travelTimeInSeconds": 1568,
+      "maneuver": "KEEP_RIGHT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 43621,
+      "travelTimeInSeconds": 1586,
+      "maneuver": "FOLLOW",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 327948,
+      "travelTimeInSeconds": 10067,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "United States Highway 62 E"
+     },
+     {
+      "routeOffsetInMeters": 328433,
+      "travelTimeInSeconds": 10087,
+      "maneuver": "ENTER_FREEWAY",
+      "street": "United States Highway 270 E"
+     },
+     {
+      "routeOffsetInMeters": 329849,
+      "travelTimeInSeconds": 10135,
+      "maneuver": "KEEP_RIGHT",
+      "street": "United States Highway 62 E"
+     },
+     {
+      "routeOffsetInMeters": 329849,
+      "travelTimeInSeconds": 10135,
+      "maneuver": "ENTER_FREEWAY",
+      "street": "United States Highway 62 E"
+     },
+     {
+      "routeOffsetInMeters": 330384,
+      "travelTimeInSeconds": 10154,
+      "maneuver": "FOLLOW",
+      "street": "United States Highway 62 E"
+     },
+     {
+      "routeOffsetInMeters": 351426,
+      "travelTimeInSeconds": 10835,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate Highway 35 N"
+     },
+     {
+      "routeOffsetInMeters": 352021,
+      "travelTimeInSeconds": 10853,
+      "maneuver": "FOLLOW",
+      "street": "Interstate Highway 35 N"
+     },
+     {
+      "routeOffsetInMeters": 530020,
+      "travelTimeInSeconds": 15968,
+      "maneuver": "STRAIGHT",
+      "street": "Kansas Turnpike N"
+     },
+     {
+      "routeOffsetInMeters": 531123,
+      "travelTimeInSeconds": 15999,
+      "maneuver": "FOLLOW",
+      "street": "Kansas Turnpike N"
+     },
+     {
+      "routeOffsetInMeters": 570660,
+      "travelTimeInSeconds": 17127,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "Interstate Highway 135 N"
+     },
+     {
+      "routeOffsetInMeters": 571934,
+      "travelTimeInSeconds": 17186,
+      "maneuver": "STRAIGHT",
+      "street": "Interstate Highway 135 N"
+     },
+     {
+      "routeOffsetInMeters": 572674,
+      "travelTimeInSeconds": 17214,
+      "maneuver": "KEEP_RIGHT",
+      "street": "Interstate Highway 135 N"
+     },
+     {
+      "routeOffsetInMeters": 573209,
+      "travelTimeInSeconds": 17232,
+      "maneuver": "FOLLOW",
+      "street": "Interstate Highway 135 N"
+     },
+     {
+      "routeOffsetInMeters": 590009,
+      "travelTimeInSeconds": 17815,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate Highway 135 N"
+     },
+     {
+      "routeOffsetInMeters": 590544,
+      "travelTimeInSeconds": 17833,
+      "maneuver": "FOLLOW",
+      "street": "Interstate Highway 135 N"
+     },
+     {
+      "routeOffsetInMeters": 725537,
+      "travelTimeInSeconds": 21755,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "Interstate Highway 70 W"
+     },
+     {
+      "routeOffsetInMeters": 726002,
+      "travelTimeInSeconds": 21783,
+      "maneuver": "STRAIGHT",
+      "street": "Interstate Highway 70 W"
+     },
+     {
+      "routeOffsetInMeters": 726552,
+      "travelTimeInSeconds": 21800,
+      "maneuver": "FOLLOW",
+      "street": "Interstate Highway 70 W"
+     },
+     {
+      "routeOffsetInMeters": 1396686,
+      "travelTimeInSeconds": 41401,
+      "maneuver": "KEEP_LEFT",
+      "street": "United States Highway 36 W"
+     },
+     {
+      "routeOffsetInMeters": 1398090,
+      "travelTimeInSeconds": 41453,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate Highway 70 W"
+     },
+     {
+      "routeOffsetInMeters": 1398595,
+      "travelTimeInSeconds": 41472,
+      "maneuver": "FOLLOW",
+      "street": "Interstate Highway 70 W"
+     },
+     {
+      "routeOffsetInMeters": 1406592,
+      "travelTimeInSeconds": 41767,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate Highway 70 W"
+     },
+     {
+      "routeOffsetInMeters": 1409758,
+      "travelTimeInSeconds": 41887,
+      "maneuver": "KEEP_RIGHT",
+      "street": "Interstate Highway 70 W"
+     },
+     {
+      "routeOffsetInMeters": 1410846,
+      "travelTimeInSeconds": 41937,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "United States Highway 85 S"
+     },
+     {
+      "routeOffsetInMeters": 1411629,
+      "travelTimeInSeconds": 41972,
+      "maneuver": "KEEP_LEFT",
+      "street": "I-25"
+     },
+     {
+      "routeOffsetInMeters": 1411915,
+      "travelTimeInSeconds": 41987,
+      "maneuver": "MOTORWAY_EXIT_LEFT",
+      "street": "United States Highway 85 S"
+     },
+     {
+      "routeOffsetInMeters": 1413182,
+      "travelTimeInSeconds": 42088,
+      "maneuver": "ENTER_FREEWAY",
+      "street": "I-25"
+     },
+     {
+      "routeOffsetInMeters": 1417216,
+      "travelTimeInSeconds": 42403,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "W Colfax Ave"
+     },
+     {
+      "routeOffsetInMeters": 1417603,
+      "travelTimeInSeconds": 42443,
+      "maneuver": "TURN_LEFT",
+      "street": "W Colfax Ave"
+     },
+     {
+      "routeOffsetInMeters": 1419766,
+      "travelTimeInSeconds": 42773,
+      "maneuver": "ARRIVE",
+      "street": "N Bannock St"
+     },
+     {
+      "routeOffsetInMeters": 1419857,
+      "travelTimeInSeconds": 42800,
+      "maneuver": "ARRIVE",
+      "street": "N Bannock St"
+     }
+    ]
+   }
+  },
+  {
+   "summary": {
+    "lengthInMeters": 1284906,
+    "travelTimeInSeconds": 44704,
+    "trafficDelayInSeconds": 0,
+    "trafficLengthInMeters": 0,
+    "departureTime": "2026-10-24T05:13:52-05:00",
+    "arrivalTime": "2026-10-24T16:38:56-06:00",
+    "deviationDistance": 10039,
+    "deviationTime": 444,
+    "deviationPoint": {
+     "latitude": 32.81492,
+     "longitude": -96.86672
+    }
+   },
+   "legs": [
+    {
+     "summary": {
+      "lengthInMeters": 1284906,
+      "travelTimeInSeconds": 44704,
+      "trafficDelayInSeconds": 0,
+      "trafficLengthInMeters": 0,
+      "departureTime": "2026-10-24T05:13:52-05:00",
+      "arrivalTime": "2026-10-24T16:38:56-06:00"
+     },
+     "points": [
+      {
+       "latitude": 32.77667,
+       "longitude": -96.79699
+      },
+      {
+       "latitude": 32.78427,
+       "longitude": -96.81182
+      },
+      {
+       "latitude": 32.81208,
+       "longitude": -96.86083
+      },
+      {
+       "latitude": 32.83731,
+       "longitude": -96.90686
+      },
+      {
+       "latitude": 32.83699,
+       "longitude": -96.96028
+      },
+      {
+       "latitude": 32.83711,
+       "longitude": -97.02855
+      },
+      {
+       "latitude": 32.83781,
+       "longitude": -97.09046
+      },
+      {
+       "latitude": 32.84029,
+       "longitude": -97.1538
+      },
+      {
+       "latitude": 32.83291,
+       "longitude": -97.21223
+      },
+      {
+       "latitude": 32.83944,
+       "longitude": -97.29727
+      },
+      {
+       "latitude": 32.88899,
+       "longitude": -97.31956
+      },
+      {
+       "latitude": 32.95395,
+       "longitude": -97.39716
+      },
+      {
+       "latitude": 33.04569,
+       "longitude": -97.46784
+      },
+      {
+       "latitude": 33.11225,
+       "longitude": -97.4784
+      },
+      {
+       "latitude": 33.17871,
+       "longitude": -97.54587
+      },
+      {
+       "latitude": 33.22947,
+       "longitude": -97.59398
+      },
+      {
+       "latitude": 33.27048,
+       "longitude": -97.61966
+      },
+      {
+       "latitude": 33.33489,
+       "longitude": -97.67351
+      },
+      {
+       "latitude": 33.38376,
+       "longitude": -97.71573
+      },
+      {
+       "latitude": 33.46468,
+       "longitude": -97.78427
+      },
+      {
+       "latitude": 33.55604,
+       "longitude": -97.86819
+      },
+      {
+       "latitude": 33.63569,
+       "longitude": -98.01266
+      },
+      {
+       "latitude": 33.71882,
+       "longitude": -98.09998
+      },
+      {
+       "latitude": 33.801,
+       "longitude": -98.20041
+      },
+      {
+       "latitude": 33.84668,
+       "longitude": -98.29621
+      },
+      {
+       "latitude": 33.88017,
+       "longitude": -98.41593
+      },
+      {
+       "latitude": 33.89178,
+       "longitude": -98.48767
+      },
+      {
+       "latitude": 33.9271,
+       "longitude": -98.51392
+      },
+      {
+       "latitude": 33.95621,
+       "longitude": -98.60419
+      },
+      {
+       "latitude": 33.97107,
+       "longitude": -98.73811
+      },
+      {
+       "latitude": 34.03674,
+       "longitude": -98.89652
+      },
+      {
+       "latitude": 34.08107,
+       "longitude": -99.0317
+      },
+      {
+       "latitude": 34.13463,
+       "longitude": -99.14309
+      },
+      {
+       "latitude": 34.15773,
+       "longitude": -99.26747
+      },
+      {
+       "latitude": 34.18506,
+       "longitude": -99.32973
+      },
+      {
+       "latitude": 34.23226,
+       "longitude": -99.43548
+      },
+      {
+       "latitude": 34.25669,
+       "longitude": -99.52554
+      },
+      {
+       "latitude": 34.28487,
+       "longitude": -99.7059
+      },
+      {
+       "latitude": 34.29932,
+       "longitude": -99.79167
+      },
+      {
+       "latitude": 34.34626,
+       "longitude": -99.93034
+      },
+      {
+       "latitude": 34.38445,
+       "longitude": -100.07517
+      },
+      {
+       "latitude": 34.4261,
+       "longitude": -100.20343
+      },
+      {
+       "latitude": 34.45574,
+       "longitude": -100.28304
+      },
+      {
+       "latitude": 34.51232,
+       "longitude": -100.3936
+      },
+      {
+       "latitude": 34.57131,
+       "longitude": -100.43736
+      },
+      {
+       "latitude": 34.71576,
+       "longitude": -100.52626
+      },
+      {
+       "latitude": 34.77637,
+       "longitude": -100.57777
+      },
+      {
+       "latitude": 34.86385,
+       "longitude": -100.65591
+      },
+      {
+       "latitude": 34.90606,
+       "longitude": -100.78201
+      },
+      {
+       "latitude": 34.94242,
+       "longitude": -100.89701
+      },
+      {
+       "latitude": 35.00622,
+       "longitude": -101.0437
+      },
+      {
+       "latitude": 35.07825,
+       "longitude": -101.27435
+      },
+      {
+       "latitude": 35.13428,
+       "longitude": -101.42665
+      },
+      {
+       "latitude": 35.19339,
+       "longitude": -101.68938
+      },
+      {
+       "latitude": 35.19314,
+       "longitude": -101.79528
+      },
+      {
+       "latitude": 35.21113,
+       "longitude": -101.83117
+      },
+      {
+       "latitude": 35.26751,
+       "longitude": -101.83345
+      },
+      {
+       "latitude": 35.42194,
+       "longitude": -101.84407
+      },
+      {
+       "latitude": 35.52445,
+       "longitude": -101.91907
+      },
+      {
+       "latitude": 35.68638,
+       "longitude": -101.96497
+      },
+      {
+       "latitude": 35.84277,
+       "longitude": -101.97343
+      },
+      {
+       "latitude": 35.86584,
+       "longitude": -102.0462
+      },
+      {
+       "latitude": 35.8772,
+       "longitude": -102.3753
+      },
+      {
+       "latitude": 36.01318,
+       "longitude": -102.47053
+      },
+      {
+       "latitude": 36.06601,
+       "longitude": -102.5216
+      },
+      {
+       "latitude": 36.14502,
+       "longitude": -102.64411
+      },
+      {
+       "latitude": 36.27686,
+       "longitude": -102.86508
+      },
+      {
+       "latitude": 36.37452,
+       "longitude": -103.0195
+      },
+      {
+       "latitude": 36.43066,
+       "longitude": -103.17041
+      },
+      {
+       "latitude": 36.46195,
+       "longitude": -103.20454
+      },
+      {
+       "latitude": 36.51855,
+       "longitude": -103.48443
+      },
+      {
+       "latitude": 36.5975,
+       "longitude": -103.61866
+      },
+      {
+       "latitude": 36.67432,
+       "longitude": -103.78319
+      },
+      {
+       "latitude": 36.75337,
+       "longitude": -103.89045
+      },
+      {
+       "latitude": 36.76452,
+       "longitude": -104.11632
+      },
+      {
+       "latitude": 36.78771,
+       "longitude": -104.27796
+      },
+      {
+       "latitude": 36.88487,
+       "longitude": -104.42439
+      },
+      {
+       "latitude": 36.93411,
+       "longitude": -104.4623
+      },
+      {
+       "latitude": 36.99841,
+       "longitude": -104.48257
+      },
+      {
+       "latitude": 37.04825,
+       "longitude": -104.52101
+      },
+      {
+       "latitude": 37.09348,
+       "longitude": -104.51891
+      },
+      {
+       "latitude": 37.16317,
+       "longitude": -104.51334
+      },
+      {
+       "latitude": 37.24015,
+       "longitude": -104.49515
+      },
+      {
+       "latitude": 37.39746,
+       "longitude": -104.61611
+      },
+      {
+       "latitude": 37.55111,
+       "longitude": -104.71694
+      },
+      {
+       "latitude": 37.69635,
+       "longitude": -104.81168
+      },
+      {
+       "latitude": 37.8636,
+       "longitude": -104.82868
+      },
+      {
+       "latitude": 37.96875,
+       "longitude": -104.78788
+      },
+      {
+       "latitude": 38.07268,
+       "longitude": -104.70917
+      },
+      {
+       "latitude": 38.19614,
+       "longitude": -104.63237
+      },
+      {
+       "latitude": 38.24816,
+       "longitude": -104.6115
+      },
+      {
+       "latitude": 38.27982,
+       "longitude": -104.6052
+      },
+      {
+       "latitude": 38.34318,
+       "longitude": -104.61977
+      },
+      {
+       "latitude": 38.48156,
+       "longitude": -104.61781
+      },
+      {
+       "latitude": 38.60596,
+       "longitude": -104.67986
+      },
+      {
+       "latitude": 38.71381,
+       "longitude": -104.72624
+      },
+      {
+       "latitude": 38.79925,
+       "longitude": -104.79895
+      },
+      {
+       "latitude": 38.82995,
+       "longitude": -104.83477
+      },
+      {
+       "latitude": 38.88034,
+       "longitude": -104.83572
+      },
+      {
+       "latitude": 38.93326,
+       "longitude": -104.81244
+      },
+      {
+       "latitude": 38.99083,
+       "longitude": -104.81462
+      },
+      {
+       "latitude": 39.08936,
+       "longitude": -104.86183
+      },
+      {
+       "latitude": 39.20603,
+       "longitude": -104.86026
+      },
+      {
+       "latitude": 39.30908,
+       "longitude": -104.88667
+      },
+      {
+       "latitude": 39.39697,
+       "longitude": -104.86033
+      },
+      {
+       "latitude": 39.47214,
+       "longitude": -104.87251
+      },
+      {
+       "latitude": 39.55427,
+       "longitude": -104.87017
+      },
+      {
+       "latitude": 39.62744,
+       "longitude": -104.90354
+      },
+      {
+       "latitude": 39.68363,
+       "longitude": -104.94258
+      },
+      {
+       "latitude": 39.71017,
+       "longitude": -104.99833
+      },
+      {
+       "latitude": 39.74025,
+       "longitude": -105.0102
+      },
+      {
+       "latitude": 39.7392,
+       "longitude": -104.99027
+      }
+     ]
+    }
+   ],
+   "guidance": {
+    "instructions": [
+     {
+      "routeOffsetInMeters": 0,
+      "travelTimeInSeconds": 0,
+      "maneuver": "DEPART",
+      "street": "Marilla St"
+     },
+     {
+      "routeOffsetInMeters": 120,
+      "travelTimeInSeconds": 23,
+      "maneuver": "TURN_LEFT",
+      "street": "S Akard St"
+     },
+     {
+      "routeOffsetInMeters": 221,
+      "travelTimeInSeconds": 46,
+      "maneuver": "KEEP_LEFT",
+      "street": "S Akard St"
+     },
+     {
+      "routeOffsetInMeters": 392,
+      "travelTimeInSeconds": 68,
+      "maneuver": "TURN_RIGHT",
+      "street": "Canton St"
+     },
+     {
+      "routeOffsetInMeters": 409,
+      "travelTimeInSeconds": 79,
+      "maneuver": "KEEP_LEFT",
+      "street": "Canton St"
+     },
+     {
+      "routeOffsetInMeters": 911,
+      "travelTimeInSeconds": 107,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 1198,
+      "travelTimeInSeconds": 120,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 2409,
+      "travelTimeInSeconds": 177,
+      "maneuver": "ENTER_FREEWAY",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 10039,
+      "travelTimeInSeconds": 444,
+      "maneuver": "KEEP_LEFT",
+      "street": "John Carpenter Fwy W"
+     },
+     {
+      "routeOffsetInMeters": 35561,
+      "travelTimeInSeconds": 1331,
+      "maneuver": "ENTER_FREEWAY",
+      "street": "Highway 121"
+     },
+     {
+      "routeOffsetInMeters": 35661,
+      "travelTimeInSeconds": 1334,
+      "maneuver": "FOLLOW",
+      "street": "Highway 121"
+     },
+     {
+      "routeOffsetInMeters": 52225,
+      "travelTimeInSeconds": 1859,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "Interstate Highway 35W N"
+     },
+     {
+      "routeOffsetInMeters": 52519,
+      "travelTimeInSeconds": 1868,
+      "maneuver": "KEEP_RIGHT",
+      "street": "Interstate Highway 35W N"
+     },
+     {
+      "routeOffsetInMeters": 53862,
+      "travelTimeInSeconds": 1917,
+      "maneuver": "ENTER_FREEWAY",
+      "street": "Interstate Highway 35W N"
+     },
+     {
+      "routeOffsetInMeters": 57592,
+      "travelTimeInSeconds": 2028,
+      "maneuver": "KEEP_RIGHT",
+      "street": "United States Highway 287 N"
+     },
+     {
+      "routeOffsetInMeters": 58127,
+      "travelTimeInSeconds": 2047,
+      "maneuver": "FOLLOW",
+      "street": "United States Highway 287 N"
+     },
+     {
+      "routeOffsetInMeters": 134909,
+      "travelTimeInSeconds": 4678,
+      "maneuver": "KEEP_LEFT",
+      "street": "US Highway 287"
+     },
+     {
+      "routeOffsetInMeters": 135444,
+      "travelTimeInSeconds": 4696,
+      "maneuver": "FOLLOW",
+      "street": "US Highway 287"
+     },
+     {
+      "routeOffsetInMeters": 215907,
+      "travelTimeInSeconds": 7378,
+      "maneuver": "KEEP_LEFT",
+      "street": "Central Fwy N"
+     },
+     {
+      "routeOffsetInMeters": 216442,
+      "travelTimeInSeconds": 7397,
+      "maneuver": "FOLLOW",
+      "street": "Central Fwy N"
+     },
+     {
+      "routeOffsetInMeters": 224913,
+      "travelTimeInSeconds": 7692,
+      "maneuver": "KEEP_LEFT",
+      "street": "United States Highway 287 N"
+     },
+     {
+      "routeOffsetInMeters": 225403,
+      "travelTimeInSeconds": 7711,
+      "maneuver": "FOLLOW",
+      "street": "United States Highway 287 N"
+     },
+     {
+      "routeOffsetInMeters": 230368,
+      "travelTimeInSeconds": 7891,
+      "maneuver": "MOTORWAY_EXIT_LEFT",
+      "street": "United States Highway 287 N"
+     },
+     {
+      "routeOffsetInMeters": 231607,
+      "travelTimeInSeconds": 7937,
+      "maneuver": "KEEP_LEFT",
+      "street": "Northwest Fwy"
+     },
+     {
+      "routeOffsetInMeters": 232127,
+      "travelTimeInSeconds": 7955,
+      "maneuver": "FOLLOW",
+      "street": "Northwest Fwy"
+     },
+     {
+      "routeOffsetInMeters": 303941,
+      "travelTimeInSeconds": 10408,
+      "maneuver": "KEEP_LEFT",
+      "street": "US Highway 287"
+     },
+     {
+      "routeOffsetInMeters": 304476,
+      "travelTimeInSeconds": 10427,
+      "maneuver": "FOLLOW",
+      "street": "US Highway 287"
+     },
+     {
+      "routeOffsetInMeters": 571698,
+      "travelTimeInSeconds": 20026,
+      "maneuver": "KEEP_LEFT"
+     },
+     {
+      "routeOffsetInMeters": 572215,
+      "travelTimeInSeconds": 20045,
+      "maneuver": "ENTER_FREEWAY"
+     },
+     {
+      "routeOffsetInMeters": 572315,
+      "travelTimeInSeconds": 20048,
+      "maneuver": "FOLLOW",
+      "street": "Interstate Highway 40 W"
+     },
+     {
+      "routeOffsetInMeters": 584334,
+      "travelTimeInSeconds": 20454,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "United States Highway 287 N"
+     },
+     {
+      "routeOffsetInMeters": 584546,
+      "travelTimeInSeconds": 20464,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "United States Highway 287 N"
+     },
+     {
+      "routeOffsetInMeters": 663231,
+      "travelTimeInSeconds": 23453,
+      "maneuver": "TURN_LEFT",
+      "street": "W 1st St"
+     },
+     {
+      "routeOffsetInMeters": 663466,
+      "travelTimeInSeconds": 23486,
+      "maneuver": "FOLLOW",
+      "street": "W 1st St"
+     },
+     {
+      "routeOffsetInMeters": 930303,
+      "travelTimeInSeconds": 33149,
+      "maneuver": "TURN_RIGHT",
+      "street": "Interstate Highway 25 N"
+     },
+     {
+      "routeOffsetInMeters": 930664,
+      "travelTimeInSeconds": 33187,
+      "maneuver": "ENTER_FREEWAY",
+      "street": "Interstate Highway 25 N"
+     },
+     {
+      "routeOffsetInMeters": 930764,
+      "travelTimeInSeconds": 33190,
+      "maneuver": "FOLLOW",
+      "street": "Interstate Highway 25 N"
+     },
+     {
+      "routeOffsetInMeters": 1102989,
+      "travelTimeInSeconds": 38350,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate Highway 25 N"
+     },
+     {
+      "routeOffsetInMeters": 1106406,
+      "travelTimeInSeconds": 38486,
+      "maneuver": "KEEP_LEFT",
+      "street": "United States Highway 50 W"
+     },
+     {
+      "routeOffsetInMeters": 1107256,
+      "travelTimeInSeconds": 38517,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate Highway 25 N"
+     },
+     {
+      "routeOffsetInMeters": 1108870,
+      "travelTimeInSeconds": 38572,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate Highway 25 N"
+     },
+     {
+      "routeOffsetInMeters": 1109435,
+      "travelTimeInSeconds": 38590,
+      "maneuver": "FOLLOW",
+      "street": "Interstate Highway 25 N"
+     },
+     {
+      "routeOffsetInMeters": 1180892,
+      "travelTimeInSeconds": 40795,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate Highway 25 N"
+     },
+     {
+      "routeOffsetInMeters": 1183659,
+      "travelTimeInSeconds": 40886,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate Highway 25 N"
+     },
+     {
+      "routeOffsetInMeters": 1184224,
+      "travelTimeInSeconds": 40904,
+      "maneuver": "FOLLOW",
+      "street": "Interstate Highway 25 N"
+     },
+     {
+      "routeOffsetInMeters": 1209418,
+      "travelTimeInSeconds": 41677,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate Highway 25 N"
+     },
+     {
+      "routeOffsetInMeters": 1210073,
+      "travelTimeInSeconds": 41695,
+      "maneuver": "FOLLOW",
+      "street": "Interstate Highway 25 N"
+     },
+     {
+      "routeOffsetInMeters": 1220106,
+      "travelTimeInSeconds": 41978,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate Highway 25 N"
+     },
+     {
+      "routeOffsetInMeters": 1224064,
+      "travelTimeInSeconds": 42108,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate Highway 25 N"
+     },
+     {
+      "routeOffsetInMeters": 1224719,
+      "travelTimeInSeconds": 42128,
+      "maneuver": "FOLLOW"
+     },
+     {
+      "routeOffsetInMeters": 1282246,
+      "travelTimeInSeconds": 44331,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "W Colfax Ave"
+     },
+     {
+      "routeOffsetInMeters": 1282887,
+      "travelTimeInSeconds": 44367,
+      "maneuver": "TURN_RIGHT",
+      "street": "W Colfax Ave"
+     },
+     {
+      "routeOffsetInMeters": 1284816,
+      "travelTimeInSeconds": 44677,
+      "maneuver": "ARRIVE",
+      "street": "N Bannock St"
+     },
+     {
+      "routeOffsetInMeters": 1284906,
+      "travelTimeInSeconds": 44704,
+      "maneuver": "ARRIVE",
+      "street": "N Bannock St"
+     }
+    ]
+   }
+  },
+  {
+   "summary": {
+    "lengthInMeters": 1368659,
+    "travelTimeInSeconds": 47287,
+    "trafficDelayInSeconds": 138,
+    "trafficLengthInMeters": 9527,
+    "departureTime": "2026-10-24T05:13:52-05:00",
+    "arrivalTime": "2026-10-24T17:21:59-06:00",
+    "deviationDistance": 319900,
+    "deviationTime": 9796,
+    "deviationPoint": {
+     "latitude": 35.3886,
+     "longitude": -97.49497
+    }
+   },
+   "legs": [
+    {
+     "summary": {
+      "lengthInMeters": 1368659,
+      "travelTimeInSeconds": 47287,
+      "trafficDelayInSeconds": 138,
+      "trafficLengthInMeters": 9527,
+      "departureTime": "2026-10-24T05:13:52-05:00",
+      "arrivalTime": "2026-10-24T17:21:59-06:00"
+     },
+     "points": [
+      {
+       "latitude": 32.77667,
+       "longitude": -96.79699
+      },
+      {
+       "latitude": 32.78427,
+       "longitude": -96.81182
+      },
+      {
+       "latitude": 32.81208,
+       "longitude": -96.86083
+      },
+      {
+       "latitude": 32.86081,
+       "longitude": -96.89239
+      },
+      {
+       "latitude": 32.91665,
+       "longitude": -96.89797
+      },
+      {
+       "latitude": 32.96568,
+       "longitude": -96.91786
+      },
+      {
+       "latitude": 33.00284,
+       "longitude": -96.96451
+      },
+      {
+       "latitude": 33.04989,
+       "longitude": -97.00947
+      },
+      {
+       "latitude": 33.11765,
+       "longitude": -97.03112
+      },
+      {
+       "latitude": 33.17426,
+       "longitude": -97.09092
+      },
+      {
+       "latitude": 33.20185,
+       "longitude": -97.14748
+      },
+      {
+       "latitude": 33.26369,
+       "longitude": -97.17776
+      },
+      {
+       "latitude": 33.36207,
+       "longitude": -97.18148
+      },
+      {
+       "latitude": 33.44136,
+       "longitude": -97.16407
+      },
+      {
+       "latitude": 33.58318,
+       "longitude": -97.16563
+      },
+      {
+       "latitude": 33.64186,
+       "longitude": -97.15566
+      },
+      {
+       "latitude": 33.72583,
+       "longitude": -97.16065
+      },
+      {
+       "latitude": 33.81592,
+       "longitude": -97.13174
+      },
+      {
+       "latitude": 33.94456,
+       "longitude": -97.13479
+      },
+      {
+       "latitude": 34.06127,
+       "longitude": -97.14917
+      },
+      {
+       "latitude": 34.16712,
+       "longitude": -97.16723
+      },
+      {
+       "latitude": 34.25331,
+       "longitude": -97.16466
+      },
+      {
+       "latitude": 34.35438,
+       "longitude": -97.14857
+      },
+      {
+       "latitude": 34.44203,
+       "longitude": -97.1285
+      },
+      {
+       "latitude": 34.53388,
+       "longitude": -97.18732
+      },
+      {
+       "latitude": 34.63368,
+       "longitude": -97.21722
+      },
+      {
+       "latitude": 34.73877,
+       "longitude": -97.2622
+      },
+      {
+       "latitude": 34.83635,
+       "longitude": -97.31308
+      },
+      {
+       "latitude": 34.94423,
+       "longitude": -97.36763
+      },
+      {
+       "latitude": 35.08153,
+       "longitude": -97.41003
+      },
+      {
+       "latitude": 35.18663,
+       "longitude": -97.49069
+      },
+      {
+       "latitude": 35.27003,
+       "longitude": -97.48547
+      },
+      {
+       "latitude": 35.3568,
+       "longitude": -97.49463
+      },
+      {
+       "latitude": 35.39206,
+       "longitude": -97.5113
+      },
+      {
+       "latitude": 35.40978,
+       "longitude": -97.5776
+      },
+      {
+       "latitude": 35.45983,
+       "longitude": -97.57656
+      },
+      {
+       "latitude": 35.46049,
+       "longitude": -97.70389
+      },
+      {
+       "latitude": 35.50131,
+       "longitude": -97.803
+      },
+      {
+       "latitude": 35.50154,
+       "longitude": -97.95438
+      },
+      {
+       "latitude": 35.52921,
+       "longitude": -98.10791
+      },
+      {
+       "latitude": 35.54013,
+       "longitude": -98.24604
+      },
+      {
+       "latitude": 35.60494,
+       "longitude": -98.30155
+      },
+      {
+       "latitude": 35.65617,
+       "longitude": -98.32884
+      },
+      {
+       "latitude": 35.76139,
+       "longitude": -98.39848
+      },
+      {
+       "latitude": 35.84123,
+       "longitude": -98.44343
+      },
+      {
+       "latitude": 35.84328,
+       "longitude": -98.5987
+      },
+      {
+       "latitude": 35.97463,
+       "longitude": -98.74113
+      },
+      {
+       "latitude": 36.08383,
+       "longitude": -98.84972
+      },
+      {
+       "latitude": 36.14198,
+       "longitude": -98.92352
+      },
+      {
+       "latitude": 36.18145,
+       "longitude": -98.98724
+      },
+      {
+       "latitude": 36.24683,
+       "longitude": -99.14274
+      },
+      {
+       "latitude": 36.3233,
+       "longitude": -99.2443
+      },
+      {
+       "latitude": 36.39014,
+       "longitude": -99.35223
+      },
+      {
+       "latitude": 36.43295,
+       "longitude": -99.39066
+      },
+      {
+       "latitude": 36.4364,
+       "longitude": -99.42987
+      },
+      {
+       "latitude": 36.52747,
+       "longitude": -99.52324
+      },
+      {
+       "latitude": 36.57971,
+       "longitude": -99.59334
+      },
+      {
+       "latitude": 36.61655,
+       "longitude": -99.75838
+      },
+      {
+       "latitude": 36.65045,
+       "longitude": -99.89138
+      },
+      {
+       "latitude": 36.71873,
+       "longitude": -99.89195
+      },
+      {
+       "latitude": 36.82109,
+       "longitude": -99.94503
+      },
+      {
+       "latitude": 36.9557,
+       "longitude": -99.97217
+      },
+      {
+       "latitude": 37.06212,
+       "longitude": -99.97971
+      },
+      {
+       "latitude": 37.22815,
+       "longitude": -100.00102
+      },
+      {
+       "latitude": 37.35352,
+       "longitude": -100.00088
+      },
+      {
+       "latitude": 37.45059,
+       "longitude": -100.01566
+      },
+      {
+       "latitude": 37.68488,
+       "longitude": -100.01508
+      },
+      {
+       "latitude": 37.71707,
+       "longitude": -100.0768
+      },
+      {
+       "latitude": 37.7623,
+       "longitude": -100.10436
+      },
+      {
+       "latitude": 37.79844,
+       "longitude": -100.26981
+      },
+      {
+       "latitude": 37.80765,
+       "longitude": -100.35733
+      },
+      {
+       "latitude": 37.85556,
+       "longitude": -100.48131
+      },
+      {
+       "latitude": 37.88313,
+       "longitude": -100.67533
+      },
+      {
+       "latitude": 37.96031,
+       "longitude": -100.81549
+      },
+      {
+       "latitude": 37.99943,
+       "longitude": -100.83858
+      },
+      {
+       "latitude": 38.07657,
+       "longitude": -100.88354
+      },
+      {
+       "latitude": 38.31462,
+       "longitude": -100.90527
+      },
+      {
+       "latitude": 38.48045,
+       "longitude": -100.9069
+      },
+      {
+       "latitude": 38.6245,
+       "longitude": -100.9065
+      },
+      {
+       "latitude": 38.76099,
+       "longitude": -100.86237
+      },
+      {
+       "latitude": 38.95088,
+       "longitude": -100.85161
+      },
+      {
+       "latitude": 39.12277,
+       "longitude": -100.86824
+      },
+      {
+       "latitude": 39.20065,
+       "longitude": -100.88138
+      },
+      {
+       "latitude": 39.36468,
+       "longitude": -101.03982
+      },
+      {
+       "latitude": 39.36623,
+       "longitude": -101.31363
+      },
+      {
+       "latitude": 39.32977,
+       "longitude": -101.62354
+      },
+      {
+       "latitude": 39.32953,
+       "longitude": -101.86823
+      },
+      {
+       "latitude": 39.32983,
+       "longitude": -102.04967
+      },
+      {
+       "latitude": 39.29443,
+       "longitude": -102.27069
+      },
+      {
+       "latitude": 39.29465,
+       "longitude": -102.59504
+      },
+      {
+       "latitude": 39.29214,
+       "longitude": -102.88832
+      },
+      {
+       "latitude": 39.28608,
+       "longitude": -103.18776
+      },
+      {
+       "latitude": 39.27691,
+       "longitude": -103.47827
+      },
+      {
+       "latitude": 39.26333,
+       "longitude": -103.64502
+      },
+      {
+       "latitude": 39.27818,
+       "longitude": -103.7563
+      },
+      {
+       "latitude": 39.35931,
+       "longitude": -103.87402
+      },
+      {
+       "latitude": 39.49479,
+       "longitude": -103.96247
+      },
+      {
+       "latitude": 39.63211,
+       "longitude": -104.05273
+      },
+      {
+       "latitude": 39.72046,
+       "longitude": -104.24047
+      },
+      {
+       "latitude": 39.73834,
+       "longitude": -104.43075
+      },
+      {
+       "latitude": 39.73961,
+       "longitude": -104.65137
+      },
+      {
+       "latitude": 39.75783,
+       "longitude": -104.76763
+      },
+      {
+       "latitude": 39.77835,
+       "longitude": -104.89589
+      },
+      {
+       "latitude": 39.78026,
+       "longitude": -104.96709
+      },
+      {
+       "latitude": 39.76824,
+       "longitude": -104.99524
+      },
+      {
+       "latitude": 39.74254,
+       "longitude": -105.0156
+      },
+      {
+       "latitude": 39.7392,
+       "longitude": -104.99027
+      }
+     ]
+    }
+   ],
+   "guidance": {
+    "instructions": [
+     {
+      "routeOffsetInMeters": 0,
+      "travelTimeInSeconds": 0,
+      "maneuver": "DEPART",
+      "street": "Marilla St"
+     },
+     {
+      "routeOffsetInMeters": 120,
+      "travelTimeInSeconds": 23,
+      "maneuver": "TURN_LEFT",
+      "street": "S Akard St"
+     },
+     {
+      "routeOffsetInMeters": 221,
+      "travelTimeInSeconds": 46,
+      "maneuver": "KEEP_LEFT",
+      "street": "S Akard St"
+     },
+     {
+      "routeOffsetInMeters": 392,
+      "travelTimeInSeconds": 68,
+      "maneuver": "TURN_RIGHT",
+      "street": "Canton St"
+     },
+     {
+      "routeOffsetInMeters": 409,
+      "travelTimeInSeconds": 79,
+      "maneuver": "KEEP_LEFT",
+      "street": "Canton St"
+     },
+     {
+      "routeOffsetInMeters": 911,
+      "travelTimeInSeconds": 107,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 1198,
+      "travelTimeInSeconds": 120,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 2409,
+      "travelTimeInSeconds": 177,
+      "maneuver": "ENTER_FREEWAY",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 10039,
+      "travelTimeInSeconds": 444,
+      "maneuver": "KEEP_RIGHT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 10559,
+      "travelTimeInSeconds": 462,
+      "maneuver": "FOLLOW",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 20646,
+      "travelTimeInSeconds": 805,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 21904,
+      "travelTimeInSeconds": 850,
+      "maneuver": "STRAIGHT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 23600,
+      "travelTimeInSeconds": 914,
+      "maneuver": "STRAIGHT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 24120,
+      "travelTimeInSeconds": 934,
+      "maneuver": "FOLLOW",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 28694,
+      "travelTimeInSeconds": 1100,
+      "maneuver": "STRAIGHT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 29229,
+      "travelTimeInSeconds": 1119,
+      "maneuver": "FOLLOW",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 35615,
+      "travelTimeInSeconds": 1328,
+      "maneuver": "KEEP_RIGHT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 37718,
+      "travelTimeInSeconds": 1396,
+      "maneuver": "STRAIGHT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 38298,
+      "travelTimeInSeconds": 1414,
+      "maneuver": "FOLLOW",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 43041,
+      "travelTimeInSeconds": 1568,
+      "maneuver": "KEEP_RIGHT",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 43621,
+      "travelTimeInSeconds": 1586,
+      "maneuver": "FOLLOW",
+      "street": "Interstate 35 E"
+     },
+     {
+      "routeOffsetInMeters": 319900,
+      "travelTimeInSeconds": 9796,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "Oklahoma State Highway 3 W"
+     },
+     {
+      "routeOffsetInMeters": 320250,
+      "travelTimeInSeconds": 9817,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "Oklahoma State Highway 3 W"
+     },
+     {
+      "routeOffsetInMeters": 320539,
+      "travelTimeInSeconds": 9840,
+      "maneuver": "ENTER_FREEWAY",
+      "street": "Oklahoma State Highway 3 W"
+     },
+     {
+      "routeOffsetInMeters": 328233,
+      "travelTimeInSeconds": 10107,
+      "maneuver": "KEEP_LEFT",
+      "street": "Oklahoma State Highway 3 W"
+     },
+     {
+      "routeOffsetInMeters": 330111,
+      "travelTimeInSeconds": 10171,
+      "maneuver": "KEEP_RIGHT",
+      "street": "Interstate Highway 44 E"
+     },
+     {
+      "routeOffsetInMeters": 330646,
+      "travelTimeInSeconds": 10189,
+      "maneuver": "FOLLOW",
+      "street": "Interstate Highway 44 E"
+     },
+     {
+      "routeOffsetInMeters": 334977,
+      "travelTimeInSeconds": 10338,
+      "maneuver": "MOTORWAY_EXIT_LEFT",
+      "street": "Interstate Highway 40 W"
+     },
+     {
+      "routeOffsetInMeters": 335840,
+      "travelTimeInSeconds": 10368,
+      "maneuver": "ENTER_FREEWAY",
+      "street": "Interstate Highway 40 W"
+     },
+     {
+      "routeOffsetInMeters": 396938,
+      "travelTimeInSeconds": 12242,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "S Walbaum Rd"
+     },
+     {
+      "routeOffsetInMeters": 397411,
+      "travelTimeInSeconds": 12279,
+      "maneuver": "TURN_RIGHT",
+      "street": "S Walbaum Rd"
+     },
+     {
+      "routeOffsetInMeters": 397661,
+      "travelTimeInSeconds": 12308,
+      "maneuver": "FOLLOW",
+      "street": "S Walbaum Rd"
+     },
+     {
+      "routeOffsetInMeters": 437809,
+      "travelTimeInSeconds": 13857,
+      "maneuver": "TURN_LEFT",
+      "street": "W Russworm Dr"
+     },
+     {
+      "routeOffsetInMeters": 438044,
+      "travelTimeInSeconds": 13888,
+      "maneuver": "FOLLOW",
+      "street": "W Russworm Dr"
+     },
+     {
+      "routeOffsetInMeters": 553305,
+      "travelTimeInSeconds": 18340,
+      "maneuver": "TURN_LEFT",
+      "street": "Oklahoma Ave"
+     },
+     {
+      "routeOffsetInMeters": 556662,
+      "travelTimeInSeconds": 18651,
+      "maneuver": "TURN_RIGHT",
+      "street": "NW Highway St"
+     },
+     {
+      "routeOffsetInMeters": 556908,
+      "travelTimeInSeconds": 18672,
+      "maneuver": "FOLLOW",
+      "street": "NW Highway St"
+     },
+     {
+      "routeOffsetInMeters": 607336,
+      "travelTimeInSeconds": 20551,
+      "maneuver": "TURN_RIGHT",
+      "street": "US Highway 283"
+     },
+     {
+      "routeOffsetInMeters": 607642,
+      "travelTimeInSeconds": 20574,
+      "maneuver": "FOLLOW",
+      "street": "US Highway 283"
+     },
+     {
+      "routeOffsetInMeters": 628504,
+      "travelTimeInSeconds": 21471,
+      "maneuver": "TURN_LEFT",
+      "street": "US Highway 64"
+     },
+     {
+      "routeOffsetInMeters": 628754,
+      "travelTimeInSeconds": 21498,
+      "maneuver": "FOLLOW",
+      "street": "US Highway 64"
+     },
+     {
+      "routeOffsetInMeters": 635372,
+      "travelTimeInSeconds": 21752,
+      "maneuver": "BEAR_RIGHT",
+      "street": "US Highway 283"
+     },
+     {
+      "routeOffsetInMeters": 635757,
+      "travelTimeInSeconds": 21774,
+      "maneuver": "FOLLOW",
+      "street": "US Highway 283"
+     },
+     {
+      "routeOffsetInMeters": 676707,
+      "travelTimeInSeconds": 23294,
+      "maneuver": "TURN_LEFT",
+      "street": "US Highway 160"
+     },
+     {
+      "routeOffsetInMeters": 676987,
+      "travelTimeInSeconds": 23321,
+      "maneuver": "FOLLOW",
+      "street": "US Highway 160"
+     },
+     {
+      "routeOffsetInMeters": 736676,
+      "travelTimeInSeconds": 25608,
+      "maneuver": "ROUNDABOUT_LEFT",
+      "street": "US Highway 56"
+     },
+     {
+      "routeOffsetInMeters": 736984,
+      "travelTimeInSeconds": 25639,
+      "maneuver": "FOLLOW",
+      "street": "US Highway 56"
+     },
+     {
+      "routeOffsetInMeters": 742261,
+      "travelTimeInSeconds": 25847,
+      "maneuver": "TURN_LEFT",
+      "street": "Northwest Byp"
+     },
+     {
+      "routeOffsetInMeters": 742571,
+      "travelTimeInSeconds": 25873,
+      "maneuver": "FOLLOW",
+      "street": "Northwest Byp"
+     },
+     {
+      "routeOffsetInMeters": 748717,
+      "travelTimeInSeconds": 26155,
+      "maneuver": "TURN_RIGHT",
+      "street": "US Highway 50"
+     },
+     {
+      "routeOffsetInMeters": 749192,
+      "travelTimeInSeconds": 26183,
+      "maneuver": "FOLLOW",
+      "street": "US Highway 50"
+     },
+     {
+      "routeOffsetInMeters": 821432,
+      "travelTimeInSeconds": 28986,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "US Highway 83"
+     },
+     {
+      "routeOffsetInMeters": 823577,
+      "travelTimeInSeconds": 29145,
+      "maneuver": "KEEP_LEFT",
+      "street": "US Highway 83"
+     },
+     {
+      "routeOffsetInMeters": 824007,
+      "travelTimeInSeconds": 29165,
+      "maneuver": "FOLLOW",
+      "street": "US Highway 83"
+     },
+     {
+      "routeOffsetInMeters": 829770,
+      "travelTimeInSeconds": 29408,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "United States Highway 83 N"
+     },
+     {
+      "routeOffsetInMeters": 830105,
+      "travelTimeInSeconds": 29436,
+      "maneuver": "TURN_RIGHT",
+      "street": "N US Highway 83"
+     },
+     {
+      "routeOffsetInMeters": 830370,
+      "travelTimeInSeconds": 29463,
+      "maneuver": "FOLLOW",
+      "street": "N US Highway 83"
+     },
+     {
+      "routeOffsetInMeters": 955968,
+      "travelTimeInSeconds": 34204,
+      "maneuver": "TURN_LEFT",
+      "street": "US Highway 40"
+     },
+     {
+      "routeOffsetInMeters": 957589,
+      "travelTimeInSeconds": 34306,
+      "maneuver": "TURN_RIGHT",
+      "street": "US Highway 83"
+     },
+     {
+      "routeOffsetInMeters": 957854,
+      "travelTimeInSeconds": 34336,
+      "maneuver": "FOLLOW",
+      "street": "US Highway 83"
+     },
+     {
+      "routeOffsetInMeters": 965508,
+      "travelTimeInSeconds": 34653,
+      "maneuver": "TURN_LEFT",
+      "street": "Interstate Highway 70 W"
+     },
+     {
+      "routeOffsetInMeters": 965776,
+      "travelTimeInSeconds": 34677,
+      "maneuver": "ENTER_FREEWAY",
+      "street": "Interstate Highway 70 W"
+     },
+     {
+      "routeOffsetInMeters": 965876,
+      "travelTimeInSeconds": 34680,
+      "maneuver": "FOLLOW",
+      "street": "Interstate Highway 70 W"
+     },
+     {
+      "routeOffsetInMeters": 1345488,
+      "travelTimeInSeconds": 45896,
+      "maneuver": "KEEP_LEFT",
+      "street": "United States Highway 36 W"
+     },
+     {
+      "routeOffsetInMeters": 1346892,
+      "travelTimeInSeconds": 45948,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate Highway 70 W"
+     },
+     {
+      "routeOffsetInMeters": 1347397,
+      "travelTimeInSeconds": 45967,
+      "maneuver": "FOLLOW",
+      "street": "Interstate Highway 70 W"
+     },
+     {
+      "routeOffsetInMeters": 1355394,
+      "travelTimeInSeconds": 46262,
+      "maneuver": "KEEP_LEFT",
+      "street": "Interstate Highway 70 W"
+     },
+     {
+      "routeOffsetInMeters": 1358560,
+      "travelTimeInSeconds": 46379,
+      "maneuver": "KEEP_RIGHT",
+      "street": "Interstate Highway 70 W"
+     },
+     {
+      "routeOffsetInMeters": 1359648,
+      "travelTimeInSeconds": 46428,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "United States Highway 85 S"
+     },
+     {
+      "routeOffsetInMeters": 1360431,
+      "travelTimeInSeconds": 46463,
+      "maneuver": "KEEP_LEFT",
+      "street": "I-25"
+     },
+     {
+      "routeOffsetInMeters": 1360717,
+      "travelTimeInSeconds": 46478,
+      "maneuver": "MOTORWAY_EXIT_LEFT",
+      "street": "United States Highway 85 S"
+     },
+     {
+      "routeOffsetInMeters": 1361984,
+      "travelTimeInSeconds": 46571,
+      "maneuver": "ENTER_FREEWAY",
+      "street": "I-25"
+     },
+     {
+      "routeOffsetInMeters": 1366018,
+      "travelTimeInSeconds": 46879,
+      "maneuver": "MOTORWAY_EXIT_RIGHT",
+      "street": "W Colfax Ave"
+     },
+     {
+      "routeOffsetInMeters": 1366405,
+      "travelTimeInSeconds": 46919,
+      "maneuver": "TURN_LEFT",
+      "street": "W Colfax Ave"
+     },
+     {
+      "routeOffsetInMeters": 1368568,
+      "travelTimeInSeconds": 47260,
+      "maneuver": "ARRIVE",
+      "street": "N Bannock St"
+     },
+     {
+      "routeOffsetInMeters": 1368659,
+      "travelTimeInSeconds": 47287,
+      "maneuver": "ARRIVE",
+      "street": "N Bannock St"
+     }
+    ]
+   }
+  }
+ ]
+}
