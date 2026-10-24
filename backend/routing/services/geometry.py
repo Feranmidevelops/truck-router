@@ -90,16 +90,22 @@ def sample_checkpoints(
     # Midpoints between neighbours, plus the two route ends: checkpoint i owns bounds[i]..bounds[i + 1].
     bounds = [0.0] + [(a + b) / 2 for a, b in zip(marks, marks[1:])] + [length]
 
-    return [
-        Checkpoint(
-            index=i,
-            mile=m / METERS_PER_MILE,
-            position=point_at_distance(points, cumulative, m),
-            segment_miles=(bounds[i + 1] - bounds[i]) / METERS_PER_MILE,
-            eta=eta(departure, seconds_at_distance(timing, m)),
+    checkpoints = []
+    for i, m in enumerate(marks):
+        # The summed polyline and TomTom's own length differ by a fraction of a percent, so look
+        # the time up at the same fraction of TomTom's length. The destination is then exactly
+        # 1.0 of the way and gets the full route duration.
+        along = m / length if length > 0 else 0.0
+        checkpoints.append(
+            Checkpoint(
+                index=i,
+                mile=m / METERS_PER_MILE,
+                position=point_at_distance(points, cumulative, m),
+                segment_miles=(bounds[i + 1] - bounds[i]) / METERS_PER_MILE,
+                eta=eta(departure, seconds_at_distance(timing, along * timing[-1].meters)),
+            )
         )
-        for i, m in enumerate(marks)
-    ]
+    return checkpoints
 
 
 def eta(departure: datetime, seconds: float) -> datetime:

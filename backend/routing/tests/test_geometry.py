@@ -158,6 +158,21 @@ def test_eta_follows_the_timing_profile_not_an_average_speed():
     assert minutes[100] == pytest.approx(120)
 
 
+@pytest.mark.parametrize("tomtom_ratio", [0.9963, 1.0041])
+def test_eta_scales_polyline_distance_onto_tomtom_length(tomtom_ratio):
+    pts = meridian_line(105)
+    tomtom_m = cumulative_m(pts)[-1] * tomtom_ratio
+    duration = 7213.4
+    # Slow first 20 miles, then fast.
+    timing = [TimingPoint(0, 0), TimingPoint(tomtom_m * 20 / 105, 1800), TimingPoint(tomtom_m, duration)]
+    cps = sample_checkpoints(pts, timing, T0, 10)
+    assert cps[-1].mile == pytest.approx(105)
+    assert cps[-1].eta == T0 + timedelta(seconds=duration)
+    seconds = {round(c.mile): (c.eta - T0).total_seconds() for c in cps}
+    assert seconds[20] == pytest.approx(1800, abs=1e-3)
+    assert seconds[50] == pytest.approx(1800 + (duration - 1800) * 30 / 85, abs=1e-3)
+
+
 def test_destination_exactly_half_a_mile_past_the_last_interval_is_merged():
     pts = meridian_line(25.5)
     cps = sample_checkpoints(pts, uniform_timing(pts, 60), T0, 25)
