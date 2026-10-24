@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   LngLatBounds,
   Map as MapLibreMap,
@@ -14,8 +14,10 @@ import '../lib/maplibre'
 import './MapView.css'
 import type { FeatureCollection, LineString, Point } from 'geojson'
 import type { Plan } from '../api/types'
-import { LEVELS, LEVEL_COLOR, LEVEL_LABEL, levelColorExpression } from '../lib/risk'
+import { levelColorExpression } from '../lib/risk'
 import { checkpointPopup } from './CheckpointPopup'
+import { HeatmapSlider, type HeatmapState } from './HeatmapSlider'
+import { HEAT_LAYER, addHeatmapLayer, setHeatmapData, showHeatmapHour } from './heatmapLayer'
 
 // OpenFreeMap is free and needs no key. Override with VITE_MAP_STYLE_URL if it's ever down.
 const STYLE_URL = import.meta.env.VITE_MAP_STYLE_URL || 'https://tiles.openfreemap.org/styles/liberty'
@@ -42,9 +44,10 @@ interface Props {
   plan: Plan | null
   selectedRouteId: string | null
   onSelectRoute: (id: string) => void
+  heatmap: HeatmapState
 }
 
-export function MapView({ plan, selectedRouteId, onSelectRoute }: Props) {
+export function MapView({ plan, selectedRouteId, onSelectRoute, heatmap }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const onSelectRef = useRef(onSelectRoute)
@@ -55,6 +58,8 @@ export function MapView({ plan, selectedRouteId, onSelectRoute }: Props) {
   const [ready, setReady] = useState(false)
   const [mapError, setMapError] = useState<string | null>(null)
   const errorDismissed = useRef(false)
+  const [showHeat, setShowHeat] = useState(true)
+  const heatData = heatmap.status === 'ready' ? heatmap.data : null
 
   useEffect(() => {
     onSelectRef.current = onSelectRoute
@@ -109,9 +114,7 @@ export function MapView({ plan, selectedRouteId, onSelectRoute }: Props) {
       map.addSource('routes', { type: 'geojson', data: EMPTY, promoteId: 'id' })
       map.addSource('checkpoints', { type: 'geojson', data: EMPTY, promoteId: 'routeId' })
 
-      // TODO(day 3): add the heatmap source and layer here, before the route layers,
-      // so routes draw on top.
-
+      addHeatmapLayer(map)
       // Invisible and wide, so a route is easy to hover and tap.
       map.addLayer({
         id: 'routes-hit',
@@ -214,6 +217,24 @@ export function MapView({ plan, selectedRouteId, onSelectRoute }: Props) {
 
   useEffect(() => {
     const map = mapRef.current
+    if (map && ready) setHeatmapData(map, heatData)
+  }, [heatData, ready])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    map.setLayoutProperty(HEAT_LAYER, 'visibility', showHeat ? 'visible' : 'none')
+  }, [showHeat, ready])
+
+  // Stable, so slider ticks never re-render the map component.
+  const onHourChange = useCallback((hour: number) => {
+    const map = mapRef.current
+    if (map?.getLayer(HEAT_LAYER)) showHeatmapHour(map, hour)
+  }, [])
+  const toggleHeat = useCallback(() => setShowHeat((v) => !v), [])
+
+  useEffect(() => {
+    const map = mapRef.current
     if (!map || !ready || !plan) return
     const bounds = new LngLatBounds()
     plan.routes.forEach((r) => r.geometry.forEach((c) => bounds.extend(c)))
@@ -238,14 +259,7 @@ export function MapView({ plan, selectedRouteId, onSelectRoute }: Props) {
           </button>
         </div>
       )}
-      <ul className="legend" aria-label="Risk levels">
-        {LEVELS.map((l) => (
-          <li key={l}>
-            <span className="swatch" style={{ background: LEVEL_COLOR[l] }} />
-            {LEVEL_LABEL[l]}
-          </li>
-        ))}
-      </ul>
+      <HeatmapSlider state={heatmap} visible={showHeat} onToggle={toggleHeat} onHourChange={onHourChange} />
     </div>
   )
 }
