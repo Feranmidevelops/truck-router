@@ -186,6 +186,23 @@ def test_assess_load_adjusted_only_when_a_load_rule_raised_wind(mph, load, wind_
     assert a.load_adjusted is adjusted
 
 
+@pytest.mark.parametrize(
+    "mph, rain, snow, load, level, wind_level, drivers",
+    [
+        (40, 1.5, 0, 45_000, N, S, ("rain",)),  # rain is worse than the raised wind
+        (40, 0, 3.5, 45_000, N, S, ("snow",)),
+        (40, 0.75, 0, 45_000, S, S, ("wind", "rain")),  # raised wind ties with rain
+        (50, 1.5, 0, 35_000, N, N, ("wind", "rain")),
+    ],
+)
+def test_assess_load_adjusted_even_when_wind_is_not_the_only_driver(
+    mph, rain, snow, load, level, wind_level, drivers
+):
+    a = assess(wind_mph=mph, rain_in_hr=rain, snow_in_hr=snow, load_lb=load)
+    assert (a.level, a.wind_level, a.drivers) == (level, wind_level, drivers)
+    assert a.load_adjusted is True
+
+
 def test_assess_load_rules_do_not_touch_rain_or_snow():
     a = assess(wind_mph=10, rain_in_hr=0.6, snow_in_hr=1.5, load_lb=80_000)
     assert (a.level, a.wind_level, a.rain_level, a.snow_level) == (S, L, S, H)
