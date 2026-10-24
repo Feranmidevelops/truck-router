@@ -18,6 +18,9 @@ from .types import Checkpoint, LatLon, Level, RouteOption, RouteSummary
 PLAN_TTL_S = 60 * 60
 HEATMAP_HOURS = 48
 METERS_PER_MILE = 1609.344
+# Route lines are drawn and gridded from a simplified copy. 20 m is inside a highway's width and
+# about 2 px at street zoom, and cuts a ~10,000-point TomTom route to under 1,000 points.
+SIMPLIFY_TOLERANCE_M = 20
 
 
 class PlanNotFound(Exception):
@@ -62,11 +65,14 @@ def build_plan(
     }
     order, reason = recommend.rank_routes(list(summaries.values()))
 
+    # Checkpoints above were sampled on the full line; the map and the heatmap only need its shape
+    shapes = {r.id: geometry.simplify(r.points, SIMPLIFY_TOLERANCE_M) for r in routes}
+
     plan_id = uuid.uuid4().hex
     cache.set(
         f"plan:{plan_id}",
         {
-            "routes": [r.points for r in routes],
+            "routes": [shapes[r.id] for r in routes],
             "departure_time": departure_time,
             "load_weight_lb": load_weight_lb,
         },
@@ -88,7 +94,7 @@ def build_plan(
         "recommended_route_id": order[0],
         "recommendation_reason": reason,
         "routes": [
-            _route_json(by_id[rid], labels[rid], rank, summaries[rid], checkpoints[rid])
+            _route_json(by_id[rid], shapes[rid], labels[rid], rank, summaries[rid], checkpoints[rid])
             for rank, rid in enumerate(order, 1)
         ],
     }
@@ -119,7 +125,12 @@ def build_heatmap(plan_id: str) -> dict:
 
 
 def _route_json(
-    route: RouteOption, label: str, rank: int, summary: RouteSummary, checkpoints: list[Checkpoint]
+    route: RouteOption,
+    shape: list[LatLon],
+    label: str,
+    rank: int,
+    summary: RouteSummary,
+    checkpoints: list[Checkpoint],
 ) -> dict:
     return {
         "id": route.id,
@@ -130,7 +141,7 @@ def _route_json(
         "duration_s": round(route.duration_s),
         "departure_time": route.departure_time.isoformat(),
         "arrival_time": route.arrival_time.isoformat(),
-        "geometry": [[round(p.lon, 5), round(p.lat, 5)] for p in route.points],
+        "geometry": [[round(p.lon, 5), round(p.lat, 5)] for p in shape],
         "summary": {
             "miles_by_level": {lvl.name: round(summary.miles_by_level.get(lvl, 0.0), 1) for lvl in Level},
             "avg_risk": round(summary.avg_risk, 2),
