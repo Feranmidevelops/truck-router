@@ -227,3 +227,27 @@ def test_duplicate_points_do_not_change_checkpoints():
         return [(c.mile, c.position, c.segment_miles, c.eta) for c in cps]
 
     assert fields(sample_checkpoints(doubled, timing, T0, 25)) == fields(sample_checkpoints(clean, timing, T0, 25))
+
+
+@pytest.mark.parametrize("pts", [[LatLon(30, -97)], [LatLon(30, -97)] * 3])
+def test_zero_length_route_is_one_checkpoint_at_departure(pts):
+    cps = sample_checkpoints(pts, [TimingPoint(0, 0)], T0, 10)
+    assert len(cps) == 1
+    assert cps[0].position == pts[0]
+    assert cps[0].segment_miles == 0
+    assert cps[0].eta == T0
+
+
+def test_dense_polyline_like_a_real_tomtom_route():
+    pts = meridian_line(600, step_miles=0.05)
+    assert len(pts) == 12_001
+    cps = sample_checkpoints(pts, uniform_timing(pts, 60), T0, 10)
+    assert len(cps) == 61
+    assert sum(c.segment_miles for c in cps) == pytest.approx(600)
+    assert all(a.eta < b.eta for a, b in zip(cps, cps[1:]))
+
+
+def test_interval_must_be_positive():
+    pts = meridian_line(10)
+    with pytest.raises(ValueError):
+        sample_checkpoints(pts, uniform_timing(pts, 60), T0, 0)
