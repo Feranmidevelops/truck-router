@@ -210,8 +210,20 @@ so Route A is always the recommended one.
 
 ## Tests
 
-`cd backend && pytest` covers every threshold boundary, the load rules, ranking order,
-checkpoint sampling and ETAs, the weather client's unit handling, and the API contract.
+`cd backend && pytest` runs about 400 tests in a few seconds, with no network access.
+
+- **Rules:** every wind, rain and snow boundary just below, at and above its edge, a grid of load
+  rule edges, each level's score in the average, and every ranking key and reason.
+- **Checked against wrong code:** the rule tests were run against deliberately broken versions
+  (a `>=` where the brief says `>`, snow read from the wind's hour, overlap measured the wrong
+  way round, de-duplication per chunk) to make sure each one fails a test.
+- **Real data:** a trimmed real TomTom Dallas -> Denver response, and Open-Meteo unit strings
+  confirmed against a live call.
+- **End to end:** a whole trip goes through the API, the real HTTP clients and the planner
+  against fake TomTom and Open-Meteo servers, including "no route" and failure cases.
+- **Contract:** a test reads `frontend/src/api/types.ts` and checks every API response and sample
+  file against it, so the backend and the frontend can't drift apart silently.
+- **Frontend:** `npm run build` type-checks it and `npm run lint` lints it.
 
 ## Deploy
 
