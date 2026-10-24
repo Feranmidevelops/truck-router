@@ -199,8 +199,8 @@ def ensure_three_routes(
                 origin, destination, departure, load_lb, api_key,
                 via=[via], source="via-fallback", id_prefix=id_prefix, client=client,
             )
-        except RoutingError:
-            return []  # e.g. no road near the via point
+        except (RoutingError, KeyError, ValueError):
+            return []  # e.g. no road near the via point, or a reply we can't read
 
     for route in sorted(routes, key=_duration):
         consider(route)
@@ -358,7 +358,10 @@ def _get(url: str, params: dict, client: httpx.Client | None) -> dict:
             client.close()
     if resp.status_code != 200:
         raise RoutingError(f"TomTom {resp.status_code}: {resp.text[:200]}")
-    return resp.json()
+    try:
+        return resp.json()
+    except ValueError as exc:
+        raise RoutingError(f"TomTom sent a reply that is not JSON: {resp.text[:200]}") from exc
 
 
 def _parse_time(value: str | None) -> datetime | None:

@@ -216,7 +216,8 @@ class FakeTomTom:
     """Stands in for TomTom's Calculate Route.
 
     `answer(via)` gets the via point of each request and returns the route to send back as
-    (points, slowdown), or None for an HTTP 400. Every via point asked for is kept in `vias`.
+    (points, slowdown), None for an HTTP 400, or an httpx.Response to send as it is. Every via
+    point asked for is kept in `vias`.
     """
 
     def __init__(self, answer=lambda via: None):
@@ -232,6 +233,8 @@ class FakeTomTom:
         result = self.answer(stops[1])
         if result is None:
             return httpx.Response(400, json={"error": {"description": "NO_ROUTE_FOUND"}})
+        if isinstance(result, httpx.Response):
+            return result
         points, slowdown = result
         length = cumulative_m(points)[-1]
         route = {
@@ -325,7 +328,8 @@ def attempt(via: LatLon) -> str:
 
 def fallbacks(**special: str):
     """A FakeTomTom answer: a plain route through each via point, except for the attempts
-    named, which "fail" (HTTP 400), come back as a "copy" of the fastest route, or are "slow"."""
+    named, which "fail" (HTTP 400), come back as a "copy" of the fastest route, are "slow", or
+    answer 200 with a body that is "not json", has "no summary" or has a "bad time"."""
 
     def answer(via: LatLon):
         kind = special.get(attempt(via), "ok")
@@ -335,6 +339,13 @@ def fallbacks(**special: str):
             return shifted(FASTEST, 0.2), 1.01
         if kind == "slow":
             return through(via), 2.0
+        if kind == "not json":
+            return httpx.Response(200, text="<html>Bad gateway</html>")
+        if kind == "no summary":
+            return httpx.Response(200, json={"routes": [{"legs": []}]})
+        if kind == "bad time":
+            summary = {"lengthInMeters": 1000, "travelTimeInSeconds": 60, "departureTime": "soon"}
+            return httpx.Response(200, json={"routes": [{"summary": summary, "legs": []}]})
         return through(via), 1.0
 
     return answer
@@ -379,6 +390,19 @@ def test_a_failed_fallback_is_skipped():
     fake = FakeTomTom(fallbacks(L15="fail"))
     routes = ensure([drive("r0", FASTEST)], fake)
     assert [r.id for r in routes] == ["r0", "via15R-0", "via25L-0"]
+
+
+@pytest.mark.parametrize("reply", ["not json", "no summary", "bad time"])
+def test_a_fallback_answering_200_with_a_body_we_cannot_read_is_skipped(reply):
+    fake = FakeTomTom(fallbacks(L15=reply))
+    routes = ensure([drive("r0", FASTEST)], fake)
+    assert [r.id for r in routes] == ["r0", "via15R-0", "via25L-0"]
+
+
+def test_a_reply_that_is_not_json_is_a_routing_error():
+    client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, text="<html>")))
+    with pytest.raises(tomtom.RoutingError, match="not JSON"):
+        tomtom.calculate_routes(WEST, EAST, T0, 20_000, "test-key", client=client)
 
 
 def test_when_every_fallback_fails_the_fastest_route_comes_back_alone():
