@@ -50,3 +50,19 @@ export function formatTime(iso: string) {
     timeZoneName: 'short',
   })
 }
+
+// For long lists of times, like the checkpoint table: the formatters are built once, and the
+// day, clock time and zone name come separately so a table can group rows by day and print
+// the zone once. timeZone undefined means the viewer's own zone.
+export function timeFormatter(timeZone?: string) {
+  const day = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'short', day: 'numeric', timeZone })
+  const clock = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone })
+  const zone = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short', timeZone })
+  return {
+    day: (iso: string) => day.format(new Date(iso)),
+    clock: (iso: string) => clock.format(new Date(iso)),
+    zone: (iso: string) => zone.formatToParts(new Date(iso)).find((p) => p.type === 'timeZoneName')?.value ?? '',
+  }
+}
+
+export type TimeFormatter = ReturnType<typeof timeFormatter>

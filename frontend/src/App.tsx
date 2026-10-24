@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { isAbortError, planTrip } from './api/client'
 import type { Plan, PlanRequest } from './api/types'
 import { MapView } from './components/MapView'
-import { RouteList } from './components/RouteList'
+import { PlanResults } from './components/PlanResults'
 import { SampleDataBanner } from './components/SampleDataBanner'
 import { TripForm } from './components/TripForm'
 
@@ -12,8 +12,10 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const pending = useRef<AbortController | null>(null)
+  const lastRequest = useRef<PlanRequest | null>(null)
 
   async function handlePlan(req: PlanRequest) {
+    lastRequest.current = req
     pending.current?.abort()
     const ctrl = new AbortController()
     pending.current = ctrl
@@ -40,12 +42,14 @@ export default function App() {
         </header>
         <SampleDataBanner />
         <TripForm loading={loading} onSubmit={handlePlan} />
-        {error && (
-          <p className="error" role="alert">
-            {error}
-          </p>
-        )}
-        {plan && <RouteList plan={plan} selectedRouteId={selectedRouteId} onSelect={setSelectedRouteId} />}
+        <PlanResults
+          plan={plan}
+          loading={loading}
+          error={error}
+          selectedRouteId={selectedRouteId}
+          onSelect={setSelectedRouteId}
+          onRetry={() => lastRequest.current && handlePlan(lastRequest.current)}
+        />
       </aside>
       <main className="main">
         <MapView plan={plan} selectedRouteId={selectedRouteId} onSelectRoute={setSelectedRouteId} />
