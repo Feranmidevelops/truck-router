@@ -75,6 +75,28 @@ class Checkpoint:
     assessment: Assessment | None = None
 
 
+@dataclass(frozen=True)
+class Stretch:
+    """A run of consecutive checkpoints at Moderate or worse, for the journey report."""
+
+    first_index: int  # checkpoint indexes, both ends included
+    last_index: int
+    start_mile: float  # the first and last checkpoint's mile and ETA
+    end_mile: float
+    start_eta: datetime
+    end_eta: datetime
+    miles: float  # road its checkpoints own, as counted in a route's miles by level
+    level: Level  # the worst level in the stretch
+    drivers: tuple[str, ...]  # factors at that level, at any of its checkpoints
+    start: LatLon  # where the stretch begins, to name the place
+    max_wind_mph: float
+    max_gust_mph: float
+    max_rain_in_hr: float
+    max_snow_in_hr: float
+    min_temp_f: float | None  # None when no checkpoint in it has a temperature
+    max_temp_f: float | None
+
+
 @dataclass
 class RouteSummary:
     route_id: str
