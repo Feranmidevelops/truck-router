@@ -257,8 +257,11 @@ class _Trace:
     """A route in flat local metres, plus what the overlap test needs, built on first use.
 
     Longitude degrees are scaled by cos(lat0) so that x and y are both metres. One lat0 for
-    the whole trip is close enough: 250 miles north or south of it the east-west scale is
-    about 5% off, 500 miles about 10%, so at worst the 0.5 mile test acts like 0.45-0.55 mile.
+    the whole trip is close enough. North-south gaps come out exact, but an east-west gap at
+    latitude lat comes out cos(lat0) / cos(lat) times its true size, so there the 0.5 mile test
+    acts like 0.5 * cos(lat) / cos(lat0) mile: 0.48-0.52 mile on Dallas->Denver, 0.42-0.56 mile
+    on the longest north-south US trips (Laredo->Duluth, Miami->Seattle). Shared road lies
+    within metres of itself and separate roads are usually miles apart, so that is fine.
     """
 
     def __init__(self, points: list[LatLon], lat0: float):
