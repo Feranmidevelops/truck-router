@@ -2,7 +2,7 @@
 
 import math
 
-from .geometry import EARTH_RADIUS_M, METERS_PER_MILE, cumulative_m
+from .geometry import EARTH_RADIUS_M, METERS_PER_MILE, cumulative_m, haversine_m
 from .types import LatLon
 
 SAMPLE_STEP_MILES = 2.0
@@ -24,12 +24,15 @@ def build_grid(
       not every cell in the bounding box.
     - If the result exceeds max_points, multiply cell_deg by 1.5 and rebuild.
     Return points sorted by (lat, lon) so output is deterministic.
+
+    Distances are measured to route samples, so a cell within a mile of the
+    buffer's edge can be missed; a cell outside the buffer is never kept.
     """
     step_m = SAMPLE_STEP_MILES * METERS_PER_MILE
     samples = [p for route in routes for p in _sample_route(route, step_m)]
     if not samples:
         return []
-    cells = _cells_near(samples, cell_deg, buffer_miles * METERS_PER_MILE)
+    cells = _cells_within(samples, cell_deg, buffer_miles * METERS_PER_MILE)
     # Centres grow with their index, so sorting (row, col) sorts by (lat, lon).
     return [LatLon(_centre(i, cell_deg), _centre(j, cell_deg)) for i, j in sorted(cells)]
 
@@ -54,18 +57,21 @@ def _sample_route(points: list[LatLon], step_m: float) -> list[LatLon]:
     return out
 
 
-def _cells_near(samples: list[LatLon], cell_deg: float, buffer_m: float) -> set[tuple[int, int]]:
-    """(row, col) of every cell whose centre falls in the lat/lon window around a sample."""
+def _cells_within(samples: list[LatLon], cell_deg: float, buffer_m: float) -> set[tuple[int, int]]:
+    """(row, col) of every cell whose centre is within `buffer_m` of at least one sample."""
     lat_reach = math.degrees(buffer_m / EARTH_RADIUS_M)
-    cells: set[tuple[int, int]] = set()
+    kept: set[tuple[int, int]] = set()
     for s in samples:
         # A degree of longitude shrinks with cos(lat), so size the longitude window
         # at the pole-ward edge of the buffer, where it is widest.
         lon_reach = lat_reach / math.cos(math.radians(abs(s.lat) + lat_reach))
         cols = _indices(s.lon - lon_reach, s.lon + lon_reach, cell_deg)
         for i in _indices(s.lat - lat_reach, s.lat + lat_reach, cell_deg):
-            cells.update((i, j) for j in cols)
-    return cells
+            lat = _centre(i, cell_deg)
+            for j in cols:
+                if (i, j) not in kept and haversine_m(s, LatLon(lat, _centre(j, cell_deg))) <= buffer_m:
+                    kept.add((i, j))
+    return kept
 
 
 def _indices(lo: float, hi: float, cell_deg: float) -> range:
