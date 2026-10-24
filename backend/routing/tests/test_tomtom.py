@@ -2,7 +2,6 @@ from datetime import datetime, timedelta, timezone
 import json
 import math
 from pathlib import Path
-import threading
 import time
 
 import httpx
@@ -292,7 +291,8 @@ def test_avoid_boxes_reach_5_miles_past_the_road():
 
 def box_sides_m(b: tomtom.Box) -> list[float]:
     sw, nw = LatLon(b.south, b.west), LatLon(b.north, b.west)
-    return [haversine_m(sw, nw), haversine_m(sw, LatLon(b.south, b.east)), haversine_m(nw, LatLon(b.north, b.east))]
+    se, ne = LatLon(b.south, b.east), LatLon(b.north, b.east)
+    return [haversine_m(sw, nw), haversine_m(sw, se), haversine_m(nw, ne)]
 
 
 @pytest.mark.parametrize("kept", [1, 2])
@@ -334,53 +334,13 @@ def test_blocking_the_real_fastest_route_leaves_tomtoms_other_two_routes_open():
     assert not any(boxed(p, boxes) for p in r2.points)
 
 
-def test_via_points_sit_left_and_right_of_the_route_midpoint():
-    left, right = tomtom.offset_via_points(line(WEST, EAST, 1000), WEST, EAST, 0.15)
-    straight = haversine_m(WEST, EAST)
-    assert left.lat > 35.0 > right.lat  # driving east, left is north
-    for p in (left, right):
-        assert p.lon == pytest.approx(-95.0)
-        assert haversine_m(MIDDLE, p) == pytest.approx(0.15 * straight, rel=0.01)
-
-
-def test_left_is_west_when_driving_north():
-    south, north = LatLon(30.0, -100.0), LatLon(40.0, -100.0)
-    left, right = tomtom.offset_via_points(line(south, north, 100), south, north, 0.25)
-    assert left.lon < -100.0 < right.lon
-    assert left.lat == pytest.approx(35.0)
-    assert right.lat == pytest.approx(35.0)
-
-
-def test_via_points_are_square_to_a_diagonal_trip():
-    # Square to the straight line means as far from one end as from the other. Without the
-    # cos(lat) scaling the points come out about 50 km closer to one end.
-    dallas, denver = LatLon(32.8, -96.8), LatLon(39.7, -105.0)
-    for p in tomtom.offset_via_points(line(dallas, denver, 500), dallas, denver, 0.15):
-        assert haversine_m(p, dallas) == pytest.approx(haversine_m(p, denver), rel=0.01)
-
-
-def test_via_points_start_from_halfway_along_the_route_by_distance():
-    # Points bunched on the first leg, and a bend north: halfway by distance is the bend.
-    bend = LatLon(36.0, -95.0)
-    route = line(WEST, bend, 900) + line(bend, EAST, 50)[1:]
-    left, right = tomtom.offset_via_points(route, WEST, EAST, 0.15)
-    assert (left.lat + right.lat) / 2 == pytest.approx(36.0)
-    assert left.lon == pytest.approx(-95.0)
-
-
-def test_via_points_are_offset_by_the_straight_line_trip_not_the_route():
-    bend = LatLon(37.0, -95.0)  # the route is 10% longer than the straight line
-    route = line(WEST, bend, 500) + line(bend, EAST, 500)[1:]
-    for p in tomtom.offset_via_points(route, WEST, EAST, 0.15):
-        assert haversine_m(bend, p) == pytest.approx(0.15 * haversine_m(WEST, EAST), rel=0.001)
-
-
 # Trips below run west to east along latitude 35, so "left" of the trip is north.
 SPEED_MPS = 25.0
 
 
-def through(via: LatLon) -> list[LatLon]:
-    return line(WEST, via, 500) + line(via, EAST, 500)[1:]
+def through(bend: LatLon) -> list[LatLon]:
+    """A road from WEST to EAST that bends at `bend`."""
+    return line(WEST, bend, 500) + line(bend, EAST, 500)[1:]
 
 
 FASTEST = line(WEST, EAST, 1000)
@@ -406,40 +366,45 @@ def drive(route_id: str, points: list[LatLon], slowdown: float = 1.0) -> RouteOp
 class FakeTomTom:
     """Stands in for TomTom's Calculate Route.
 
-    `answer(via)` gets the via point of each request and returns the route to send back as
-    (points, slowdown), None for an HTTP 400, or an httpx.Response to send as it is. Every via
-    point asked for is kept in `vias`. `trip` answers the request with no via point, as a list
-    of (points, slowdown) or an httpx.Response; with no `trip`, that request is a test failure.
-    Each answer takes `delay(via)` seconds, with via None for the trip itself.
+    The request for the trip itself, a GET, is answered with `trip`: a list of (points,
+    slowdown) or an httpx.Response. With no `trip`, that request is a test failure. A request
+    that avoids areas, a POST, is answered with `answer(boxes, alternatives)`: a list of
+    (points, slowdown), None for an HTTP 400, or an httpx.Response to send as it is. The
+    rectangles and maxAlternatives of every such request are kept in `asked`.
     """
 
-    def __init__(self, answer=lambda via: None, *, trip=None, delay=lambda via: 0.0):
+    def __init__(self, answer=lambda boxes, alternatives: None, *, trip=None):
         self.answer = answer
         self.trip = trip
-        self.delay = delay
-        self.vias: list[LatLon] = []
+        self.asked: list[tuple[list[dict], int]] = []
         self.trip_calls = 0
         self.client = httpx.Client(transport=httpx.MockTransport(self._respond))
 
     def _respond(self, request: httpx.Request) -> httpx.Response:
-        locations = request.url.path.split("/")[4]
-        stops = [LatLon(*map(float, s.split(","))) for s in locations.split(":")]
-        if len(stops) == 2:
+        alternatives = int(request.url.params["maxAlternatives"])
+        if request.method == "GET":
             assert self.trip is not None, "only fallback requests were expected"
             self.trip_calls += 1
-            via, result = None, self.trip
+            result = self.trip
         else:
-            assert len(stops) == 3, "fallback requests go through exactly one via point"
-            via = stops[1]
-            self.vias.append(via)
-            result = self.answer(via)
-        time.sleep(self.delay(via))
+            rectangles = json.loads(request.content)["avoidAreas"]["rectangles"]
+            self.asked.append((rectangles, alternatives))
+            boxes = [
+                tomtom.Box(
+                    r["southWestCorner"]["latitude"],
+                    r["southWestCorner"]["longitude"],
+                    r["northEastCorner"]["latitude"],
+                    r["northEastCorner"]["longitude"],
+                )
+                for r in rectangles
+            ]
+            result = self.answer(boxes, alternatives)
         if result is None:
-            return httpx.Response(400, json={"error": {"description": "NO_ROUTE_FOUND"}})
+            return httpx.Response(400, json=NO_ROUTE_400)
         if isinstance(result, httpx.Response):
             return result
         routes = []
-        for points, slowdown in result if via is None else [result]:
+        for points, slowdown in result:
             length = cumulative_m(points)[-1]
             routes.append(
                 {
@@ -450,6 +415,23 @@ class FakeTomTom:
         return httpx.Response(200, json={"routes": routes})
 
 
+def roads_round(*roads: tuple[list[LatLon], float]):
+    """A FakeTomTom answer: of `roads`, given as (points, slowdown), the fastest ones that keep
+    out of every box, as many as the request asks for, or an HTTP 400 if none does."""
+
+    def answer(boxes: list[tomtom.Box], alternatives: int):
+        clear = [road for road in roads if not any(boxed(p, boxes) for p in road[0])]
+        clear.sort(key=lambda road: cumulative_m(road[0])[-1] * road[1])
+        return clear[: alternatives + 1] or None
+
+    return answer
+
+
+def one_at_a_time(answer):
+    """`answer`, but never with an alternative, whatever the request asks for."""
+    return lambda boxes, alternatives: answer(boxes, 0)
+
+
 def ensure(routes: list[RouteOption], fake: FakeTomTom) -> list[RouteOption]:
     return tomtom.ensure_three_routes(routes, WEST, EAST, T0, 20_000, "test-key", client=fake.client)
 
@@ -458,7 +440,7 @@ def test_three_distinct_routes_come_back_fastest_first_with_no_extra_calls():
     fake = FakeTomTom()
     routes = [drive("r0", NORTHERN, 1.1), drive("r1", FASTEST), drive("r2", SOUTHERN)]
     assert [r.id for r in ensure(routes, fake)] == ["r1", "r2", "r0"]
-    assert fake.vias == []
+    assert fake.asked == []
 
 
 def test_a_tomtom_alternative_on_the_same_road_as_a_faster_one_is_dropped():
@@ -470,7 +452,7 @@ def test_a_tomtom_alternative_on_the_same_road_as_a_faster_one_is_dropped():
         drive("r3", SOUTHERN),
     ]
     assert [r.id for r in ensure(routes, fake)] == ["r0", "r2", "r3"]
-    assert fake.vias == []
+    assert fake.asked == []
 
 
 def test_tomtom_routes_are_sorted_before_filtering():
@@ -521,18 +503,18 @@ def test_exactly_one_and_a_half_times_slower_is_kept():
     assert [r.id for r in ensure([fast, slow], FakeTomTom())] == ["r0", "r1"]
 
 
+FAR_NORTH = through(LatLon(37.0, -95.0))
+FAR_SOUTH = through(LatLon(33.0, -95.0))
+# Every road is clear of boxes over the middle of any other: they are 69 miles apart halfway.
+ROADS = roads_round((FASTEST, 1.0), (NORTHERN, 1.0), (SOUTHERN, 1.0), (FAR_NORTH, 1.0), (FAR_SOUTH, 1.0))
+
+
 def test_the_time_limit_is_against_the_fastest_route_not_the_last_kept():
     fast, slower, slowest = drive("r0", FASTEST), drive("r1", NORTHERN), drive("r2", SOUTHERN)
     slower.duration_s = fast.duration_s * 1.2  # 12 h against 10 h
     slowest.duration_s = fast.duration_s * 1.6  # 16 h: within 1.5x of 12 h, not of 10 h
-    routes = ensure([fast, slower, slowest], FakeTomTom(fallbacks()))
-    assert [r.id for r in routes] == ["r0", "via15L-0", "r1"]
-
-
-def attempt(via: LatLon) -> str:
-    """Which fallback a via point is: "L15", "R15", "L25" or "R25"."""
-    share = haversine_m(MIDDLE, via) / haversine_m(WEST, EAST)
-    return f"{'L' if via.lat > 35.0 else 'R'}{round(share * 100)}"
+    routes = ensure([fast, slower, slowest], FakeTomTom(roads_round((FAR_SOUTH, 1.0))))
+    assert [r.id for r in routes] == ["r0", "around2-0", "r1"]
 
 
 def with_spur(points: list[LatLon], miles: float = 5) -> list[LatLon]:
@@ -542,73 +524,83 @@ def with_spur(points: list[LatLon], miles: float = 5) -> list[LatLon]:
     return points[:k] + line(points[k], tip, 50) + line(tip, points[k], 50)[1:] + points[k + 1 :]
 
 
-def fallbacks(**special: str):
-    """A FakeTomTom answer: a plain route through each via point, except for the attempts
-    named, which "fail" (HTTP 400), come back as a "copy" of the fastest route, are "slow",
-    drive up to the via point and back on a "spur", or answer 200 with a body that is
-    "not json", has "no summary" or has a "bad time"."""
-
-    def answer(via: LatLon):
-        kind = special.get(attempt(via), "ok")
-        if kind == "fail":
-            return None
-        if kind == "copy":
-            return shifted(FASTEST, 0.2), 1.01
-        if kind == "slow":
-            return through(via), 2.0
-        if kind == "spur":
-            return with_spur(through(via)), 1.0
-        if kind == "not json":
-            return httpx.Response(200, text="<html>Bad gateway</html>")
-        if kind == "no summary":
-            return httpx.Response(200, json={"routes": [{"legs": []}]})
-        if kind == "bad time":
-            summary = {"lengthInMeters": 1000, "travelTimeInSeconds": 60, "departureTime": "soon"}
-            return httpx.Response(200, json={"routes": [{"summary": summary, "legs": []}]})
-        return through(via), 1.0
-
-    return answer
-
-
-def test_one_tomtom_route_is_topped_up_to_three():
-    fake = FakeTomTom(fallbacks())
+def test_one_tomtom_route_is_topped_up_with_two_routes_round_its_middle():
+    fake = FakeTomTom(ROADS)
     routes = ensure([drive("r0", FASTEST)], fake)
-    # The northern fallback is a little shorter: degrees of longitude shrink going north.
-    assert [r.id for r in routes] == ["r0", "via15L-0", "via15R-0"]
-    assert [r.source for r in routes] == ["tomtom", "via-fallback", "via-fallback"]
-    assert sorted(map(attempt, fake.vias)) == ["L15", "R15"]
+    # The northern road is a little shorter: degrees of longitude shrink going north.
+    assert [r.id for r in routes] == ["r0", "around1-0", "around1-1"]
+    assert [r.points for r in routes] == [FASTEST, NORTHERN, SOUTHERN]
+    assert {r.source for r in routes} == {"tomtom"}
+    # One request: the best road round the fastest route's middle, and an alternative
+    [(rectangles, alternatives)] = fake.asked
+    assert rectangles == [b.to_tomtom() for b in tomtom.avoid_boxes([FASTEST], WEST, EAST)]
+    assert alternatives == 1
 
 
-def test_two_tomtom_routes_take_the_faster_of_two_fallbacks():
-    fake = FakeTomTom(fallbacks())
-    routes = ensure([drive("r0", FASTEST), drive("r1", SOUTHERN)], fake)
-    assert [r.id for r in routes] == ["r0", "r1", "via15L-0"]
-    assert len(fake.vias) == 2
-
-
-def test_the_faster_fallback_takes_the_last_slot_even_when_it_is_on_the_right():
-    fake = FakeTomTom(lambda via: (through(via), 1.2 if attempt(via) == "L15" else 1.0))
+def test_two_tomtom_routes_get_a_third_round_the_middle_of_both():
+    fake = FakeTomTom(ROADS)
     routes = ensure([drive("r0", FASTEST), drive("r1", NORTHERN)], fake)
-    assert [r.id for r in routes] == ["r0", "r1", "via15R-0"]
+    assert [r.id for r in routes] == ["r0", "r1", "around2-0"]
+    assert routes[2].points == SOUTHERN
+    [(rectangles, alternatives)] = fake.asked
+    assert rectangles == [b.to_tomtom() for b in tomtom.avoid_boxes([FASTEST, NORTHERN], WEST, EAST)]
+    assert alternatives == 0
 
 
-def test_a_fallback_on_the_same_road_as_the_fastest_route_is_dropped():
-    fake = FakeTomTom(fallbacks(L15="copy", L25="copy"))
+def test_a_second_request_goes_round_the_route_the_first_one_found():
+    fake = FakeTomTom(one_at_a_time(ROADS))
     routes = ensure([drive("r0", FASTEST)], fake)
-    assert [r.id for r in routes] == ["r0", "via15R-0", "via25R-0"]
-    assert sorted(map(attempt, fake.vias)) == ["L15", "L25", "R15", "R25"]
+    assert [r.points for r in routes] == [FASTEST, NORTHERN, SOUTHERN]
+    assert [r.id for r in routes] == ["r0", "around1-0", "around2-0"]
+    first, second = fake.asked
+    assert first == ([b.to_tomtom() for b in tomtom.avoid_boxes([FASTEST], WEST, EAST)], 1)
+    assert second == ([b.to_tomtom() for b in tomtom.avoid_boxes([FASTEST, NORTHERN], WEST, EAST)], 0)
 
 
-def test_a_slow_detour_is_dropped():
-    fake = FakeTomTom(fallbacks(R15="slow", R25="slow"))
-    routes = ensure([drive("r0", FASTEST)], fake)
-    assert [r.id for r in routes] == ["r0", "via15L-0", "via25L-0"]
+def test_at_most_three_tomtom_requests_per_plan():
+    # TomTom has one route for the trip, then one more round each set of boxes, for ever
+    fake = FakeTomTom(one_at_a_time(ROADS), trip=[(FASTEST, 1.0)])
+    found = tomtom.calculate_routes(WEST, EAST, T0, 20_000, "test-key", client=fake.client)
+    assert len(ensure(found, fake)) == 3
+    assert fake.trip_calls + len(fake.asked) == 3
 
 
-def test_a_fallback_that_doubles_back_is_dropped():
-    fake = FakeTomTom(fallbacks(L15="spur"))
-    routes = ensure([drive("r0", FASTEST)], fake)
-    assert [r.id for r in routes] == ["r0", "via15R-0", "via25L-0"]
+BAD_TIME = {"lengthInMeters": 1000, "travelTimeInSeconds": 60, "departureTime": "soon"}
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        None,  # HTTP 400: no road round the boxes
+        [(shifted(FASTEST, 0.2), 1.01)],  # the boxes ignored, so the same road again
+        [(NORTHERN, 2.0)],  # over 1.5x the fastest route's time
+        [(with_spur(NORTHERN), 1.0)],  # doubles back
+        httpx.Response(200, text="<html>Bad gateway</html>"),
+        httpx.Response(200, json={"routes": [{"legs": []}]}),  # no summary
+        httpx.Response(200, json={"routes": [{"summary": BAD_TIME, "legs": []}]}),
+    ],
+    ids=["no-route", "same-road", "too-slow", "doubles-back", "not-json", "no-summary", "bad-time"],
+)
+def test_the_top_up_stops_at_a_request_that_adds_no_route(reply):
+    fake = FakeTomTom(lambda boxes, alternatives: reply)
+    assert [r.id for r in ensure([drive("r0", FASTEST)], fake)] == ["r0"]
+    assert len(fake.asked) == 1  # asking again would get the same answer
+
+
+def test_a_route_round_the_boxes_that_doubles_back_is_dropped_but_its_alternative_kept():
+    fake = FakeTomTom(lambda boxes, alternatives: [(with_spur(NORTHERN), 1.0), (SOUTHERN, 1.0)])
+    routes = ensure([drive("r0", FASTEST), drive("r1", FAR_NORTH)], fake)
+    assert [r.points for r in routes] == [FASTEST, SOUTHERN, FAR_NORTH]
+
+
+def test_no_request_when_every_box_would_cover_an_end():
+    # On a 2 mile trip, boxes reaching 5 miles past the middle cover both ends
+    end = LatLon(35.0, -100.0 + 2 * DEG_LON_PER_MILE)
+    fake = FakeTomTom(ROADS)
+    trip = [drive("r0", line(WEST, end, 30))]
+    kept = tomtom.ensure_three_routes(trip, WEST, end, T0, 20_000, "test-key", client=fake.client)
+    assert [r.id for r in kept] == ["r0"]
+    assert fake.asked == []
 
 
 def test_a_tomtom_alternative_that_doubles_back_is_dropped():
@@ -625,19 +617,6 @@ def test_turning_round_where_the_fastest_route_does_too_is_not_doubling_back():
     assert tomtom.doubles_back(other)
     routes = [drive("r0", turn + FASTEST[1:]), drive("r1", other), drive("r2", turn + SOUTHERN[1:])]
     assert [r.id for r in ensure(routes, FakeTomTom())] == ["r0", "r1", "r2"]
-
-
-def test_a_failed_fallback_is_skipped():
-    fake = FakeTomTom(fallbacks(L15="fail"))
-    routes = ensure([drive("r0", FASTEST)], fake)
-    assert [r.id for r in routes] == ["r0", "via15R-0", "via25L-0"]
-
-
-@pytest.mark.parametrize("reply", ["not json", "no summary", "bad time"])
-def test_a_fallback_answering_200_with_a_body_we_cannot_read_is_skipped(reply):
-    fake = FakeTomTom(fallbacks(L15=reply))
-    routes = ensure([drive("r0", FASTEST)], fake)
-    assert [r.id for r in routes] == ["r0", "via15R-0", "via25L-0"]
 
 
 def test_a_reply_that_is_not_json_is_a_routing_error():
@@ -685,49 +664,33 @@ def test_other_errors_are_not_mistaken_for_no_route(response):
     assert not isinstance(exc_info.value, tomtom.NoRouteError)
 
 
-def test_when_every_fallback_fails_the_fastest_route_comes_back_alone():
-    fake = FakeTomTom(fallbacks(L15="fail", R15="fail", L25="fail", R25="fail"))
-    assert [r.id for r in ensure([drive("r0", FASTEST)], fake)] == ["r0"]
-    assert len(fake.vias) == 4  # never more than two pairs
-
-
-def test_a_fallback_on_the_same_road_as_an_earlier_fallback_is_dropped():
-    _, right15 = tomtom.offset_via_points(FASTEST, WEST, EAST, 0.15)
-    # Left fails both times; the 25% right point snaps back onto the 15% right road.
-    fake = FakeTomTom(lambda via: None if attempt(via).startswith("L") else (through(right15), 1.0))
-    assert [r.id for r in ensure([drive("r0", FASTEST)], fake)] == ["r0", "via15R-0"]
-    assert len(fake.vias) == 4
-
-
 def test_a_fallback_faster_than_tomtoms_route_comes_first():
-    fake = FakeTomTom(lambda via: (through(via), 0.9))
-    assert [r.id for r in ensure([drive("r0", FASTEST)], fake)] == ["via15L-0", "via15R-0", "r0"]
+    fake = FakeTomTom(roads_round((NORTHERN, 0.9), (SOUTHERN, 0.9)))
+    assert [r.id for r in ensure([drive("r0", FASTEST)], fake)] == ["around1-0", "around1-1", "r0"]
 
 
 def test_a_fallback_faster_than_tomtoms_route_sets_the_time_limit():
     # TomTom gives 10 h and 14.9 h, then a fallback takes 9.3 h: 14.9 h is now over 1.5x that.
     fast, slow = drive("r0", FASTEST), drive("r1", NORTHERN)
     slow.duration_s = fast.duration_s * 1.49
-    fake = FakeTomTom(lambda via: (through(via), 0.9))
-    assert [r.id for r in ensure([fast, slow], fake)] == ["via15L-0", "r0"]
+    fake = FakeTomTom(roads_round((SOUTHERN, 0.9)))
+    assert [r.id for r in ensure([fast, slow], fake)] == ["around2-0", "r0"]
 
 
 def test_never_more_than_three_routes():
-    far_north = through(LatLon(37.0, -95.0))
-    routes = [drive("r0", FASTEST), drive("r1", NORTHERN), drive("r2", SOUTHERN), drive("r3", far_north)]
+    routes = [drive("r0", FASTEST), drive("r1", NORTHERN), drive("r2", SOUTHERN), drive("r3", FAR_NORTH)]
     assert [r.id for r in ensure(routes, FakeTomTom())] == ["r0", "r1", "r2"]
 
 
 def test_route_ids_are_unique_across_tomtom_and_every_fallback():
-    fake = FakeTomTom(fallbacks(L15="copy", R15="slow"))
-    ids = [r.id for r in ensure([drive("r0", FASTEST)], fake)]
+    ids = [r.id for r in ensure([drive("r0", FASTEST)], FakeTomTom(one_at_a_time(ROADS)))]
     assert len(ids) == len(set(ids)) == 3
 
 
 def test_no_routes_means_no_fallbacks():
-    fake = FakeTomTom(fallbacks())
+    fake = FakeTomTom(ROADS)
     assert ensure([], fake) == []
-    assert fake.vias == []
+    assert fake.asked == []
 
 
 def test_a_fallback_gets_less_time_to_answer_than_the_main_request():
@@ -744,16 +707,6 @@ def test_a_fallback_gets_less_time_to_answer_than_the_main_request():
     assert main == tomtom.REQUEST_TIMEOUT_S
     assert fallbacks and set(fallbacks) == {tomtom.FALLBACK_TIMEOUT_S}
     assert tomtom.FALLBACK_TIMEOUT_S < tomtom.REQUEST_TIMEOUT_S
-
-
-def test_both_sides_are_requested_at_the_same_time():
-    both_in_flight = threading.Barrier(2, timeout=5)
-
-    def answer(via: LatLon):
-        both_in_flight.wait()  # raises if the other side is not requested meanwhile
-        return fallbacks()(via)
-
-    assert len(ensure([drive("r0", FASTEST)], FakeTomTom(answer))) == 3
 
 
 # A real TomTom truck response for Dallas -> Denver with two alternatives, trimmed to every
@@ -786,7 +739,7 @@ def test_the_three_real_routes_are_all_kept_with_no_extra_requests():
     fake = FakeTomTom()
     kept = tomtom.ensure_three_routes(routes, origin, destination, T0, 20_000, "test-key", client=fake.client)
     assert [r.id for r in kept] == ["r0", "r1", "r2"]
-    assert fake.vias == []
+    assert fake.asked == []
 
 
 def test_none_of_the_real_tomtom_routes_doubles_back():

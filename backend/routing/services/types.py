@@ -34,7 +34,7 @@ class TimingPoint:
 @dataclass
 class RouteOption:
     id: str
-    source: str  # "tomtom" or "via-fallback"
+    source: str  # "tomtom": the fallbacks are TomTom's own routes round avoided areas
     distance_m: float
     duration_s: float
     departure_time: datetime

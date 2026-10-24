@@ -17,10 +17,9 @@ from __future__ import annotations
 
 from bisect import bisect_left, bisect_right
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from functools import cached_property, partial
+from functools import cached_property
 from itertools import accumulate
 import math
 from operator import attrgetter
@@ -37,16 +36,13 @@ LB_TO_KG = 0.45359237
 
 MAX_SLOWDOWN = 1.5  # drop a route taking over 1.5x the fastest route's time
 MAX_OVERLAP = 0.9  # drop a route when over 90% of it runs along a route already kept
-FALLBACK_OFFSETS = (0.15, 0.25)  # via point distance from the route, as a share of the straight-line trip
-MAX_FALLBACK_CALLS = 6  # via-point requests per plan, at most
-SAME_VIA_SHARE = 0.01  # a via point this close to one already asked (share of the trip) isn't asked again
 AVOID_SPAN = (0.3, 0.7)  # the middle of a route, as shares of its length, for the next one to keep out of
 AVOID_MARGIN_M = 5 * METERS_PER_MILE  # how far the boxes over it reach past the road
 MAX_AVOID_BOXES = 10  # TomTom's limit per request
 MAX_BOX_SIDE_M = 150_000  # TomTom allows about 160 km a side
 
 REQUEST_TIMEOUT_S = 20
-# A via-point request answered in 2-3 s live. One still silent after 10 s is skipped like any
+# A fallback request answered in 1.3-3.3 s live. One still silent after 10 s is skipped like any
 # failed fallback, so it can't hold the plan up for the full 20 s.
 FALLBACK_TIMEOUT_S = 10
 
@@ -136,17 +132,14 @@ def calculate_routes(
     load_lb: float,
     api_key: str,
     *,
-    via: list[LatLon] | None = None,
     avoid: list[Box] | None = None,
     max_alternatives: int = 2,
-    source: str = "tomtom",
     id_prefix: str = "r",
     timeout: float = REQUEST_TIMEOUT_S,
     client: httpx.Client | None = None,
 ) -> list[RouteOption]:
     """TomTom's truck routes for the trip, fastest first. With `avoid`, none goes into those boxes."""
-    stops = [origin, *(via or []), destination]
-    locations = ":".join(f"{p.lat:.6f},{p.lon:.6f}" for p in stops)
+    locations = f"{origin.lat:.6f},{origin.lon:.6f}:{destination.lat:.6f},{destination.lon:.6f}"
     url = f"{BASE_URL}/routing/1/calculateRoute/{locations}/json"
     now = datetime.now(timezone.utc)
     # Whole seconds, like the dateTime examples in TomTom's docs: no ".123456" fraction.
@@ -159,13 +152,13 @@ def calculate_routes(
         "routeType": "fastest",
         "traffic": "true",
         "departAt": depart_at,
-        "maxAlternatives": max_alternatives if not via else 0,
+        "maxAlternatives": max_alternatives,
         "routeRepresentation": "polyline",
         "instructionsType": "coded",
     }
     body = {"avoidAreas": {"rectangles": [b.to_tomtom() for b in avoid]}} if avoid else None
     payload = _request(url, params, client, timeout, body)
-    routes = parse_routes(payload, departure, source=source, id_prefix=id_prefix)
+    routes = parse_routes(payload, departure, source="tomtom", id_prefix=id_prefix)
     if not routes:
         raise NoRouteError(NO_ROUTE_MESSAGE)
     return routes
@@ -225,25 +218,26 @@ def ensure_three_routes(
     *,
     client: httpx.Client | None = None,
 ) -> list[RouteOption]:
-    """Up to 3 distinct routes, fastest first, topped up with via-point fallbacks if needed.
+    """Up to 3 distinct routes, fastest first, topped up with routes around the ones found.
 
     TomTom's fastest route is kept first. Any other route, TomTom's own alternatives included,
     is dropped when it takes over 1.5x the fastest route's time, when over 90% of it runs
-    along a route already kept, or when it doubles back on itself (a spur out to the via point
-    and back, or a loop round it; see _Trace.doubles_back).
+    along a route already kept, or when it doubles back on itself (see _Trace.doubles_back).
 
-    While fewer than 3 are kept, ask TomTom for a route through a point left and one right of
-    the fastest route's midpoint, 15% of the straight-line trip away, then 25%, two at a time.
-    A via point within 1% of the trip of one already asked is skipped, since TomTom would send
-    the same road back. A fallback that fails is skipped. If fewer than 3 survive, the caller
-    gets what is left.
+    While fewer than 3 are kept, TomTom is asked for the trip again, this time keeping out of
+    boxes over the middle of every route kept so far (see avoid_boxes), with an alternative
+    too when two are missing. Nothing forces the truck through a point, so TomTom picks its
+    own best road round the boxes, and the boxes keep that road off the ones already found.
+    Asked again, a request that added nothing would get the same answer, so the top-up stops
+    there. Each request either adds a route or ends the top-up, so a plan makes 2 at most. A
+    request that fails is skipped. If fewer than 3 survive, the caller gets what is left.
 
     A fallback can, rarely, beat TomTom's fastest route. The 1.5x limit is then checked again
     against it at the end, so a route kept earlier, even TomTom's fastest, can still drop out.
     """
     lat0 = (origin.lat + destination.lat) / 2
     kept: list[RouteOption] = []  # kept[0] is the fastest route TomTom gave us
-    traces: list[_Trace] = []  # kept[i] projected for the overlap test
+    traces: list[_Trace] = []  # kept[i] projected for the overlap and doubling-back tests
 
     def consider(route: RouteOption) -> None:
         if len(kept) >= 3:
@@ -261,30 +255,21 @@ def ensure_three_routes(
     for route in sorted(routes, key=_duration):
         consider(route)
     if not kept:
-        return []  # no route for the trip itself, so a route through a via point would mislead
+        return []  # no route for the trip itself, so a route around one would mislead
 
-    asked: list[LatLon] = []
-    same_via_m = SAME_VIA_SHARE * haversine_m(origin, destination)
     own = client is None
     client = client or httpx.Client()
-    fetch = partial(_fallback, origin, destination, departure, load_lb, api_key, client=client)
     try:
-        for share in FALLBACK_OFFSETS:
-            if len(kept) >= 3:
+        while len(kept) < 3:
+            boxes = avoid_boxes([r.points for r in kept], origin, destination)
+            if not boxes:
                 break
-            todo = [
-                (via, f"via{round(share * 100)}{side}-")
-                for side, via in zip("LR", offset_via_points(kept[0].points, origin, destination, share))
-                if all(haversine_m(via, a) >= same_via_m for a in asked)
-            ][: max(0, MAX_FALLBACK_CALLS - len(asked))]
-            if not todo:
-                continue
-            vias, prefixes = zip(*todo)
-            asked += vias
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                candidates = [r for found in pool.map(fetch, vias, prefixes) for r in found]
-            for route in sorted(candidates, key=_duration):
+            missing = 3 - len(kept)
+            found = _fallback(origin, destination, departure, load_lb, api_key, boxes, missing, client=client)
+            for route in sorted(found, key=_duration):
                 consider(route)
+            if 3 - len(kept) == missing:
+                break  # nothing new, and asking again would bring the same answer
     finally:
         if own:
             client.close()
@@ -299,45 +284,19 @@ def _fallback(
     departure: datetime,
     load_lb: float,
     api_key: str,
-    via: LatLon,
-    id_prefix: str,
+    avoid: list[Box],
+    missing: int,
     *,
     client: httpx.Client,
 ) -> list[RouteOption]:
-    """TomTom's route through one via point, or nothing if it fails."""
+    """Up to `missing` routes that keep out of `avoid`, best first, or none if the request fails."""
     try:
         return calculate_routes(
-            origin, destination, departure, load_lb, api_key, via=[via], source="via-fallback",
-            id_prefix=id_prefix, timeout=FALLBACK_TIMEOUT_S, client=client,
+            origin, destination, departure, load_lb, api_key, avoid=avoid, max_alternatives=missing - 1,
+            id_prefix=f"around{3 - missing}-", timeout=FALLBACK_TIMEOUT_S, client=client,
         )
     except (RoutingError, KeyError, ValueError):
-        return []  # e.g. no road near the via point, or a reply we can't read
-
-
-def offset_via_points(route: list[LatLon], origin: LatLon, destination: LatLon, share: float) -> list[LatLon]:
-    """Points left and right of the route's halfway point, at right angles to the straight
-    origin->destination line and `share` of its length away. Left first.
-
-    The right angle is found in a flat local projection around the halfway point. There a
-    degree of longitude is only cos(lat) as long as a degree of latitude, so longitudes are
-    multiplied by cos(lat) on the way in and divided by it on the way out. Without that, the
-    offset would lean east-west and the left and right points would end up uneven.
-    """
-    cum = cumulative_m(route)
-    mid = point_at_distance(route, cum, cum[-1] / 2)
-    k = math.cos(math.radians(mid.lat))
-    east, north = (destination.lon - origin.lon) * k, destination.lat - origin.lat
-    length = math.hypot(east, north)
-    if length == 0:
-        return []
-    away = share * haversine_m(origin, destination) / _M_PER_DEG_LAT  # in degrees of latitude
-    # A quarter turn anticlockwise takes the direction of travel (east, north) to (-north, east),
-    # which points to the driver's left.
-    left_east, left_north = -north / length * away, east / length * away
-    return [
-        LatLon(mid.lat + left_north, mid.lon + left_east / k),
-        LatLon(mid.lat - left_north, mid.lon - left_east / k),
-    ]
+        return []  # e.g. no road round the boxes, or a reply we can't read
 
 
 def avoid_boxes(routes: list[list[LatLon]], origin: LatLon, destination: LatLon) -> list[Box]:
@@ -358,7 +317,8 @@ def avoid_boxes(routes: list[list[LatLon]], origin: LatLon, destination: LatLon)
         start, end = (share * cum[-1] for share in AVOID_SPAN)
         piece = min((end - start) / per_route, longest)
         start = (start + end - piece * per_route) / 2
-        boxes += [_box_over(points, cum, start + k * piece, start + (k + 1) * piece) for k in range(per_route)]
+        for k in range(per_route):
+            boxes.append(_box_over(points, cum, start + k * piece, start + (k + 1) * piece))
     return [b for b in boxes if not b.contains(origin) and not b.contains(destination)]
 
 
@@ -511,7 +471,11 @@ def _dist2_to_segment(x: float, y: float, ax: float, ay: float, bx: float, by: f
 
 
 def _request(
-    url: str, params: dict, client: httpx.Client | None, timeout: float = REQUEST_TIMEOUT_S, body: dict | None = None
+    url: str,
+    params: dict,
+    client: httpx.Client | None,
+    timeout: float = REQUEST_TIMEOUT_S,
+    body: dict | None = None,
 ) -> dict:
     """GET `url`, or POST `body` to it as JSON when there is one, and return the JSON reply."""
     own = client is None
