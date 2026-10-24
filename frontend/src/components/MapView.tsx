@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import {
   LngLatBounds,
   Map as MapLibreMap,
@@ -14,6 +14,7 @@ import '../lib/maplibre'
 import './MapView.css'
 import type { FeatureCollection, LineString, Point } from 'geojson'
 import type { Plan } from '../api/types'
+import { NARROW_SCREEN } from '../lib/layout'
 import { levelColorExpression } from '../lib/risk'
 import { checkpointPopup } from './CheckpointPopup'
 import { HeatmapSlider, type HeatmapState } from './HeatmapSlider'
@@ -22,8 +23,8 @@ import { HEAT_LAYER, addHeatmapLayer, setHeatmapData, showHeatmapHour } from './
 // OpenFreeMap is free and needs no key. Override with VITE_MAP_STYLE_URL if it's ever down.
 const STYLE_URL = import.meta.env.VITE_MAP_STYLE_URL || 'https://tiles.openfreemap.org/styles/liberty'
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
-// Matches the single-column breakpoint in index.css.
-const NARROW_SCREEN = '(max-width: 800px)'
+// After a resize, wait this long for it to settle before fitting the routes again
+const REFIT_DELAY_MS = 150
 // Black and greys like the rest of the page, so the risk colours on the dots stand out
 const ROUTE_COLOR = '#8b8d94'
 const SELECTED_ROUTE_COLOR = '#111113'
@@ -50,9 +51,10 @@ interface Props {
   selectedRouteId: string | null
   onSelectRoute: (id: string) => void
   heatmap: HeatmapState
+  coverRef?: RefObject<HTMLElement | null> // the results panel or sheet floating over the map
 }
 
-export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap }: Props) {
+export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap, coverRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const onSelectRef = useRef(onSelectRoute)
@@ -248,13 +250,32 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
   }, [])
   const toggleHeat = useCallback(() => setShowHeat((v) => !v), [])
 
+  // Fit the routes into the part of the map nothing floats over, and again whenever the map
+  // changes size (a window resize, a phone turned sideways)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !plan) return
     const bounds = new LngLatBounds()
     plan.routes.forEach((r) => r.geometry.forEach((c) => bounds.extend(c)))
-    map.fitBounds(bounds, { padding: fitPadding(map, panelRef.current), duration: 600 })
-  }, [plan, ready])
+    const fit = (duration: number) =>
+      map.fitBounds(bounds, { padding: fitPadding(map, [panelRef.current, coverRef?.current]), duration })
+    fit(600)
+
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let first = true // the observer reports the current size straight away; that's not a resize
+    const observer = new ResizeObserver(() => {
+      if (first) first = false
+      else {
+        clearTimeout(timer)
+        timer = setTimeout(() => fit(0), REFIT_DELAY_MS)
+      }
+    })
+    observer.observe(map.getContainer())
+    return () => {
+      observer.disconnect()
+      clearTimeout(timer)
+    }
+  }, [plan, ready, coverRef])
 
   return (
     <div className={stale ? 'map-wrap stale' : 'map-wrap'}>
@@ -287,15 +308,42 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
   )
 }
 
-// Keeps the routes clear of the overlay panel, whichever edge it sits on.
-function fitPadding(map: MapLibreMap, panel: HTMLElement | null) {
-  const pad = { top: 48, right: 48, bottom: 48, left: 48 }
-  if (!panel) return pad
+type Edge = 'top' | 'right' | 'bottom' | 'left'
+const FIT_MARGIN = 40 // px between the routes and the map's edge, or a panel's
+const MIN_FIT_PX = 120 // the routes always get at least this much width and height
+
+// Padding that keeps the routes clear of the panels floating over the map. Each panel counts
+// against one edge: a tall one against the left or right, a wide one against the top or
+// bottom, whichever side it reaches in from the least.
+function fitPadding(map: MapLibreMap, covers: Array<HTMLElement | null | undefined>) {
   const box = map.getContainer().getBoundingClientRect()
-  const p = panel.getBoundingClientRect()
-  if (p.top - box.top < box.height / 2) pad.top += p.bottom - box.top
-  else pad.bottom += box.bottom - p.top
+  const pad: Record<Edge, number> = { top: FIT_MARGIN, right: FIT_MARGIN, bottom: FIT_MARGIN, left: FIT_MARGIN }
+  for (const el of covers) {
+    const r = el?.getBoundingClientRect()
+    if (!r || !r.width || !r.height) continue
+    const reach: Record<Edge, number> = {
+      top: r.bottom - box.top,
+      bottom: box.bottom - r.top,
+      left: r.right - box.left,
+      right: box.right - r.left,
+    }
+    const [a, b]: Edge[] = r.height > r.width ? ['left', 'right'] : ['top', 'bottom']
+    const edge = reach[a] <= reach[b] ? a : b
+    pad[edge] = Math.max(pad[edge], reach[edge] + FIT_MARGIN)
+  }
+  // On a small map the panels can leave no room at all; fitBounds would refuse to fit
+  shrinkToFit(pad, 'left', 'right', box.width)
+  shrinkToFit(pad, 'top', 'bottom', box.height)
   return pad
+}
+
+function shrinkToFit(pad: Record<Edge, number>, a: Edge, b: Edge, size: number) {
+  const room = size - MIN_FIT_PX
+  const total = pad[a] + pad[b]
+  if (total <= room) return
+  const scale = Math.max(0, room) / total
+  pad[a] *= scale
+  pad[b] *= scale
 }
 
 // Hover shows a checkpoint's details; a click or tap pins them and selects its route.
