@@ -8,14 +8,16 @@ from routing.services.types import Assessment, Level
 L, M, H, S, N = Level.LOW, Level.MODERATE, Level.HIGH, Level.SEVERE, Level.NO_TRAVEL
 
 
+# One row per boundary, with values on both sides of it and on it.
 @pytest.mark.parametrize(
     "mph, expected",
     [
-        (0, L), (24.9, L),
-        (25, M), (34.9, M),
-        (35, H), (44.9, H),
-        (45, S), (54.9, S),
-        (55, N), (80, N),
+        (0, L),
+        (24.9, L), (24.99, L), (25, M), (25.01, M),
+        (34.9, M), (34.99, M), (35, H), (35.01, H),
+        (44.9, H), (44.99, H), (45, S), (45.01, S),
+        (54.9, S), (54.99, S), (55, N), (55.01, N),
+        (80, N),
     ],
 )
 def test_wind(mph, expected):
@@ -23,26 +25,15 @@ def test_wind(mph, expected):
 
 
 @pytest.mark.parametrize(
-    "mph, expected",
-    [
-        (24.99, L), (25, M), (25.01, M),
-        (34.99, M), (35, H), (35.01, H),
-        (44.99, H), (45, S), (45.01, S),
-        (54.99, S), (55, N), (55.01, N),
-    ],
-)
-def test_wind_either_side_of_each_boundary(mph, expected):
-    assert classify_wind(mph) == expected
-
-
-@pytest.mark.parametrize(
     "rate, expected",
     [
-        (0, L), (0.09, L),
-        (0.10, M), (0.24, M),
-        (0.25, H), (0.49, H),
-        (0.50, S), (1.00, S),  # brief says >1.00 is No Travel, so 1.00 stays Severe
-        (1.01, N), (2.5, N),
+        (0, L),
+        (0.09, L), (0.0999, L), (0.10, M), (0.1001, M),
+        (0.24, M), (0.2499, M), (0.25, H), (0.2501, H),
+        (0.49, H), (0.4999, H), (0.50, S), (0.5001, S),
+        # brief says >1.00 is No Travel, so 1.00 stays Severe
+        (0.9999, S), (1.00, S), (1.0001, N), (1.01, N),
+        (2.5, N),
     ],
 )
 def test_rain(rate, expected):
@@ -52,40 +43,16 @@ def test_rain(rate, expected):
 @pytest.mark.parametrize(
     "rate, expected",
     [
-        (0.0999, L), (0.10, M), (0.1001, M),
-        (0.2499, M), (0.25, H), (0.2501, H),
-        (0.4999, H), (0.50, S), (0.5001, S),
-        (0.9999, S), (1.00, S), (1.0001, N),
-    ],
-)
-def test_rain_either_side_of_each_boundary(rate, expected):
-    assert classify_rain(rate) == expected
-
-
-@pytest.mark.parametrize(
-    "rate, expected",
-    [
-        (0, L), (0.49, L),
-        (0.5, M), (0.99, M),
-        (1.0, H), (1.99, H),
-        (2.0, S), (3.0, S),  # >3.0 is No Travel, so 3.0 stays Severe
-        (3.01, N),
+        (0, L),
+        (0.49, L), (0.4999, L), (0.5, M), (0.5001, M),
+        (0.99, M), (0.9999, M), (1.0, H), (1.0001, H),
+        (1.99, H), (1.9999, H), (2.0, S), (2.0001, S),
+        # >3.0 is No Travel, so 3.0 stays Severe
+        (2.9999, S), (3.0, S), (3.0001, N), (3.01, N),
+        (6.0, N),
     ],
 )
 def test_snow(rate, expected):
-    assert classify_snow(rate) == expected
-
-
-@pytest.mark.parametrize(
-    "rate, expected",
-    [
-        (0.4999, L), (0.5, M), (0.5001, M),
-        (0.9999, M), (1.0, H), (1.0001, H),
-        (1.9999, H), (2.0, S), (2.0001, S),
-        (2.9999, S), (3.0, S), (3.0001, N),
-    ],
-)
-def test_snow_either_side_of_each_boundary(rate, expected):
     assert classify_snow(rate) == expected
 
 
