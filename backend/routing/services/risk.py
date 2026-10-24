@@ -76,4 +76,23 @@ def assess(wind_mph: float, rain_in_hr: float, snow_in_hr: float, load_lb: float
     `drivers` lists every factor that sits at the final level, in the order
     wind, rain, snow. When the final level is LOW, drivers is empty.
     """
-    raise NotImplementedError("assess")
+    raw_wind = classify_wind(wind_mph)
+    wind = apply_load_rules(wind_mph, raw_wind, load_lb)
+    rain = classify_rain(rain_in_hr)
+    snow = classify_snow(snow_in_hr)
+    level = max(wind, rain, snow)
+
+    if level == Level.LOW:
+        drivers = ()
+    else:
+        factors = (("wind", wind), ("rain", rain), ("snow", snow))
+        drivers = tuple(name for name, factor_level in factors if factor_level == level)
+
+    return Assessment(
+        level=level,
+        wind_level=wind,
+        rain_level=rain,
+        snow_level=snow,
+        load_adjusted=wind > raw_wind,
+        drivers=drivers,
+    )

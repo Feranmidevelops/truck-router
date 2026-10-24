@@ -160,3 +160,39 @@ def test_assess_low_has_no_drivers():
     a = assess(wind_mph=5, rain_in_hr=0, snow_in_hr=0, load_lb=40_000)
     assert a.level == L
     assert a.drivers == ()
+
+
+@pytest.mark.parametrize(
+    "mph, load, wind_level, adjusted",
+    [
+        (40, 40_000, H, False),
+        (40, 40_001, S, True),
+        (50, 30_000, S, False),
+        (50, 30_001, N, True),
+        (60, 80_000, N, False),  # wind alone is already No Travel
+        (30, 80_000, M, False),
+        (0, 80_000, L, False),
+    ],
+)
+def test_assess_load_adjusted_only_when_a_load_rule_raised_wind(mph, load, wind_level, adjusted):
+    a = assess(wind_mph=mph, rain_in_hr=0, snow_in_hr=0, load_lb=load)
+    assert a.wind_level == wind_level
+    assert a.load_adjusted is adjusted
+
+
+@pytest.mark.parametrize(
+    "mph, rain, snow, load, level, drivers",
+    [
+        (36, 0.3, 0, 0, H, ("wind", "rain")),
+        (10, 0.6, 2.5, 0, S, ("rain", "snow")),
+        (50, 0.05, 2.0, 0, S, ("wind", "snow")),
+        (25, 0.10, 0.5, 0, M, ("wind", "rain", "snow")),
+        (50, 0.3, 0.6, 0, S, ("wind",)),  # lower factors are not drivers
+        (40, 0.75, 0, 45_000, S, ("wind", "rain")),  # load-raised wind ties with rain
+        (55, 1.5, 3.5, 0, N, ("wind", "rain", "snow")),
+    ],
+)
+def test_assess_drivers_with_ties(mph, rain, snow, load, level, drivers):
+    a = assess(wind_mph=mph, rain_in_hr=rain, snow_in_hr=snow, load_lb=load)
+    assert a.level == level
+    assert a.drivers == drivers
