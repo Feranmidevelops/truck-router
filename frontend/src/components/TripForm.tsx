@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { geocode } from '../api/client'
 import type { Place, PlanRequest } from '../api/types'
+import { ArrowRight } from './icons'
 import { PlaceInput } from './PlaceInput'
 
 interface Props {
@@ -194,6 +195,9 @@ export function TripForm({ loading, onSubmit }: Props) {
       )}
       <button type="submit" className="button button-block" disabled={!ready || loading || finding}>
         {finding ? 'Finding places…' : loading ? 'Planning…' : 'Plan routes'}
+        <span className="button-arrow">
+          <ArrowRight size={16} />
+        </span>
       </button>
     </form>
   )

@@ -398,8 +398,26 @@ a {
 
 .button-block {
   width: 100%;
-  min-height: 48px;
+  min-height: 52px;
   font-size: var(--text-base);
+}
+
+/* A white disc with an arrow at the end of a black pill */
+.button-arrow {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-right: calc(-1 * var(--space-3));
+  margin-left: var(--space-1);
+  border-radius: 50%;
+  background: var(--on-dark);
+  color: var(--ink);
+  transition: transform var(--duration-fast) var(--ease);
+}
+
+.button:hover:not(:disabled) .button-arrow {
+  transform: translateX(2px);
 }
 
 .button-outline {
@@ -527,6 +545,13 @@ a {
   .spinner,
   .skeleton-line {
     animation: none;
+  }
+
+  /* Hover nudges and fades jump straight to their end state */
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0s !important;
   }
 }
 
