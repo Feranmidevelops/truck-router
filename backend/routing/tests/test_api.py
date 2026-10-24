@@ -12,7 +12,7 @@ from rest_framework.test import APIClient
 from rest_framework.throttling import SimpleRateThrottle
 import pytest
 
-from routing.services import planner, timezones, tomtom
+from routing.services import planner, timezones, tomtom, weather
 from routing.views import load_fixture
 
 PLACE_A = {"label": "Dallas, TX", "lat": 32.7767, "lon": -96.797}
@@ -125,6 +125,77 @@ def test_fixture_places_and_plan_carry_time_zones(api):
     plan = post_plan(api).json()
     assert plan["input"]["timezone"] == "America/Chicago"
     assert plan["input"]["departure_time"].endswith("-05:00")
+
+
+def raise_(exc):
+    def fail(*args, **kwargs):
+        raise exc
+
+    return fail
+
+
+@override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="sekrit-key")
+@pytest.mark.parametrize(
+    "exc, message, logged",
+    [
+        (
+            tomtom.RoutingError("TomTom request failed: timed out for ...?key=sekrit-key"),
+            "Couldn't get routes from TomTom right now. Try again in a minute.",
+            "TomTom routing failed: TomTom request failed: timed out for ...?key=<TOMTOM_API_KEY>",
+        ),
+        (
+            weather.WeatherError("Open-Meteo 500: upstream timeout"),
+            "Couldn't get the weather forecast right now. Try again in a minute.",
+            "Open-Meteo forecast failed: Open-Meteo 500: upstream timeout",
+        ),
+    ],
+    ids=["tomtom", "open-meteo"],
+)
+def test_plan_upstream_failure_is_a_friendly_502(api, monkeypatch, caplog, exc, message, logged):
+    monkeypatch.setattr(planner, "build_plan", raise_(exc))
+    res = post_plan(api)
+    assert res.status_code == 502
+    assert res.json() == {"detail": message}
+    errors = [r for r in caplog.records if r.name == "routing.views" and r.levelname == "ERROR"]
+    assert [r.getMessage() for r in errors] == [logged]
+    assert "sekrit-key" not in caplog.text
+
+
+@override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")
+@pytest.mark.parametrize(
+    "calculate_routes",
+    [raise_(tomtom.RoutingError("No truck route found between these places.")), lambda *a, **k: []],
+    ids=["tomtom-says-so", "empty-list"],
+)
+def test_no_truck_route_is_a_422(api, monkeypatch, calculate_routes):
+    monkeypatch.setattr(tomtom, "calculate_routes", calculate_routes)
+    res = post_plan(api)
+    assert res.status_code == 422
+    assert res.json() == {"detail": "No truck route found between these places."}
+
+
+@override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")
+def test_other_tomtom_errors_are_not_mistaken_for_no_route(api, monkeypatch):
+    monkeypatch.setattr(tomtom, "calculate_routes", raise_(tomtom.RoutingError("TomTom 403: Forbidden")))
+    assert post_plan(api).status_code == 502
+
+
+@override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")
+def test_geocode_upstream_failure_is_a_friendly_502(api, monkeypatch, caplog):
+    monkeypatch.setattr(tomtom, "geocode", raise_(tomtom.RoutingError("TomTom 429: Too Many Requests")))
+    res = api.get("/api/geocode?q=dallas")
+    assert res.status_code == 502
+    assert res.json() == {"detail": "Couldn't search for places right now. Try again in a minute."}
+    assert "TomTom search failed: TomTom 429: Too Many Requests" in caplog.text
+
+
+@override_settings(USE_FIXTURES=False)
+def test_heatmap_upstream_failure_is_a_friendly_502(api, monkeypatch, caplog):
+    monkeypatch.setattr(planner, "build_heatmap", raise_(weather.WeatherError("Open-Meteo 503: down")))
+    res = api.get("/api/heatmap?plan_id=abc")
+    assert res.status_code == 502
+    assert res.json() == {"detail": "Couldn't get the weather forecast right now. Try again in a minute."}
+    assert "Open-Meteo heatmap forecast failed: Open-Meteo 503: down" in caplog.text
 
 
 @override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="")

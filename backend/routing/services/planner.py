@@ -24,8 +24,15 @@ METERS_PER_MILE = 1609.344
 SIMPLIFY_TOLERANCE_M = 20
 
 
+NO_ROUTE_MESSAGE = "No truck route found between these places."
+
+
 class PlanNotFound(Exception):
     pass
+
+
+class NoRouteFound(Exception):
+    """TomTom answered, but has no truck route between the two places."""
 
 
 def build_plan(
@@ -46,7 +53,15 @@ def build_plan(
     now = datetime.now(UTC).replace(microsecond=0)
     departure = max(departure_time, now).astimezone(departure_time.tzinfo)
 
-    routes = tomtom.calculate_routes(o, d, departure, load_weight_lb, key)
+    try:
+        routes = tomtom.calculate_routes(o, d, departure, load_weight_lb, key)
+    except tomtom.RoutingError as exc:
+        # calculate_routes raises this exact message when TomTom's reply has no routes in it
+        if str(exc) == NO_ROUTE_MESSAGE:
+            raise NoRouteFound(NO_ROUTE_MESSAGE) from exc
+        raise
+    if not routes:
+        raise NoRouteFound(NO_ROUTE_MESSAGE)
     routes = tomtom.ensure_three_routes(routes, o, d, departure, load_weight_lb, key)
     # Every lookup below is keyed by route id, so number them here rather than trust the
     # routing client to keep TomTom's routes and the fallbacks apart. Fallbacks are requested
