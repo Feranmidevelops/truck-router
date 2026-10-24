@@ -1,5 +1,5 @@
 import type { Plan } from '../api/types'
-import { LEVELS, LEVEL_COLOR, LEVEL_LABEL, formatDuration, formatTime } from '../lib/risk'
+import { LEVELS, LEVEL_COLOR, LEVEL_LABEL, formatDuration, formatMiles, formatTime } from '../lib/risk'
 
 interface Props {
   plan: Plan
@@ -44,7 +44,7 @@ export function RouteList({ plan, selectedRouteId, onSelect }: Props) {
             <div className="route-risk">
               {LEVELS.filter((l) => l !== 'LOW' && r.summary.miles_by_level[l] > 0).map((l) => (
                 <span key={l}>
-                  {LEVEL_LABEL[l]}: {r.summary.miles_by_level[l].toFixed(0)} mi
+                  {LEVEL_LABEL[l]}: {formatMiles(r.summary.miles_by_level[l])}
                 </span>
               ))}
               <span>Avg risk {r.summary.avg_risk.toFixed(2)}</span>

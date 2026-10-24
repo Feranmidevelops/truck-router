@@ -28,6 +28,11 @@ export const levelColorExpression = [
   '#888888',
 ] as unknown as ExpressionSpecification
 
+// One decimal under 10 mi, so a short stretch never prints as "0 mi"
+export function formatMiles(miles: number) {
+  return `${miles < 9.95 ? miles.toFixed(1) : miles.toFixed(0)} mi`
+}
+
 // Round to the minute before splitting, so 59.5 min is "1 h 0 min", never "60 min".
 // Same half-up rule as the backend's recommendation reason, so the two always agree.
 export function formatDuration(seconds: number) {
