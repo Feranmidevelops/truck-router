@@ -24,7 +24,8 @@ def wiggly_route(k: int, miles: float = 110, step_m: float = 70, wiggle_m: float
     kx = M_PER_DEG_LAT * math.cos(math.radians(32))
     n = int(miles * METERS_PER_MILE / step_m) + 1
     pts = [
-        LatLon(32.0 + i * step_m / M_PER_DEG_LAT, lon0 + (wiggle_m if i % 2 else -wiggle_m) / kx) for i in range(n)
+        LatLon(32.0 + i * step_m / M_PER_DEG_LAT, lon0 + (wiggle_m if i % 2 else -wiggle_m) / kx)
+        for i in range(n)
     ]
     length = cumulative_m(pts)[-1]
     duration = length / METERS_PER_MILE / 60 * 3600  # 60 mph
