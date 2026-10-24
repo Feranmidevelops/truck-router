@@ -159,6 +159,64 @@ def test_overlap_is_fast_on_two_long_dense_routes():
     assert time.perf_counter() - start < 0.5
 
 
+DEG_LON_PER_MILE = DEG_LAT_PER_MILE / math.cos(math.radians(35.0))
+
+
+def drawn(*corners: tuple[float, float]) -> list[LatLon]:
+    """Straight lines through `corners`, given as (miles east, miles north) of (35, -100),
+    with a point every ~0.1 mile like a real route."""
+    pts = [LatLon(35.0 + n * DEG_LAT_PER_MILE, -100.0 + e * DEG_LON_PER_MILE) for e, n in corners]
+    out = [pts[0]]
+    for a, b in zip(pts, pts[1:]):
+        out += line(a, b, max(2, round(haversine_m(a, b) / 160) + 1))[1:]
+    return out
+
+
+@pytest.mark.parametrize("back_east", [0.0, 0.05], ids=["same-road", "other-carriageway"])
+def test_a_spur_out_to_a_point_and_back_doubles_back(back_east):
+    # 3 miles up a side road to a via point, then back down it to the highway
+    spur = drawn((0, 0), (25, 0), (25, 3), (25 + back_east, 3), (25 + back_east, 0), (50, 0))
+    assert tomtom.doubles_back(spur)
+
+
+def test_a_mile_up_a_side_road_and_back_is_not_doubling_back():
+    # Say to a truck stop: the way back is never 3 miles of road away from the way out
+    assert not tomtom.doubles_back(drawn((0, 0), (25, 0), (25, 1), (25, 0), (50, 0)))
+
+
+def test_a_loop_that_crosses_its_own_road_doubles_back():
+    # East, then north, west and south across the road it came along, 9 miles after it
+    assert tomtom.doubles_back(drawn((0, 0), (30, 0), (30, 3), (27, 3), (27, -3), (50, -3)))
+
+
+def test_a_loop_round_a_block_doubles_back():
+    # Up from the south, once round a square mile and back to the same corner, then west
+    assert tomtom.doubles_back(drawn((25, -25), (25, 0), (26, 0), (26, 1), (25, 1), (25, 0), (0, 0)))
+
+
+def test_an_interchange_loop_ramp_is_not_doubling_back():
+    # East to north on a cloverleaf: three quarters of a circle 0.2 mile across, turning right,
+    # then north over the road it came along
+    r = 0.1
+    turn = [k / 20 * 1.5 * math.pi for k in range(21)]
+    ramp = [(25 + r * math.sin(t), r * math.cos(t) - r) for t in turn]
+    assert not tomtom.doubles_back(drawn((0, 0), *ramp, (25 - r, 30)))
+
+
+@pytest.mark.parametrize("apart", [1.0, 0.5])
+def test_coming_back_on_a_parallel_road_is_not_doubling_back(apart):
+    # Round the end of a lake: 20 miles north, across, and 20 miles back south
+    assert not tomtom.doubles_back(drawn((0, 0), (0, 20), (apart, 20), (apart, 0), (30, 0)))
+
+
+def test_doubling_back_is_quick_on_a_long_dense_route():
+    n = 10_000  # ~1,000 miles east from (35, -100), gently curving, like a real TomTom route
+    route = [LatLon(35 + 0.5 * math.sin(12 * i / n), -100 + 17.0 * i / (n - 1)) for i in range(n)]
+    start = time.perf_counter()
+    assert not tomtom.doubles_back(route)
+    assert time.perf_counter() - start < 0.5  # about 40 ms on a laptop
+
+
 def test_via_points_sit_left_and_right_of_the_route_midpoint():
     left, right = tomtom.offset_via_points(line(WEST, EAST, 1000), WEST, EAST, 0.15)
     straight = haversine_m(WEST, EAST)
@@ -360,10 +418,18 @@ def attempt(via: LatLon) -> str:
     return f"{'L' if via.lat > 35.0 else 'R'}{round(share * 100)}"
 
 
+def with_spur(points: list[LatLon], miles: float = 5) -> list[LatLon]:
+    """`points` with a drive `miles` north up a side road and back, halfway along."""
+    k = len(points) // 2
+    tip = LatLon(points[k].lat + miles * DEG_LAT_PER_MILE, points[k].lon)
+    return points[:k] + line(points[k], tip, 50) + line(tip, points[k], 50)[1:] + points[k + 1 :]
+
+
 def fallbacks(**special: str):
     """A FakeTomTom answer: a plain route through each via point, except for the attempts
-    named, which "fail" (HTTP 400), come back as a "copy" of the fastest route, are "slow", or
-    answer 200 with a body that is "not json", has "no summary" or has a "bad time"."""
+    named, which "fail" (HTTP 400), come back as a "copy" of the fastest route, are "slow",
+    drive up to the via point and back on a "spur", or answer 200 with a body that is
+    "not json", has "no summary" or has a "bad time"."""
 
     def answer(via: LatLon):
         kind = special.get(attempt(via), "ok")
@@ -373,6 +439,8 @@ def fallbacks(**special: str):
             return shifted(FASTEST, 0.2), 1.01
         if kind == "slow":
             return through(via), 2.0
+        if kind == "spur":
+            return with_spur(through(via)), 1.0
         if kind == "not json":
             return httpx.Response(200, text="<html>Bad gateway</html>")
         if kind == "no summary":
@@ -418,6 +486,28 @@ def test_a_slow_detour_is_dropped():
     fake = FakeTomTom(fallbacks(R15="slow", R25="slow"))
     routes = ensure([drive("r0", FASTEST)], fake)
     assert [r.id for r in routes] == ["r0", "via15L-0", "via25L-0"]
+
+
+def test_a_fallback_that_doubles_back_is_dropped():
+    fake = FakeTomTom(fallbacks(L15="spur"))
+    routes = ensure([drive("r0", FASTEST)], fake)
+    assert [r.id for r in routes] == ["r0", "via15R-0", "via25L-0"]
+
+
+def test_a_tomtom_alternative_that_doubles_back_is_dropped():
+    routes = [drive("r0", FASTEST), drive("r1", with_spur(NORTHERN)), drive("r2", SOUTHERN)]
+    assert [r.id for r in ensure(routes, FakeTomTom())] == ["r0", "r2"]
+
+
+def test_turning_round_where_the_fastest_route_does_too_is_not_doubling_back():
+    # Every route sets off the wrong way along a divided road and turns round at an exit
+    # 3 miles back, so that can't count against the alternatives.
+    exit_ = LatLon(35.0, -100.0 - 3 * DEG_LON_PER_MILE)
+    turn = line(WEST, exit_, 30) + line(exit_, WEST, 30)[1:]
+    other = turn + NORTHERN[1:]
+    assert tomtom.doubles_back(other)
+    routes = [drive("r0", turn + FASTEST[1:]), drive("r1", other), drive("r2", turn + SOUTHERN[1:])]
+    assert [r.id for r in ensure(routes, FakeTomTom())] == ["r0", "r1", "r2"]
 
 
 def test_a_failed_fallback_is_skipped():
@@ -765,3 +855,18 @@ def test_the_three_real_routes_are_all_kept_with_no_extra_requests():
     kept = tomtom.ensure_three_routes(routes, origin, destination, T0, 20_000, "test-key", client=fake.client)
     assert [r.id for r in kept] == ["r0", "r1", "r2"]
     assert fake.vias == []
+
+
+def test_none_of_the_real_tomtom_routes_doubles_back():
+    assert not any(tomtom.doubles_back(r.points) for r in real_routes())
+
+
+# Two real TomTom routes through via points on Dallas -> Denver, cut down to 30 miles either
+# side of where they turn back: a 4 mile spur up a side road off I-40 west of Amarillo, and a
+# loop round a square mile in Nebraska.
+DETOURS = json.loads((Path(__file__).parent / "data" / "via_point_detours.json").read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("name", sorted(DETOURS))
+def test_real_routes_through_via_points_that_double_back_are_caught(name):
+    assert tomtom.doubles_back([LatLon(lat, lon) for lat, lon in DETOURS[name]])

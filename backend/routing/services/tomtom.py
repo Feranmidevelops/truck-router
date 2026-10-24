@@ -52,6 +52,13 @@ EARLY_GRACE_S = 2
 
 OVERLAP_STEP_M = 5 * METERS_PER_MILE  # sample spacing along the candidate route
 OVERLAP_NEAR_M = 0.5 * METERS_PER_MILE  # a sample this close to the other route counts as shared road
+# A route doubles back when, over more than a quarter mile of it, it is back within 0.3 mile
+# of road it drove at least 3 miles earlier. Checked every quarter mile. An interchange ramp
+# loops back on itself within a mile, and a parallel road is further than 0.3 mile away.
+LOOP_STEP_M = 0.25 * METERS_PER_MILE
+LOOP_NEAR_M = 0.3 * METERS_PER_MILE
+LOOP_GAP_M = 3 * METERS_PER_MILE
+LOOP_MAX_M = 0.25 * METERS_PER_MILE
 _M_PER_DEG_LAT = haversine_m(LatLon(0, 0), LatLon(1, 0))
 
 _duration = attrgetter("duration_s")
@@ -268,8 +275,9 @@ def ensure_three_routes(
     """Up to 3 distinct routes, fastest first, topped up with via-point fallbacks if needed.
 
     TomTom's fastest route is kept first. Any other route, TomTom's own alternatives included,
-    is dropped when it takes over 1.5x the fastest route's time, or when over 90% of it runs
-    along a route already kept.
+    is dropped when it takes over 1.5x the fastest route's time, when over 90% of it runs
+    along a route already kept, or when it doubles back on itself (a spur out to the via point
+    and back, or a loop round it; see _Trace.doubles_back).
 
     `early` are fallbacks found before this was called, through the via points in `asked`.
     They are tried after TomTom's own routes. While fewer than 3 are kept, ask TomTom for a
@@ -293,6 +301,8 @@ def ensure_three_routes(
             return
         trace = _Trace(route.points, lat0)
         if any(trace.overlap(other) > MAX_OVERLAP for other in traces):
+            return
+        if traces and trace.doubles_back(traces[0]):
             return
         kept.append(route)
         traces.append(trace)
@@ -389,8 +399,18 @@ def overlap_fraction(route: list[LatLon], other: list[LatLon]) -> float:
     return _Trace(route, lat0).overlap(_Trace(other, lat0))
 
 
+def doubles_back(route: list[LatLon]) -> bool:
+    """Whether the route comes back onto road it drove earlier: a spur out to some point and
+    back the same way, or a loop. See LOOP_* for the thresholds."""
+    if not route:
+        return False
+    lat0 = (route[0].lat + route[-1].lat) / 2
+    return _Trace(route, lat0).doubles_back()
+
+
 class _Trace:
-    """A route in flat local metres, plus what the overlap test needs, built on first use.
+    """A route in flat local metres, plus what the overlap and doubling-back tests need, built
+    on first use.
 
     Longitude degrees are scaled by cos(lat0) so that x and y are both metres. One lat0 for
     the whole trip is close enough. North-south gaps come out exact, but an east-west gap at
@@ -403,19 +423,19 @@ class _Trace:
     def __init__(self, points: list[LatLon], lat0: float):
         kx = _M_PER_DEG_LAT * math.cos(math.radians(lat0))
         self.xy = [(p.lon * kx, p.lat * _M_PER_DEG_LAT) for p in points]
+        self.along = list(accumulate(map(math.dist, self.xy, self.xy[1:]), initial=0.0))
 
-    @cached_property
-    def samples(self) -> list[tuple[float, float]]:
-        """The centre of each of n equal slices of the route, n chosen so slices are ~5 miles.
+    def slices(self, step: float) -> list[tuple[float, float, float]]:
+        """The route cut into n equal slices, n chosen so slices are about `step` long: the
+        centre of each, and how far along the route that is.
 
         Centres rather than slice ends, so the start and end that every route shares don't count.
         """
-        xy = self.xy
+        xy, cum = self.xy, self.along
         if len(xy) < 2:
-            return list(xy)
-        cum = list(accumulate(map(math.dist, xy, xy[1:]), initial=0.0))
+            return [(x, y, 0.0) for x, y in xy]
         total = cum[-1]
-        n = max(1, round(total / OVERLAP_STEP_M))
+        n = max(1, round(total / step))
         out = []
         i = 0
         for k in range(n):
@@ -425,44 +445,52 @@ class _Trace:
             seg = cum[i + 1] - cum[i]
             t = (d - cum[i]) / seg if seg else 0.0
             (ax, ay), (bx, by) = xy[i], xy[i + 1]
-            out.append((ax + t * (bx - ax), ay + t * (by - ay)))
+            out.append((ax + t * (bx - ax), ay + t * (by - ay), d))
         return out
 
     @cached_property
-    def cells(self) -> dict[tuple[int, int], list[tuple[float, float, float, float]]]:
+    def samples(self) -> list[tuple[float, float]]:
+        """A point every ~5 miles, for the overlap test."""
+        return [(x, y) for x, y, _ in self.slices(OVERLAP_STEP_M)]
+
+    @cached_property
+    def cells(self) -> dict[tuple[int, int], list[tuple[float, float, float, float, float]]]:
         """Segments bucketed into square cells one OVERLAP_NEAR_M wide.
 
         Long segments are cut into pieces no longer than a cell first, so a piece lands in
         at most 2x2 cells and a straight 30 km stretch doesn't fill a huge bounding box.
+        Each piece is (ax, ay, bx, by, how far along the route b is).
         """
         size = OVERLAP_NEAR_M
         cells = defaultdict(list)
-        for (ax, ay), (bx, by) in zip(self.xy, self.xy[1:]):
+        for (ax, ay), (bx, by), start, end in zip(self.xy, self.xy[1:], self.along, self.along[1:]):
             i, j = math.floor(ax / size), math.floor(ay / size)
             if i == math.floor(bx / size) and j == math.floor(by / size):
-                cells[(i, j)].append((ax, ay, bx, by))  # the usual case on a dense polyline
+                cells[(i, j)].append((ax, ay, bx, by, end))  # the usual case on a dense polyline
                 continue
             pieces = max(1, math.ceil(math.dist((ax, ay), (bx, by)) / size))
             dx, dy = (bx - ax) / pieces, (by - ay) / pieces
             for k in range(pieces):
                 px, py = ax + k * dx, ay + k * dy
                 qx, qy = px + dx, py + dy
-                piece = (px, py, qx, qy)
+                piece = (px, py, qx, qy, start + (end - start) * (k + 1) / pieces)
                 for i in range(math.floor(min(px, qx) / size), math.floor(max(px, qx) / size) + 1):
                     for j in range(math.floor(min(py, qy) / size), math.floor(max(py, qy) / size) + 1):
                         cells[(i, j)].append(piece)
         return cells
 
-    def is_near(self, x: float, y: float) -> bool:
-        # Any road within OVERLAP_NEAR_M of (x, y) must pass through this cell or one of its
-        # eight neighbours, because cells are exactly that wide.
+    def is_near(self, x: float, y: float, within: float = OVERLAP_NEAR_M, before: float = math.inf) -> bool:
+        """Whether the route passes within `within` of (x, y), counting only road that ends
+        no more than `before` along it. `within` can't be more than a cell's width."""
+        # Any road within a cell's width of (x, y) must pass through this cell or one of its
+        # eight neighbours.
         size = OVERLAP_NEAR_M
         i, j = math.floor(x / size), math.floor(y / size)
         cells = self.cells
         for ci in (i - 1, i, i + 1):
             for cj in (j - 1, j, j + 1):
-                for piece in cells.get((ci, cj), ()):
-                    if _dist2_to_segment(x, y, *piece) <= size * size:
+                for ax, ay, bx, by, along in cells.get((ci, cj), ()):
+                    if along <= before and _dist2_to_segment(x, y, ax, ay, bx, by) <= within * within:
                         return True
         return False
 
@@ -471,6 +499,23 @@ class _Trace:
         if not samples:
             return 0.0
         return sum(other.is_near(x, y) for x, y in samples) / len(samples)
+
+    @cached_property
+    def back_on_itself(self) -> list[tuple[float, float]]:
+        """Centres of the ~LOOP_STEP_M slices of the route that lie within LOOP_NEAR_M of road
+        it drove at least LOOP_GAP_M before."""
+        centres = self.slices(LOOP_STEP_M)
+        return [(x, y) for x, y, d in centres if self.is_near(x, y, LOOP_NEAR_M, before=d - LOOP_GAP_M)]
+
+    def doubles_back(self, fastest: _Trace | None = None) -> bool:
+        """Whether more than LOOP_MAX_M of the route is back on road it drove earlier.
+
+        Where `fastest` is back on itself too, it doesn't count: if the fastest route has to
+        turn round at an exit near the start, say, every route from that start does the same.
+        """
+        theirs = fastest.back_on_itself if fastest else []
+        own = [p for p in self.back_on_itself if not any(math.dist(p, q) <= LOOP_NEAR_M for q in theirs)]
+        return len(own) * LOOP_STEP_M > LOOP_MAX_M
 
 
 def _dist2_to_segment(x: float, y: float, ax: float, ay: float, bx: float, by: float) -> float:
