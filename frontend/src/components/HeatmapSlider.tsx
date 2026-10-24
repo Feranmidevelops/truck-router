@@ -1,4 +1,4 @@
-import { useState, type Ref } from 'react'
+import { useMemo, useState, type Ref } from 'react'
 import type { Heatmap } from '../api/types'
 import { LEVELS, LEVEL_COLOR, LEVEL_LABEL, formatTime } from '../lib/risk'
 import './HeatmapSlider.css'
@@ -58,6 +58,9 @@ export function HeatmapSlider({ state, timeZone, inert, visible, onToggle, onHou
           Weather overlay unavailable. {state.message}
         </p>
       )}
+      {status === 'idle' && (
+        <p className="heat-muted">Plan a trip to see the weather risk along each route.</p>
+      )}
       <ul className="heat-legend" aria-label="Risk levels">
         {LEVELS.map((l) => (
           <li key={l}>
@@ -80,11 +83,35 @@ interface SliderProps {
   onChange: (hour: number) => void
 }
 
+// The worst level anywhere on the grid over the whole forecast, and the first hour it shows up
+function worstHour(heatmap: Heatmap) {
+  let level = 0
+  let hour = 0
+  for (let h = 0; h <= heatmap.hours; h++) {
+    for (const p of heatmap.points) {
+      if (p.v[h] > level) {
+        level = p.v[h]
+        hour = h
+      }
+    }
+  }
+  return { level, hour }
+}
+
 // Owns the hour so a slide re-renders only this component; the map is told directly.
 function HourSlider({ heatmap, timeZone, hidden, onChange }: SliderProps) {
   const [hour, setHour] = useState(0)
+  const worst = useMemo(() => worstHour(heatmap), [heatmap])
   // Hour 0 is start_time, a UTC instant (the departure floored to the hour)
-  const clock = formatTime(new Date(Date.parse(heatmap.start_time) + hour * HOUR_MS).toISOString(), timeZone)
+  const clockAt = (h: number) =>
+    formatTime(new Date(Date.parse(heatmap.start_time) + h * HOUR_MS).toISOString(), timeZone)
+  const clock = clockAt(hour)
+  const worstLevel = LEVELS[worst.level]
+
+  function go(next: number) {
+    setHour(next)
+    onChange(next)
+  }
 
   return (
     <div className="heat-slider" hidden={hidden}>
@@ -100,13 +127,27 @@ function HourSlider({ heatmap, timeZone, hidden, onChange }: SliderProps) {
         value={hour}
         aria-label="Forecast hour"
         aria-valuetext={hour === 0 ? `${clock}, at departure` : `${clock}, ${hour} hours after departure`}
-        onChange={(e) => {
-          const next = Number(e.target.value)
-          setHour(next)
-          onChange(next)
-        }}
+        onChange={(e) => go(Number(e.target.value))}
       />
       <Scale hours={heatmap.hours} />
+      {/* Most hours are calm, so say where the bad weather is instead of making people hunt */}
+      {worst.level > 0 ? (
+        <p className="heat-worst">
+          Worst in the next {heatmap.hours} h:{' '}
+          <span className="heat-worst-level">
+            <span className="heat-swatch" style={{ background: LEVEL_COLOR[worstLevel] }} />
+            {LEVEL_LABEL[worstLevel]}
+          </span>{' '}
+          at {clockAt(worst.hour)}
+          {hour !== worst.hour && (
+            <button type="button" className="heat-jump" onClick={() => go(worst.hour)}>
+              Show
+            </button>
+          )}
+        </p>
+      ) : (
+        <p className="heat-worst heat-muted">Calm: nothing above Low along these routes for {heatmap.hours} h.</p>
+      )}
     </div>
   )
 }

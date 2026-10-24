@@ -167,3 +167,29 @@
     display: none;
   }
 }
+
+.heat-worst {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--heat-gap) / 2) var(--heat-gap);
+}
+
+.heat-worst-level {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--heat-gap) / 2);
+  font-weight: 600;
+}
+
+.heat-jump {
+  font: inherit;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--heat-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
