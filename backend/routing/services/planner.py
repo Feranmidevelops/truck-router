@@ -25,8 +25,15 @@ class PlanNotFound(Exception):
 
 
 def build_plan(
-    *, origin: dict, destination: dict, departure_time: datetime, load_weight_lb: int, interval_miles: int
+    *,
+    origin: dict,
+    destination: dict,
+    departure_time: datetime,
+    timezone: str,
+    load_weight_lb: int,
+    interval_miles: int,
 ) -> dict:
+    """`departure_time` is aware, with the origin's offset; `timezone` is the origin's IANA zone."""
     o = LatLon(origin["lat"], origin["lon"])
     d = LatLon(destination["lat"], destination["lon"])
     key = settings.TOMTOM_API_KEY
@@ -74,6 +81,7 @@ def build_plan(
             "origin": origin,
             "destination": destination,
             "departure_time": departure_time.isoformat(),
+            "timezone": timezone,
             "load_weight_lb": load_weight_lb,
             "interval_miles": interval_miles,
         },

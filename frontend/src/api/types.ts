@@ -6,14 +6,22 @@ export interface Place {
   label: string
   lat: number
   lon: number
+  timezone?: string // IANA zone at the place, e.g. "America/Chicago"; set on geocode results
 }
 
 export interface PlanRequest {
   origin: Place
   destination: Place
-  departure_time: string // ISO 8601 with offset
+  // Local time at the origin without an offset, e.g. "2026-10-26T08:00", read in the origin's
+  // time zone. An ISO 8601 time with an offset is also accepted and kept as that instant.
+  departure_time: string
   load_weight_lb: number
   interval_miles: 10 | 25 | 50
+}
+
+export interface PlanInput extends PlanRequest {
+  departure_time: string // ISO 8601 with the origin's offset, e.g. "2026-10-26T08:00:00-05:00"
+  timezone: string // the origin's IANA zone; show every time in the plan in this zone
 }
 
 export interface CheckpointWeather {
@@ -66,7 +74,7 @@ export interface Route {
 
 export interface Plan {
   plan_id: string
-  input: PlanRequest
+  input: PlanInput
   recommended_route_id: string
   recommendation_reason: string
   routes: Route[] // sorted best first
