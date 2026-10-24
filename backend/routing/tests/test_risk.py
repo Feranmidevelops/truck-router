@@ -77,6 +77,19 @@ def test_snow(rate, expected):
 
 
 @pytest.mark.parametrize(
+    "rate, expected",
+    [
+        (0.4999, L), (0.5, M), (0.5001, M),
+        (0.9999, M), (1.0, H), (1.0001, H),
+        (1.9999, H), (2.0, S), (2.0001, S),
+        (2.9999, S), (3.0, S), (3.0001, N),
+    ],
+)
+def test_snow_either_side_of_each_boundary(rate, expected):
+    assert classify_snow(rate) == expected
+
+
+@pytest.mark.parametrize(
     "mph, load, expected",
     [
         (60, 0, N),          # >=55 is No Travel for any load
