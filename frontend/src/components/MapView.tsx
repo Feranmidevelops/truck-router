@@ -11,6 +11,8 @@ import { LEVELS, LEVEL_COLOR, LEVEL_LABEL, levelColorExpression } from '../lib/r
 // OpenFreeMap is free and needs no key. Override with VITE_MAP_STYLE_URL if it's ever down.
 const STYLE_URL = import.meta.env.VITE_MAP_STYLE_URL || 'https://tiles.openfreemap.org/styles/liberty'
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
+// Matches the single-column breakpoint in index.css.
+const NARROW_SCREEN = '(max-width: 800px)'
 
 // Selection lives in feature-state, so changing it restyles on the GPU without
 // sending any geometry back to the map's worker.
@@ -37,13 +39,21 @@ export function MapView({ plan, selectedRouteId, onSelectRoute }: Props) {
   // Create the map once. Sources and layers are added once; later updates only call setData.
   useEffect(() => {
     if (!containerRef.current) return
+    // On narrow screens the map sits below the form in a scrolling page. Cooperative
+    // gestures let one finger (or a plain mouse wheel) scroll the page past the map;
+    // two fingers (or Ctrl + wheel) move the map.
+    const narrow = window.matchMedia(NARROW_SCREEN)
     const map = new MapLibreMap({
       container: containerRef.current,
       style: STYLE_URL,
       center: [-98.5, 39.5],
       zoom: 3.6,
+      cooperativeGestures: narrow.matches,
     })
     map.addControl(new NavigationControl({ showCompass: false }), 'top-right')
+    const onWidthChange = (e: MediaQueryListEvent) =>
+      e.matches ? map.cooperativeGestures.enable() : map.cooperativeGestures.disable()
+    narrow.addEventListener('change', onWidthChange)
 
     // Without a listener MapLibre only logs to the console and the map stays blank.
     map.on('error', (e) => {
@@ -137,6 +147,7 @@ export function MapView({ plan, selectedRouteId, onSelectRoute }: Props) {
 
     mapRef.current = map
     return () => {
+      narrow.removeEventListener('change', onWidthChange)
       map.remove()
       mapRef.current = null
       setReady(false)
