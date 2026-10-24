@@ -82,7 +82,7 @@ def _avg_risk(value: float) -> str:
 
 
 def _duration(seconds: float) -> str:
-    # half up, the same way the UI rounds durations
+    # round to the nearest minute (half up) before splitting, so 59.5 min is "1 h 0 min"
     hours, minutes = divmod(int(seconds / 60 + 0.5), 60)
     return f"{hours} h {minutes} min" if hours else f"{minutes} min"
 
