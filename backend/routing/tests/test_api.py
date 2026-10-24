@@ -125,6 +125,12 @@ def test_fixture_places_and_plan_carry_time_zones(api):
     plan = post_plan(api).json()
     assert plan["input"]["timezone"] == "America/Chicago"
     assert plan["input"]["departure_time"].endswith("-05:00")
+    # Shaped like a live plan: lettered in ranked order, times in the origin's offset
+    assert [r["label"] for r in plan["routes"]] == ["Route A", "Route B", "Route C"]
+    for route in plan["routes"]:
+        assert route["departure_time"] == plan["input"]["departure_time"]
+        assert route["checkpoints"][0]["eta"] == plan["input"]["departure_time"]
+        assert route["arrival_time"] == route["checkpoints"][-1]["eta"]
 
 
 def raise_(exc):
