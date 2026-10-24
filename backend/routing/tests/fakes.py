@@ -2,8 +2,8 @@
 
 Two levels:
 - install_service_fakes replaces TomTom's route requests, the route top-up and the weather
-  functions, so only the planner's own glue runs, and the routing client's step that sends the
-  first route requests together.
+  functions. What still runs is the planner's own glue, and the step that sends the first
+  route requests together.
 - FakeUpstream answers HTTP requests the way TomTom and Open-Meteo do, so the real clients,
   route fallbacks, weather sampling and heatmap grid run too. install_fake_http sends every
   httpx.Client through it and makes any other real request fail.
