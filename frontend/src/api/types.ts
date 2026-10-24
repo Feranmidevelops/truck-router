@@ -59,8 +59,8 @@ export interface RouteSummary {
 }
 
 export interface Route {
-  id: string
-  label: string
+  id: string // "r0", "r1", "r2": unique within a plan
+  label: string // "Route A" is always the recommended route, then B, C in rank order
   rank: number
   source: 'tomtom' | 'via-fallback'
   distance_miles: number

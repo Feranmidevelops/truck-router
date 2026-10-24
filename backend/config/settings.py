@@ -95,6 +95,21 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
+# Django's default console handler only prints with DEBUG on, so with DEBUG off a 500 left no
+# trace in Render's log. Everything goes up to one console handler on the root logger instead.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"plain": {"format": "%(asctime)s %(levelname)s %(name)s: %(message)s"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "plain"}},
+    "root": {"handlers": ["console"], "level": "WARNING"},
+    "loggers": {
+        "django": {"level": "WARNING"},
+        "django.request": {"level": "ERROR"},  # 5xx only; 4xx are bad input or throttling
+        "routing": {"level": "INFO"},
+    },
+}
+
 # App settings
 TOMTOM_API_KEY = os.environ.get("TOMTOM_API_KEY", "")
 GEOCODE_COUNTRY_SET = os.environ.get("GEOCODE_COUNTRY_SET", "US")

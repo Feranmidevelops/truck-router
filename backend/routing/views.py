@@ -1,5 +1,6 @@
 import json
 from functools import lru_cache
+import logging
 from pathlib import Path
 
 from django.conf import settings
@@ -12,6 +13,12 @@ from .services import planner, timezones, tomtom, weather
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
+ROUTES_DOWN = "Couldn't get routes from TomTom right now. Try again in a minute."
+SEARCH_DOWN = "Couldn't search for places right now. Try again in a minute."
+WEATHER_DOWN = "Couldn't get the weather forecast right now. Try again in a minute."
+
+log = logging.getLogger(__name__)
+
 
 @lru_cache(maxsize=None)
 def load_fixture(name: str):
@@ -20,6 +27,16 @@ def load_fixture(name: str):
 
 def not_ready(exc: NotImplementedError) -> Response:
     return Response({"detail": f"Not implemented yet: {exc}"}, status=status.HTTP_501_NOT_IMPLEMENTED)
+
+
+def upstream_failed(service: str, exc: Exception, message: str) -> Response:
+    """Log what the upstream service said, and tell the driver something they can act on."""
+    detail = str(exc)
+    if settings.TOMTOM_API_KEY:
+        # An HTTP error can quote the request URL, and the TomTom key is in its query string
+        detail = detail.replace(settings.TOMTOM_API_KEY, "<TOMTOM_API_KEY>")
+    log.error("%s failed: %s", service, detail)
+    return Response({"detail": message}, status=502)
 
 
 class HealthView(APIView):
@@ -43,7 +60,7 @@ class GeocodeView(APIView):
         try:
             places = tomtom.geocode(query, settings.TOMTOM_API_KEY, country_set=settings.GEOCODE_COUNTRY_SET)
         except tomtom.RoutingError as exc:
-            return Response({"detail": str(exc)}, status=502)
+            return upstream_failed("TomTom search", exc, SEARCH_DOWN)
         # The zone lets the form say which local time the departure is in
         return Response(
             {"results": [{**p.__dict__, "timezone": timezones.zone_name(p.lat, p.lon)} for p in places]}
@@ -62,8 +79,14 @@ class PlanView(APIView):
             plan = planner.build_plan(**serializer.validated_data)
         except NotImplementedError as exc:
             return not_ready(exc)
-        except (tomtom.RoutingError, weather.WeatherError) as exc:
-            return Response({"detail": str(exc)}, status=502)
+        except planner.NoRouteFound as exc:
+            data = serializer.validated_data
+            log.info("No route: %s -> %s", data["origin"]["label"], data["destination"]["label"])
+            return Response({"detail": str(exc)}, status=422)
+        except tomtom.RoutingError as exc:
+            return upstream_failed("TomTom routing", exc, ROUTES_DOWN)
+        except weather.WeatherError as exc:
+            return upstream_failed("Open-Meteo forecast", exc, WEATHER_DOWN)
         return Response(plan)
 
 
@@ -81,5 +104,5 @@ class HeatmapView(APIView):
         except NotImplementedError as exc:
             return not_ready(exc)
         except weather.WeatherError as exc:
-            return Response({"detail": str(exc)}, status=502)
+            return upstream_failed("Open-Meteo heatmap forecast", exc, WEATHER_DOWN)
         return Response(data)
