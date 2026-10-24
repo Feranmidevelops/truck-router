@@ -3,8 +3,9 @@ import type { Heatmap, Place, Plan, PlanRequest } from './types'
 const BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
 const OFFLINE_MESSAGE = "Can't reach the server. Check your connection and try again."
-// A live plan takes 5-10 s; past this something is stuck
+// A live plan takes 5-15 s and a heatmap a few seconds; past these something is stuck
 const PLAN_TIMEOUT_S = 45
+const HEATMAP_TIMEOUT_S = 30
 
 export class ApiError extends Error {
   readonly status: number // 0 when no HTTP response came back
@@ -26,21 +27,27 @@ export function isAbortError(e: unknown) {
   return e instanceof Error && e.name === 'AbortError'
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+// timeoutS: give up after this long, as well as when init.signal aborts
+async function request<T>(path: string, init: RequestInit = {}, timeoutS?: number): Promise<T> {
   const headers = new Headers(init.headers)
   // Only with a body: on a cross-origin GET this header would force a CORS preflight per request
   if (init.body != null) headers.set('Content-Type', 'application/json')
+  let signal = init.signal
+  if (timeoutS) {
+    const timeout = AbortSignal.timeout(timeoutS * 1000)
+    signal = signal ? AbortSignal.any([signal, timeout]) : timeout
+  }
 
   let res: Response
   let text: string
   try {
-    res = await fetch(`${BASE}${path}`, { ...init, headers })
+    res = await fetch(`${BASE}${path}`, { ...init, headers, signal })
     text = await res.text()
   } catch (e) {
     if (isAbortError(e)) throw e
     // AbortSignal.timeout() rejects with a TimeoutError rather than an AbortError
     if (e instanceof Error && e.name === 'TimeoutError') {
-      throw new ApiError(0, `The server took longer than ${PLAN_TIMEOUT_S} seconds to answer. Try again in a moment.`)
+      throw new ApiError(0, `The server took longer than ${timeoutS} seconds to answer. Try again in a moment.`)
     }
     throw new ApiError(0, OFFLINE_MESSAGE)
   }
@@ -119,14 +126,9 @@ export async function geocode(q: string, signal?: AbortSignal): Promise<Place[]>
 }
 
 export function planTrip(body: PlanRequest, signal?: AbortSignal) {
-  const timeout = AbortSignal.timeout(PLAN_TIMEOUT_S * 1000)
-  return request<Plan>('/api/plan', {
-    method: 'POST',
-    body: JSON.stringify(body),
-    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-  })
+  return request<Plan>('/api/plan', { method: 'POST', body: JSON.stringify(body), signal }, PLAN_TIMEOUT_S)
 }
 
 export function getHeatmap(planId: string, signal?: AbortSignal) {
-  return request<Heatmap>(`/api/heatmap?plan_id=${encodeURIComponent(planId)}`, { signal })
+  return request<Heatmap>(`/api/heatmap?plan_id=${encodeURIComponent(planId)}`, { signal }, HEATMAP_TIMEOUT_S)
 }
