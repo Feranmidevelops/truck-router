@@ -151,7 +151,13 @@ class FakeUpstream:
 
     def _route(self, request: httpx.Request) -> httpx.Response:
         if self.no_route:
-            return httpx.Response(200, json={"formatVersion": "0.0.12", "routes": []})
+            return httpx.Response(
+                400,
+                json={
+                    "formatVersion": "0.0.12",
+                    "detailedError": {"message": "NO_ROUTE_FOUND: No valid route found", "code": "NO_ROUTE_FOUND"},
+                },
+            )
         locations = unquote(request.url.path.split("/")[4])
         stops = [LatLon(*(float(v) for v in stop.split(","))) for stop in locations.split(":")]
         legs = []  # one leg per pair of stops, each including both ends, like TomTom's

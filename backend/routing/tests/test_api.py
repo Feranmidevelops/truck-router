@@ -170,7 +170,7 @@ def test_plan_upstream_failure_is_a_friendly_502(api, monkeypatch, caplog, exc, 
 @override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")
 @pytest.mark.parametrize(
     "calculate_routes",
-    [raise_(tomtom.RoutingError("No truck route found between these places.")), lambda *a, **k: []],
+    [raise_(tomtom.NoRouteError(tomtom.NO_ROUTE_MESSAGE)), lambda *a, **k: []],
     ids=["tomtom-says-so", "empty-list"],
 )
 def test_no_truck_route_is_a_422(api, monkeypatch, calculate_routes):
