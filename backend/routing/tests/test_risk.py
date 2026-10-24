@@ -52,6 +52,19 @@ def test_rain(rate, expected):
 @pytest.mark.parametrize(
     "rate, expected",
     [
+        (0.0999, L), (0.10, M), (0.1001, M),
+        (0.2499, M), (0.25, H), (0.2501, H),
+        (0.4999, H), (0.50, S), (0.5001, S),
+        (0.9999, S), (1.00, S), (1.0001, N),
+    ],
+)
+def test_rain_either_side_of_each_boundary(rate, expected):
+    assert classify_rain(rate) == expected
+
+
+@pytest.mark.parametrize(
+    "rate, expected",
+    [
         (0, L), (0.49, L),
         (0.5, M), (0.99, M),
         (1.0, H), (1.99, H),

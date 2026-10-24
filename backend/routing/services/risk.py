@@ -27,7 +27,15 @@ def classify_wind(mph: float) -> Level:
 
 def classify_rain(in_per_hr: float) -> Level:
     """<0.10 LOW, 0.10-0.25 MODERATE, 0.25-0.50 HIGH, 0.50-1.00 SEVERE, >1.00 NO_TRAVEL."""
-    raise NotImplementedError("classify_rain")
+    if in_per_hr > 1.00:
+        return Level.NO_TRAVEL
+    if in_per_hr >= 0.50:
+        return Level.SEVERE
+    if in_per_hr >= 0.25:
+        return Level.HIGH
+    if in_per_hr >= 0.10:
+        return Level.MODERATE
+    return Level.LOW
 
 
 def classify_snow(in_per_hr: float) -> Level:
