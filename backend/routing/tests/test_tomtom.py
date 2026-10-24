@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from routing.services import tomtom
-from routing.services.geometry import cumulative_m
+from routing.services.geometry import cumulative_m, haversine_m
 from routing.services.types import LatLon, RouteOption, TimingPoint
 
 T0 = datetime(2026, 10, 24, 12, tzinfo=timezone.utc)
@@ -101,6 +101,40 @@ def test_overlap_is_fast_on_two_long_dense_routes():
     assert tomtom.overlap_fraction(apart, a) == 0.0
     # About 20 ms each on a laptop. Checking every sample against every segment takes ~1.5 s.
     assert time.perf_counter() - start < 0.5
+
+
+def test_via_points_sit_left_and_right_of_the_route_midpoint():
+    left, right = tomtom.offset_via_points(line(WEST, EAST, 1000), WEST, EAST, 0.15)
+    straight = haversine_m(WEST, EAST)
+    assert left.lat > 35.0 > right.lat  # driving east, left is north
+    for p in (left, right):
+        assert p.lon == pytest.approx(-95.0)
+        assert haversine_m(MIDDLE, p) == pytest.approx(0.15 * straight, rel=0.01)
+
+
+def test_left_is_west_when_driving_north():
+    south, north = LatLon(30.0, -100.0), LatLon(40.0, -100.0)
+    left, right = tomtom.offset_via_points(line(south, north, 100), south, north, 0.25)
+    assert left.lon < -100.0 < right.lon
+    assert left.lat == pytest.approx(35.0)
+    assert right.lat == pytest.approx(35.0)
+
+
+def test_via_points_are_square_to_a_diagonal_trip():
+    # Square to the straight line means as far from one end as from the other. Without the
+    # cos(lat) scaling the points come out about 50 km closer to one end.
+    dallas, denver = LatLon(32.8, -96.8), LatLon(39.7, -105.0)
+    for p in tomtom.offset_via_points(line(dallas, denver, 500), dallas, denver, 0.15):
+        assert haversine_m(p, dallas) == pytest.approx(haversine_m(p, denver), rel=0.01)
+
+
+def test_via_points_start_from_halfway_along_the_route_by_distance():
+    # Points bunched on the first leg, and a bend north: halfway by distance is the bend.
+    bend = LatLon(36.0, -95.0)
+    route = line(WEST, bend, 900) + line(bend, EAST, 50)[1:]
+    left, right = tomtom.offset_via_points(route, WEST, EAST, 0.15)
+    assert (left.lat + right.lat) / 2 == pytest.approx(36.0)
+    assert left.lon == pytest.approx(-95.0)
 
 
 # Trips below run west to east along latitude 35, so "left" of the trip is north.
