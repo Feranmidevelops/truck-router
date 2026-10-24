@@ -159,3 +159,11 @@ def test_no_truck_route_through_the_real_client_is_a_422(api, upstream):
     res = post_plan(api, tomorrow_in_dallas().strftime("%Y-%m-%dT%H:%M"))
     assert res.status_code == 422
     assert res.json() == {"detail": "No truck route found between these places."}
+
+
+@override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")
+def test_no_route_for_the_trip_is_a_422_even_when_routes_through_via_points_come_back(api, upstream):
+    upstream.no_direct_route = True
+    res = post_plan(api, tomorrow_in_dallas().strftime("%Y-%m-%dT%H:%M"))
+    assert res.status_code == 422
+    assert res.json() == {"detail": "No truck route found between these places."}
