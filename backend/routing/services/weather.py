@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from bisect import bisect_left
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 import hashlib
 from typing import Protocol
@@ -25,6 +25,7 @@ from .types import LatLon, WeatherSample
 BASE_URL = "https://api.open-meteo.com/v1/forecast"
 HOURLY_VARS = ("wind_speed_10m", "wind_gusts_10m", "rain", "showers", "snowfall")
 CHUNK_SIZE = 50
+COORD_DECIMALS = 1  # 0.1 deg, about 11 km
 MAX_WORKERS = 4
 CACHE_TTL_S = 30 * 60
 
@@ -43,7 +44,7 @@ class Cache(Protocol):
 
 @dataclass
 class HourlySeries:
-    position: LatLon  # the position we asked for (Open-Meteo snaps to its grid)
+    position: LatLon  # as the caller passed it, before rounding (Open-Meteo also snaps to its grid)
     times: list[datetime]  # UTC, one per hour
     wind_mph: list[float]
     gust_mph: list[float]
@@ -68,11 +69,17 @@ def fetch_hourly(
     client: httpx.Client | None = None,
     cache: Cache | None = None,
 ) -> list[HourlySeries]:
-    """Hourly series from floor(start) to ceil(end) for each position, in input order."""
+    """Hourly series from floor(start) to ceil(end) for each position, in input order.
+
+    Positions are rounded to COORD_DECIMALS and de-duplicated before the request,
+    so nearby checkpoints cost one location. Each result keeps its original position.
+    """
     if not positions:
         return []
     start_h, end_h = floor_hour(start), ceil_hour(end)
-    chunks = [positions[i : i + CHUNK_SIZE] for i in range(0, len(positions), CHUNK_SIZE)]
+    cells = [_snap(p) for p in positions]
+    unique = list(dict.fromkeys(cells))
+    chunks = [unique[i : i + CHUNK_SIZE] for i in range(0, len(unique), CHUNK_SIZE)]
     own_client = client is None
     client = client or httpx.Client(timeout=20)
     try:
@@ -81,7 +88,12 @@ def fetch_hourly(
     finally:
         if own_client:
             client.close()
-    return [series for chunk in results for series in chunk]
+    by_cell = {series.position: series for chunk in results for series in chunk}
+    return [replace(by_cell[cell], position=p) for cell, p in zip(cells, positions)]
+
+
+def _snap(p: LatLon) -> LatLon:
+    return LatLon(round(p.lat, COORD_DECIMALS), round(p.lon, COORD_DECIMALS))
 
 
 def _fetch_chunk(

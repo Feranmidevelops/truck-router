@@ -71,10 +71,30 @@ def test_requests_are_chunked():
         return httpx.Response(200, json=payloads[count])
 
     client = httpx.Client(transport=httpx.MockTransport(handler))
-    series = weather.fetch_hourly([LatLon(30 + i * 0.01, -97) for i in range(n)], T0, T0, client=client)
+    # 0.1 deg apart, so rounding keeps every position as its own location.
+    series = weather.fetch_hourly([LatLon(30 + i * 0.1, -97) for i in range(n)], T0, T0, client=client)
     assert len(series) == n
     assert len(calls) == 2
     assert calls[0].url.params["wind_speed_unit"] == "mph"
+
+
+def test_nearby_positions_share_one_location_and_keep_their_own_position():
+    dallas = [LatLon(32.78, -96.80), LatLon(32.81, -96.77), LatLon(32.83, -96.84)]
+    denver = [LatLon(39.74, -104.99), LatLon(39.66, -105.04)]
+    positions = [dallas[0], denver[0], dallas[1], dallas[2], denver[1]]
+    windy = location_payload()
+    windy["hourly"]["wind_speed_10m"] = [40.0, 50.0, 60.0]
+    calls: list = []
+    client = mock_client([location_payload(), windy], calls)
+
+    series = weather.fetch_hourly(positions, T0, T0 + timedelta(hours=2), client=client)
+
+    assert len(calls) == 1
+    params = calls[0].url.params
+    assert [float(x) for x in params["latitude"].split(",")] == [32.8, 39.7]
+    assert [float(x) for x in params["longitude"].split(",")] == [-96.8, -105.0]
+    assert [s.position for s in series] == positions
+    assert [s.wind_mph[0] for s in series] == [10.0, 40.0, 10.0, 10.0, 40.0]
 
 
 def test_unknown_unit_is_an_error():
