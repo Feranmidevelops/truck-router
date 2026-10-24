@@ -84,7 +84,8 @@ def build_plan(
     )
 
     by_id = {r.id: r for r in routes}
-    labels = {r.id: f"Route {chr(65 + i)}" for i, r in enumerate(routes)}
+    # Lettered in the order shown, so Route A is always the recommended one
+    labels = {rid: f"Route {chr(65 + i)}" for i, rid in enumerate(order)}
     return {
         "plan_id": plan_id,
         "input": {

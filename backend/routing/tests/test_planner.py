@@ -110,6 +110,16 @@ def test_routes_get_unique_ids_whatever_the_routing_client_returns(faked, monkey
         assert {cp["weather"]["wind_mph"] for cp in route["checkpoints"]} == {wind_at(LatLon(0, lon))}
 
 
+def test_routes_are_lettered_in_ranked_order(faked):
+    # The fastest-first input order is LOW, HIGH, MODERATE; ranking puts HIGH last.
+    data = plan()
+    routes = data["routes"]
+    assert [r["label"] for r in routes] == ["Route A", "Route B", "Route C"]
+    assert [r["rank"] for r in routes] == [1, 2, 3]
+    assert [r["summary"]["max_level"] for r in routes] == ["LOW", "MODERATE", "HIGH"]
+    assert data["recommended_route_id"] == routes[0]["id"]
+
+
 def test_response_lines_are_simplified(faked):
     data = plan()
     by_id = {r.id: r for r in faked}
