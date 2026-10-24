@@ -8,7 +8,7 @@
   --heat-shadow: var(--shadow-float);
   --heat-radius: var(--radius);
   --heat-inset: var(--space-3);
-  --heat-width: 340px;
+  --heat-bar-width: 780px;
   --heat-pad: var(--space-3);
   --heat-gap: 6px;
   --heat-legend-gap: var(--space-1) var(--space-3);
@@ -20,11 +20,12 @@
   --heat-switch-h: 14px;
   --heat-switch-knob: 10px;
 
+  /* Phones: across the top of the map, clear of the zoom buttons, above the results sheet */
   position: absolute;
+  top: var(--heat-inset);
   left: var(--heat-inset);
-  bottom: calc(var(--heat-inset) + 18px);
+  right: calc(var(--heat-inset) + 40px);
   z-index: 2;
-  width: min(var(--heat-width), calc(100% - 2 * var(--heat-inset)));
   display: flex;
   flex-direction: column;
   gap: var(--heat-gap);
@@ -152,19 +153,92 @@
   font-size: var(--heat-font-small);
 }
 
-/* Below the breakpoint the map is short and its attribution spans the bottom,
-   so the panel moves to the top, clear of the zoom buttons, and drops the extras. */
-@media (max-width: 800px) {
-  .heat-panel {
-    top: var(--heat-inset);
-    bottom: auto;
-    width: auto;
-    right: calc(var(--heat-inset) + 40px);
-  }
-
+/* Phones keep it short: the hour scale and the note go */
+@media (max-width: 899px) {
   .heat-scale,
   .heat-note {
     display: none;
+  }
+}
+
+/* Wider screens: a timeline along the bottom of the map, right of the results panel.
+   The slider's parts join the panel's grid, so the slider can run the full width. */
+@media (min-width: 900px) {
+  .heat-panel {
+    top: auto;
+    right: auto;
+    left: var(--map-left-inset, var(--heat-inset));
+    bottom: calc(var(--heat-inset) + 18px);
+    width: min(var(--heat-bar-width), calc(100% - var(--map-left-inset, var(--heat-inset)) - var(--heat-inset)));
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'toggle time worst'
+      'slider slider slider'
+      'scale scale scale'
+      'legend legend note';
+    align-items: center;
+    gap: var(--heat-gap) var(--space-5);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .heat-slider {
+    display: contents;
+  }
+
+  .heat-toggle {
+    grid-area: toggle;
+  }
+
+  .heat-time {
+    grid-area: time;
+  }
+
+  .heat-slider input[type='range'] {
+    grid-area: slider;
+  }
+
+  .heat-scale {
+    grid-area: scale;
+  }
+
+  .heat-worst {
+    grid-area: worst;
+    justify-self: end;
+  }
+
+  .heat-legend {
+    grid-area: legend;
+  }
+
+  .heat-note {
+    grid-area: note;
+    justify-self: end;
+  }
+
+  /* No forecast yet, or none to be had: just the message and the legend */
+  .heat-panel:not(:has(.heat-slider)) {
+    display: flex;
+    width: auto;
+  }
+}
+
+/* Not enough width for the worst-hour line beside the clock: it takes its own row */
+@media (min-width: 900px) and (max-width: 1279px) {
+  .heat-panel {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'toggle time'
+      'worst worst'
+      'slider slider'
+      'scale scale'
+      'legend legend'
+      'note note';
+  }
+
+  .heat-worst,
+  .heat-note {
+    justify-self: start;
   }
 }
 

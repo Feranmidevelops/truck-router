@@ -29,7 +29,7 @@
   position: absolute;
   z-index: 2;
   top: var(--map-ui-inset);
-  left: var(--map-ui-inset);
+  left: var(--map-left-inset, var(--map-ui-inset));
   max-width: min(360px, calc(100% - 4 * var(--map-ui-inset) - 30px));
   display: flex;
   align-items: flex-start;
@@ -53,10 +53,10 @@
   cursor: pointer;
 }
 
-/* The weather panel takes the top of the map on narrow screens. */
-@media (max-width: 800px) {
+/* The weather panel takes the top of the map on narrow screens, the results sheet the bottom */
+@media (max-width: 899px) {
   .map-notice {
     top: auto;
-    bottom: calc(var(--map-ui-inset) + 40px);
+    bottom: calc(var(--sheet-peek) + var(--map-ui-inset));
   }
 }
