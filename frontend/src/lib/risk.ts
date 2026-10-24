@@ -36,11 +36,20 @@ export function formatMiles(miles: number) {
 
 // Round to the minute before splitting, so 59.5 min is "1 h 0 min", never "60 min".
 // Same half-up rule as the backend's recommendation reason, so the two always agree.
-export function formatDuration(seconds: number) {
+export function durationParts(seconds: number) {
   const minutes = Math.round(seconds / 60)
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
+  return { h: Math.floor(minutes / 60), m: minutes % 60 }
+}
+
+export function formatDuration(seconds: number) {
+  const { h, m } = durationParts(seconds)
   return h ? `${h} h ${m} min` : `${m} min`
+}
+
+// A level's colour, see-through: for tinted badges and the map's weather shading
+export function levelTint(level: RiskLevel, alpha: number) {
+  const n = parseInt(LEVEL_COLOR[level].slice(1), 16)
+  return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`
 }
 
 // Plan times show in the plan's zone (the origin's), not the viewer's: "Mon 9:49 PM CDT".
