@@ -45,8 +45,9 @@ body {
 }
 
 .sidebar {
+  --sidebar-padding: 20px;
   overflow-y: auto;
-  padding: 20px;
+  padding: var(--sidebar-padding);
   background: var(--panel);
   border-right: 1px solid var(--border);
   display: flex;
@@ -338,7 +339,12 @@ button[type='submit']:disabled {
   white-space: normal;
 }
 
+/* Sticks to the top edge of the scrolling sidebar. Sticky offsets count from inside the
+   scroller's padding, hence the negative top. */
 .checkpoint-table thead th {
+  position: sticky;
+  top: calc(-1 * var(--sidebar-padding));
+  z-index: 1;
   font-weight: 600;
   color: var(--muted);
   vertical-align: bottom;
@@ -445,7 +451,13 @@ button[type='submit']:disabled {
   .sidebar {
     border-right: 0;
     border-bottom: 1px solid var(--border);
-    padding: 16px;
+    --sidebar-padding: 16px;
+    /* The page scrolls here, not the sidebar; a scroll container would stop sticky headers */
+    overflow: visible;
+  }
+
+  .checkpoint-table thead th {
+    top: 0;
   }
 
   .main {
