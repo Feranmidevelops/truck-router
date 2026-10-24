@@ -7,9 +7,11 @@ import { HowItWorks } from './components/HowItWorks'
 import { SampleDataBanner } from './components/SampleDataBanner'
 import { SiteFooter } from './components/SiteFooter'
 import { SiteHeader } from './components/SiteHeader'
+import { TripBar } from './components/TripBar'
 import { TripForm } from './components/TripForm'
 import { Workspace } from './components/Workspace'
 import { scrollToElement } from './lib/layout'
+import { tripFromPlan, tripFromRequest } from './lib/trip'
 
 const PLAN_TRIP_ID = 'plan-trip'
 
@@ -22,6 +24,7 @@ export default function App() {
   const [error, setError] = useState<{ message: string; retry: boolean } | null>(null)
   const pending = useRef<AbortController | null>(null)
   const lastRequest = useRef<PlanRequest | null>(null)
+  const [planning, setPlanning] = useState<PlanRequest | null>(null) // for the trip bar
   const [heatmap, setHeatmap] = useState<HeatmapState>({ status: 'idle' })
   const heatmapPending = useRef<AbortController | null>(null)
 
@@ -47,6 +50,7 @@ export default function App() {
     const ctrl = new AbortController()
     pending.current = ctrl
     setLoading(true)
+    setPlanning(req)
     setError(null)
     try {
       const result = await planTrip(req, ctrl.signal)
@@ -70,6 +74,8 @@ export default function App() {
     scrollToElement(card, 'center')
   }
 
+  const trip = loading && planning ? tripFromRequest(planning) : plan ? tripFromPlan(plan) : null
+
   return (
     <>
       <SiteHeader />
@@ -78,7 +84,9 @@ export default function App() {
           <SampleDataBanner />
           <TripForm loading={loading} onSubmit={handlePlan} />
         </Hero>
+        {/* The trip bar sticks to the top of the window anywhere below the hero */}
         <div className="below-hero">
+          <TripBar trip={trip} planning={loading} onEdit={editTrip} />
           <Workspace
             plan={plan}
             loading={loading}
