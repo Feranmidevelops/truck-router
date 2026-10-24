@@ -251,3 +251,15 @@ def test_interval_must_be_positive():
     pts = meridian_line(10)
     with pytest.raises(ValueError):
         sample_checkpoints(pts, uniform_timing(pts, 60), T0, 0)
+
+
+@pytest.mark.parametrize(
+    "pts, timing, message",
+    [
+        ([], [TimingPoint(0, 0)], "no geometry"),
+        (meridian_line(5), [], "no timing profile"),
+    ],
+)
+def test_empty_route_raises_a_clear_error(pts, timing, message):
+    with pytest.raises(ValueError, match=message):
+        sample_checkpoints(pts, timing, T0, 10)

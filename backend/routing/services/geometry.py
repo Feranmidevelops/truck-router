@@ -74,6 +74,10 @@ def sample_checkpoints(
     """
     if interval_miles <= 0:
         raise ValueError("interval_miles must be positive")
+    if not points:
+        raise ValueError("route has no geometry")
+    if not timing:
+        raise ValueError("route has no timing profile")
     cumulative = cumulative_m(points)
     length = cumulative[-1]
     step = interval_miles * METERS_PER_MILE
