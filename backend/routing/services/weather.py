@@ -113,10 +113,10 @@ def _fetch_chunk(
         "end_hour": end.strftime("%Y-%m-%dT%H:%M"),
     }
     key = "wx:" + hashlib.sha1(repr(sorted(params.items())).encode()).hexdigest()
-    payload = cache.get(key) if cache else None
+    payload = cache.get(key) if cache is not None else None
     if payload is None:
         payload = _get_json(client, params)
-        if cache:
+        if cache is not None:
             cache.set(key, payload, CACHE_TTL_S)
 
     items = payload if isinstance(payload, list) else [payload]

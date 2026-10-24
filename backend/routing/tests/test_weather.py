@@ -103,6 +103,22 @@ def test_nearby_positions_share_one_location_and_keep_their_own_position():
     assert [s.wind_mph[0] for s in series] == [10.0, 40.0, 10.0, 10.0, 40.0]
 
 
+class DictCache(dict):
+    def set(self, key, value, timeout=None):
+        self[key] = value
+
+
+def test_nearby_positions_on_a_later_trip_come_from_the_cache():
+    calls: list = []
+    cache = DictCache()  # empty, so falsy: the cache must still be used
+    client = mock_client(location_payload(), calls)
+    weather.fetch_hourly([LatLon(39.74, -104.99)], T0, T0 + timedelta(hours=2), client=client, cache=cache)
+    [s] = weather.fetch_hourly([LatLon(39.66, -105.04)], T0, T0 + timedelta(hours=2), client=client, cache=cache)
+    assert len(calls) == 1
+    assert s.position == LatLon(39.66, -105.04)
+    assert s.wind_mph == [10.0, 20.0, 30.0]
+
+
 def scripted_client(responses: list[httpx.Response], calls: list):
     def handler(request: httpx.Request):
         calls.append(request)
