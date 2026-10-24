@@ -24,7 +24,7 @@ METERS_PER_MILE = 1609.344
 # Route lines are drawn and gridded from a simplified copy. 20 m is inside a highway's width and
 # under 3 px up to city-level zoom (13), and cuts a ~10,000-point TomTom route to under 1,000 points.
 SIMPLIFY_TOLERANCE_M = 20
-NO_ROUTE_MESSAGE = "No truck route found between these places."
+NO_ROUTE_MESSAGE = tomtom.NO_ROUTE_MESSAGE
 
 log = logging.getLogger(__name__)
 
@@ -58,11 +58,8 @@ def build_plan(
 
     try:
         routes = tomtom.calculate_routes(o, d, departure, load_weight_lb, key)
-    except tomtom.RoutingError as exc:
-        # calculate_routes raises this exact message when TomTom's reply has no routes in it
-        if str(exc) == NO_ROUTE_MESSAGE:
-            raise NoRouteFound(NO_ROUTE_MESSAGE) from exc
-        raise
+    except tomtom.NoRouteError as exc:
+        raise NoRouteFound(NO_ROUTE_MESSAGE) from exc
     if not routes:
         raise NoRouteFound(NO_ROUTE_MESSAGE)
     clock.lap("routing")
