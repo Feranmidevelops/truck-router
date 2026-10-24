@@ -39,13 +39,14 @@ def miles_to_route(p: LatLon, route: list[LatLon]) -> float:
 
 
 def every_centre_near(route: list[LatLon], cell_deg: float) -> list[LatLon]:
-    """All grid centres in the route's bounding box padded by about 69 miles each way."""
+    """All valid grid centres in the route's bounding box padded by about 69 miles each way."""
     lats, lons = [p.lat for p in route], [p.lon for p in route]
-    lon_pad = 1 / math.cos(math.radians(max(abs(x) for x in lats) + 1))
-    rows = range(math.floor((min(lats) - 1) / cell_deg), math.ceil((max(lats) + 1) / cell_deg))
-    cols = range(
-        math.floor((min(lons) - lon_pad) / cell_deg), math.ceil((max(lons) + lon_pad) / cell_deg)
-    )
+    edge = max(abs(x) for x in lats) + 1
+    lon_pad = 1 / math.cos(math.radians(edge)) if edge < 89 else 360
+    lat_lo, lat_hi = max(min(lats) - 1, -90), min(max(lats) + 1, 90)
+    lon_lo, lon_hi = max(min(lons) - lon_pad, -180), min(max(lons) + lon_pad, 180)
+    rows = range(math.floor(lat_lo / cell_deg), math.ceil(lat_hi / cell_deg))
+    cols = range(math.floor(lon_lo / cell_deg), math.ceil(lon_hi / cell_deg))
     return [LatLon((i + 0.5) * cell_deg, (j + 0.5) * cell_deg) for i in rows for j in cols]
 
 
@@ -62,6 +63,7 @@ def three_long_routes(step_miles: float) -> list[list[LatLon]]:
 TEXAS = polyline(DALLAS, WACO)
 ALASKA = polyline(FAIRBANKS, LIVENGOOD)
 SVALBARD = polyline(LatLon(78.22, 15.65), LatLon(78.45, 16.30))
+NEAR_POLE = polyline(LatLon(89.8, 100.0), LatLon(89.85, 120.0))
 
 
 def test_no_routes_means_no_points():
@@ -77,7 +79,11 @@ def test_points_sit_on_a_fixed_global_grid():
     assert LatLon(32.875, -96.875) in grid
 
 
-@pytest.mark.parametrize("route", [TEXAS, ALASKA, SVALBARD], ids=["texas", "alaska", "svalbard"])
+@pytest.mark.parametrize(
+    "route",
+    [TEXAS, ALASKA, SVALBARD, NEAR_POLE],
+    ids=["texas", "alaska", "svalbard", "near-pole"],
+)
 def test_matches_a_brute_force_check_of_every_nearby_cell(route):
     grid = set(build_grid([route], max_points=NO_CAP))
     # Route samples are up to a mile from any vertex, hence the tolerance.

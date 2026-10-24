@@ -70,11 +70,14 @@ def _cells_within(samples: list[LatLon], cell_deg: float, buffer_m: float) -> se
     kept: set[tuple[int, int]] = set()
     for s in samples:
         # A degree of longitude shrinks with cos(lat), so size the longitude window
-        # at the pole-ward edge of the buffer, where it is widest. A buffer that
-        # reaches the pole covers every longitude.
+        # at the pole-ward edge of the buffer, where it is widest.
         edge_lat = min(abs(s.lat) + lat_reach, 90.0)
-        lon_reach = min(lat_reach / math.cos(math.radians(edge_lat)), 180.0)
-        cols = _indices(s.lon - lon_reach, s.lon + lon_reach, cell_deg, 180.0)
+        lon_reach = lat_reach / math.cos(math.radians(edge_lat))
+        if lon_reach >= 180:
+            # The window wraps all the way round, e.g. a buffer over the pole.
+            cols = _indices(-180.0, 180.0, cell_deg, 180.0)
+        else:
+            cols = _indices(s.lon - lon_reach, s.lon + lon_reach, cell_deg, 180.0)
         for i in _indices(s.lat - lat_reach, s.lat + lat_reach, cell_deg, 90.0):
             lat = _centre(i, cell_deg)
             for j in cols:
