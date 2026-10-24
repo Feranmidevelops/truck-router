@@ -52,6 +52,13 @@ def every_centre_near(route: list[LatLon], cell_deg: float) -> list[LatLon]:
     return [LatLon((i + 0.5) * cell_deg, (j + 0.5) * cell_deg) for i in rows for j in cols]
 
 
+def miles_west_on_parallel(p: LatLon, miles: float) -> LatLon:
+    """The point on p's parallel whose great-circle distance west of p is `miles`."""
+    half_angle = math.sin(miles * METERS_PER_MILE / EARTH_RADIUS_M / 2)
+    dlon = 2 * math.asin(half_angle / math.cos(math.radians(p.lat)))
+    return LatLon(p.lat, p.lon - math.degrees(dlon))
+
+
 def cells_near(p: LatLon, cell_deg: float, miles: float) -> set[tuple[int, int]]:
     """(row, col) of the cells touched by a box reaching `miles` each way from p.
 
@@ -128,6 +135,15 @@ def test_matches_a_brute_force_check_of_every_nearby_cell(route):
     assert missing == []
     too_far = [c for c in grid if miles_to_route(c, route) > BUFFER + 1]
     assert too_far == []
+
+
+def test_buffer_edge_is_exact_for_a_single_point():
+    # A one-point route is its own only sample, so distances to it are exact.
+    centre = LatLon(32.875, -96.875)
+    inside = miles_west_on_parallel(centre, BUFFER - 0.1)
+    outside = miles_west_on_parallel(centre, BUFFER + 0.1)
+    assert centre in build_grid([[inside]], max_points=NO_CAP)
+    assert centre not in build_grid([[outside]], max_points=NO_CAP)
 
 
 def test_buffer_reaching_over_the_pole_stays_on_valid_coordinates():
