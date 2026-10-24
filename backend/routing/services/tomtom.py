@@ -168,7 +168,7 @@ def ensure_three_routes(
 ) -> list[RouteOption]:
     """Up to 3 distinct routes, fastest first, topped up with via-point fallbacks if needed.
 
-    The fastest route is always kept. Any other route, TomTom's own alternatives included,
+    TomTom's fastest route is kept first. Any other route, TomTom's own alternatives included,
     is dropped when it takes over 1.5x the fastest route's time, or when over 90% of it runs
     along a route already kept.
 
@@ -178,7 +178,7 @@ def ensure_three_routes(
     survive, the caller gets what is left.
 
     A fallback can, rarely, beat TomTom's fastest route. The 1.5x limit is then checked again
-    against it at the end, so a route kept earlier can still drop out.
+    against it at the end, so a route kept earlier, even TomTom's fastest, can still drop out.
     """
     lat0 = (origin.lat + destination.lat) / 2
     kept: list[RouteOption] = []  # kept[0] is the fastest route TomTom gave us
