@@ -160,3 +160,40 @@ def test_full_tie_keeps_input_order():
     assert reason == "Tied with the next route on risk and travel time"
     order, _ = rank_routes([summary("b", high=10), summary("a", high=10)])
     assert order == ["b", "a"]
+
+
+@pytest.mark.parametrize("level", ["nt", "severe", "high"])
+def test_miles_within_rounding_tie_and_fall_through_to_next_key(level):
+    # 10.04 rounds to 10.0, so b's extra 0.04 miles don't count and its lower average decides
+    order, reason = rank_routes(
+        [summary("a", **{level: 10.0}, avg=0.9), summary("b", **{level: 10.04}, avg=0.5)]
+    )
+    assert order == ["b", "a"]
+    assert reason == "Lower average risk (0.50 vs 0.90)"
+
+
+def test_three_routes_sorted_best_first():
+    order, reason = rank_routes(
+        [
+            summary("fast", severe=20, duration=30_000),
+            summary("safe", avg=0.4, duration=42_000),
+            summary("middle", high=15, avg=0.9, duration=36_000),
+        ]
+    )
+    assert order == ["safe", "middle", "fast"]
+    # the reason compares the winner with the runner-up only
+    assert reason == "Fewest high-risk miles (0.0 vs 15.0)"
+
+
+def test_every_route_with_no_travel_still_gets_an_order():
+    order, reason = rank_routes([summary("a", nt=30), summary("b", nt=5, severe=80), summary("c", nt=12)])
+    assert order == ["b", "c", "a"]
+    assert reason == "Fewest no-travel miles (5.0 vs 12.0)"
+
+
+def test_summaries_feed_the_ranking():
+    risky = summarize_route("risky", 80_467, 3000, [cp(0, 25, Level.LOW), cp(1, 25, Level.SEVERE)])
+    calm = summarize_route("calm", 96_561, 4000, [cp(0, 30, Level.MODERATE), cp(1, 30, Level.HIGH)])
+    order, reason = rank_routes([risky, calm])
+    assert order == ["calm", "risky"]
+    assert reason == "Fewest severe miles (0.0 vs 25.0)"
