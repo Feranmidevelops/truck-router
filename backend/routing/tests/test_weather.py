@@ -235,6 +235,14 @@ def test_a_response_that_is_not_json_is_a_weather_error():
     assert len(calls) == 1
 
 
+def test_a_forecast_missing_its_hourly_data_is_a_weather_error_and_is_not_cached():
+    cache = DictCache()
+    client = mock_client({"latitude": 39.7, "longitude": -105.0})
+    with pytest.raises(weather.WeatherError, match="unexpected shape"):
+        weather.fetch_hourly([LatLon(39.7, -105.0)], T0, T0, client=client, cache=cache)
+    assert len(cache) == 0
+
+
 def test_unknown_unit_is_an_error():
     client = mock_client(location_payload(snow_unit="furlongs"))
     with pytest.raises(weather.WeatherError):

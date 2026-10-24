@@ -122,16 +122,20 @@ def _fetch_chunk(
         "end_hour": end.strftime("%Y-%m-%dT%H:%M"),
     }
     key = "wx:" + hashlib.sha1(repr(sorted(params.items())).encode()).hexdigest()
-    payload = cache.get(key) if cache is not None else None
-    if payload is None:
-        payload = _get_json(client, params)
-        if cache is not None:
-            cache.set(key, payload, CACHE_TTL_S)
+    cached = cache.get(key) if cache is not None else None
+    payload = cached if cached is not None else _get_json(client, params)
 
     items = payload if isinstance(payload, list) else [payload]
     if len(items) != len(chunk):
         raise WeatherError(f"Open-Meteo returned {len(items)} locations for {len(chunk)} requested")
-    return [parse_location(item, pos) for item, pos in zip(items, chunk)]
+    try:
+        series = [parse_location(item, pos) for item, pos in zip(items, chunk)]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise WeatherError(f"Open-Meteo sent a forecast in an unexpected shape: {exc!r}") from exc
+    # Cached only once it parses, so a bad reply isn't served again for the next half hour.
+    if cache is not None and cached is None:
+        cache.set(key, payload, CACHE_TTL_S)
+    return series
 
 
 def _get_json(client: httpx.Client, params: dict) -> dict | list:
