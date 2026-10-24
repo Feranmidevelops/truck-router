@@ -13,6 +13,7 @@
   --sample-border: #eed58f;
   --sample-text: #6b4e00;
   --skeleton: #e6eaf0;
+  --stale-opacity: 0.45; /* the last plan, still on screen while a new one loads */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -256,7 +257,7 @@ button[type='submit']:disabled {
 }
 
 .results-body.stale {
-  opacity: 0.45;
+  opacity: var(--stale-opacity);
 }
 
 .loading-note {

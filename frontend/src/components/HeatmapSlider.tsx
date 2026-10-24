@@ -15,6 +15,7 @@ const HOURS = 48
 interface Props {
   state: HeatmapState
   timeZone?: string // the plan's zone (the origin's); the slider's clock reads in it
+  inert?: boolean // while a new plan loads, this panel still shows the old one's forecast
   visible: boolean
   onToggle: () => void
   onHourChange: (hour: number) => void
@@ -22,10 +23,10 @@ interface Props {
 }
 
 // Map overlay: weather on/off, the 0-48 h slider and the colour legend.
-export function HeatmapSlider({ state, timeZone, visible, onToggle, onHourChange, ref }: Props) {
+export function HeatmapSlider({ state, timeZone, inert, visible, onToggle, onHourChange, ref }: Props) {
   const { status } = state
   return (
-    <section ref={ref} className="heat-panel" aria-label="Weather overlay">
+    <section ref={ref} className="heat-panel" aria-label="Weather overlay" inert={inert}>
       {(status === 'loading' || status === 'ready') && (
         <button type="button" className="heat-toggle" aria-pressed={visible} onClick={onToggle}>
           <span className="heat-switch" aria-hidden />

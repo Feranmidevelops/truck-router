@@ -73,6 +73,7 @@ export default function App() {
       <main className="main">
         <MapView
           plan={plan}
+          loading={loading}
           selectedRouteId={selectedRouteId}
           onSelectRoute={setSelectedRouteId}
           heatmap={heatmap}

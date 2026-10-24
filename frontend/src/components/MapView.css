@@ -14,6 +14,20 @@
   --map-ui-warn-bg: #fff4e5;
   --map-ui-warn-text: #8a4b00;
   --map-ui-warn-border: #f5c98b;
+  --map-ui-stale-opacity: var(--stale-opacity, 0.45);
+  --map-ui-fade: 0.2s;
+}
+
+/* While a new plan loads, the old one's routes, shading and forecast panel fade like the
+   sidebar's results. The zoom buttons don't: panning and zooming still work. */
+.map-wrap .maplibregl-canvas,
+.map-wrap .heat-panel {
+  transition: opacity var(--map-ui-fade);
+}
+
+.map-wrap.stale .maplibregl-canvas,
+.map-wrap.stale .heat-panel {
+  opacity: var(--map-ui-stale-opacity);
 }
 
 .map-notice {
