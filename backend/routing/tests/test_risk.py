@@ -134,6 +134,15 @@ def test_load_rules_never_lower_the_wind_level(load):
     assert apply_load_rules(50, N, load) == N
 
 
+# The wind level passed in is LOW on purpose, so only the 55 mph rule can raise it.
+@pytest.mark.parametrize(
+    "mph, load, expected",
+    [(54.9, 0, L), (55, 0, N), (55, 80_000, N), (80, 0, N)],
+)
+def test_load_rules_make_55_mph_no_travel_by_themselves(mph, load, expected):
+    assert apply_load_rules(mph, L, load) == expected
+
+
 def test_assess_takes_worst_factor():
     a = assess(wind_mph=30, rain_in_hr=0.3, snow_in_hr=0, load_lb=10_000)
     assert a.level == H
