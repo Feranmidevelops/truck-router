@@ -8,10 +8,11 @@ interface Props {
   error: string | null
   selectedRouteId: string | null
   onSelect: (id: string) => void
+  onRetry: () => void
 }
 
 // Everything under the form: loading and error states, route cards, checkpoint table.
-export function PlanResults({ plan, loading, error, selectedRouteId, onSelect }: Props) {
+export function PlanResults({ plan, loading, error, selectedRouteId, onSelect, onRetry }: Props) {
   const selectedRoute = plan?.routes.find((r) => r.id === selectedRouteId)
 
   return (
@@ -23,9 +24,12 @@ export function PlanResults({ plan, loading, error, selectedRouteId, onSelect }:
         </p>
       )}
       {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
+        <div className="banner banner-danger plan-error" role="alert">
+          <p>{error}</p>
+          <button type="button" className="button" onClick={onRetry}>
+            Try again
+          </button>
+        </div>
       )}
       {loading && !plan && <RouteSkeleton />}
       {plan && (

@@ -173,12 +173,6 @@ button[type='submit']:disabled {
   cursor: default;
 }
 
-.error {
-  margin: 0;
-  color: var(--danger);
-  font-size: 0.9rem;
-}
-
 .banner {
   margin: 0;
   padding: var(--space-2) var(--space-3);
@@ -196,6 +190,24 @@ button[type='submit']:disabled {
 .banner-danger {
   background: var(--danger-bg);
   border-color: var(--danger-border);
+  color: var(--danger);
+}
+
+.plan-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.plan-error p {
+  margin: 0;
+}
+
+.plan-error .button {
+  flex: none;
+  border: 1px solid var(--danger-border);
+  background: var(--panel);
   color: var(--danger);
 }
 

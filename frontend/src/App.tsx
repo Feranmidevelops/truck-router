@@ -12,8 +12,10 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const pending = useRef<AbortController | null>(null)
+  const lastRequest = useRef<PlanRequest | null>(null)
 
   async function handlePlan(req: PlanRequest) {
+    lastRequest.current = req
     pending.current?.abort()
     const ctrl = new AbortController()
     pending.current = ctrl
@@ -46,6 +48,7 @@ export default function App() {
           error={error}
           selectedRouteId={selectedRouteId}
           onSelect={setSelectedRouteId}
+          onRetry={() => lastRequest.current && handlePlan(lastRequest.current)}
         />
       </aside>
       <main className="main">
