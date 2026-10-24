@@ -1,8 +1,10 @@
 import { useRef } from 'react'
 import type { Plan } from '../api/types'
+import { NARROW_SCREEN, useMediaQuery } from '../lib/layout'
+import { BottomSheet } from './BottomSheet'
 import type { HeatmapState } from './HeatmapSlider'
 import { MapView } from './MapView'
-import { PlanResults } from './PlanResults'
+import { PlanPeek, PlanResults } from './PlanResults'
 import './Workspace.css'
 
 interface Props {
@@ -20,6 +22,7 @@ interface Props {
 // on wide screens, a sheet from the bottom on phones. Either way the map keeps the routes
 // clear of them (see fitPadding in MapView).
 export function Workspace({ plan, loading, error, onRetry, selectedRouteId, onSelectRoute, heatmap, onPlanTrip }: Props) {
+  const narrow = useMediaQuery(NARROW_SCREEN)
   const coverRef = useRef<HTMLDivElement>(null)
 
   const results = (
@@ -44,9 +47,31 @@ export function Workspace({ plan, loading, error, onRetry, selectedRouteId, onSe
         heatmap={heatmap}
         coverRef={coverRef}
       />
-      <div ref={coverRef} className="results-panel">
-        {results}
-      </div>
+      {narrow ? (
+        <>
+          {/* The strip the sheet covers while it's down: the map fits the routes above it */}
+          <div ref={coverRef} className="sheet-dock" aria-hidden />
+          <BottomSheet
+            label="route details"
+            resetKey={plan?.plan_id}
+            peek={
+              <PlanPeek
+                plan={plan}
+                loading={loading}
+                error={error}
+                selectedRouteId={selectedRouteId}
+                onRetry={onRetry}
+              />
+            }
+          >
+            {results}
+          </BottomSheet>
+        </>
+      ) : (
+        <div ref={coverRef} className="results-panel">
+          {results}
+        </div>
+      )}
     </section>
   )
 }
