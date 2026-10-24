@@ -19,6 +19,11 @@ def env_list(name: str, default: str = "") -> list[str]:
     return [item.strip() for item in os.environ.get(name, default).split(",") if item.strip()]
 
 
+def env_int(name: str, default: int) -> int:
+    value = os.environ.get(name, "").strip()
+    return int(value) if value else default
+
+
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-insecure-key")
 DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
@@ -71,6 +76,10 @@ REST_FRAMEWORK = {
     # Limits per client IP (there are no user accounts). A view opts in by setting
     # throttle_scope; views without one, like health, are never throttled. Request history
     # lives in the default cache, so every gunicorn worker counts against the same limit.
+    # The IP is REMOTE_ADDR when NUM_PROXIES is 0, otherwise the X-Forwarded-For entry that
+    # many places from the end, which our own proxies wrote. Left unset, DRF keys on the whole
+    # header, so a client could get a fresh limit by sending a new value each time.
+    "NUM_PROXIES": env_int("NUM_PROXIES", 0),
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
     "DEFAULT_THROTTLE_RATES": {"plan": "10/min", "geocode": "120/min", "heatmap": "30/min"},
 }

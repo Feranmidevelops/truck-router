@@ -20,3 +20,8 @@ services:
         sync: false
       - key: USE_FIXTURES
         value: "false"
+      # Rate limits key on the last X-Forwarded-For entry, which Render's proxy appends, so a
+      # client cannot fake it. Only raise this after a live request shows more Render hops:
+      # a count above the real one lets clients choose their own address again.
+      - key: NUM_PROXIES
+        value: "1"

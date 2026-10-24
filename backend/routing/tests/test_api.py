@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.conf import settings
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.settings import api_settings as drf_settings
@@ -99,6 +100,27 @@ def test_each_ip_has_its_own_plan_limit(api):
         post_plan(api, REMOTE_ADDR="203.0.113.1")
     assert post_plan(api, REMOTE_ADDR="203.0.113.1").status_code == 429
     assert post_plan(api, REMOTE_ADDR="203.0.113.2").status_code == 200
+
+
+@override_settings(USE_FIXTURES=True)
+def test_without_a_proxy_forwarded_for_is_ignored(api):
+    for i in range(10):
+        post_plan(api, REMOTE_ADDR="203.0.113.1", HTTP_X_FORWARDED_FOR=f"1.2.3.{i}")
+    res = post_plan(api, REMOTE_ADDR="203.0.113.1", HTTP_X_FORWARDED_FOR="1.2.3.99")
+    assert res.status_code == 429
+
+
+@override_settings(USE_FIXTURES=True, REST_FRAMEWORK={**settings.REST_FRAMEWORK, "NUM_PROXIES": 1})
+def test_behind_one_proxy_the_limit_follows_the_last_forwarded_address(api):
+    # The proxy appends the address it saw, so only the last entry can be trusted. Everything
+    # before it is whatever the client chose to send.
+    def via_proxy(forwarded_for):
+        return post_plan(api, REMOTE_ADDR="10.0.0.5", HTTP_X_FORWARDED_FOR=forwarded_for)
+
+    for i in range(10):
+        via_proxy(f"1.2.3.{i}, 198.51.100.7")
+    assert via_proxy("9.9.9.9, 198.51.100.7").status_code == 429
+    assert via_proxy("198.51.100.8").status_code == 200
 
 
 @override_settings(USE_FIXTURES=True)
