@@ -1,4 +1,5 @@
 from datetime import timedelta
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
@@ -9,7 +10,8 @@ from rest_framework.test import APIClient
 from rest_framework.throttling import SimpleRateThrottle
 import pytest
 
-from routing.services import planner
+from routing.services import planner, timezones, tomtom
+from routing.views import load_fixture
 
 PLACE_A = {"label": "Dallas, TX", "lat": 32.7767, "lon": -96.797}
 PLACE_B = {"label": "Denver, CO", "lat": 39.7392, "lon": -104.9903}
@@ -84,6 +86,31 @@ def test_plan_reads_a_departure_without_offset_as_local_time_at_the_origin(api, 
     assert seen["timezone"] == "America/Chicago"
     assert seen["departure_time"] == local
     assert seen["departure_time"].isoformat() == local.isoformat()
+
+
+@override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")
+def test_geocode_results_carry_their_time_zone(api, monkeypatch):
+    found = [
+        SimpleNamespace(label="Dallas, TX", lat=32.7767, lon=-96.797),
+        SimpleNamespace(label="El Paso, TX", lat=31.7619, lon=-106.485),
+    ]
+    monkeypatch.setattr(tomtom, "geocode", lambda query, key, **kwargs: found)
+    res = api.get("/api/geocode?q=tx")
+    assert res.status_code == 200
+    assert res.json()["results"] == [
+        {"label": "Dallas, TX", "lat": 32.7767, "lon": -96.797, "timezone": "America/Chicago"},
+        {"label": "El Paso, TX", "lat": 31.7619, "lon": -106.485, "timezone": "America/Denver"},
+    ]
+
+
+@override_settings(USE_FIXTURES=True)
+def test_fixture_places_and_plan_carry_time_zones(api):
+    for p in load_fixture("places.json"):
+        assert p["timezone"] == timezones.zone_name(p["lat"], p["lon"])
+    assert api.get("/api/geocode?q=dallas").json()["results"][0]["timezone"] == "America/Chicago"
+    plan = post_plan(api).json()
+    assert plan["input"]["timezone"] == "America/Chicago"
+    assert plan["input"]["departure_time"].endswith("-05:00")
 
 
 @override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="")

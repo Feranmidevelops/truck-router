@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .serializers import PlanRequestSerializer
-from .services import planner, tomtom, weather
+from .services import planner, timezones, tomtom, weather
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -44,7 +44,10 @@ class GeocodeView(APIView):
             places = tomtom.geocode(query, settings.TOMTOM_API_KEY, country_set=settings.GEOCODE_COUNTRY_SET)
         except tomtom.RoutingError as exc:
             return Response({"detail": str(exc)}, status=502)
-        return Response({"results": [p.__dict__ for p in places]})
+        # The zone lets the form say which local time the departure is in
+        return Response(
+            {"results": [{**p.__dict__, "timezone": timezones.zone_name(p.lat, p.lon)} for p in places]}
+        )
 
 
 class PlanView(APIView):
