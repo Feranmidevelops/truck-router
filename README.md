@@ -115,6 +115,7 @@ Where the brief left room for interpretation, and what I chose.
   heatmap's hour 0) starts at the later of the typed time and now.
 - **Forecast hour.** Wind uses the nearest forecast hour. Rain and snow use the first hour at or
   after the ETA, because Open-Meteo reports precipitation as the total over the preceding hour.
+  Exactly half past goes to the later hour, and gusts are read from the same hour as the wind.
 
 ### Recommendation
 
