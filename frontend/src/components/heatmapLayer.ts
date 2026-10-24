@@ -72,11 +72,17 @@ function heatmapGeoJSON(heatmap: Heatmap): FeatureCollection<Point> {
 }
 
 // The backend widens the grid past 0.25 deg on long trips, so read it from the data.
+// Both axes are checked, since a straight east-west trip can have a single row.
 function gridSpacing(heatmap: Heatmap) {
-  const lats = [...new Set(heatmap.points.map((p) => p.lat))].sort((a, b) => a - b)
-  let spacing = Infinity
-  for (let i = 1; i < lats.length; i++) spacing = Math.min(spacing, lats[i] - lats[i - 1])
+  const spacing = Math.min(smallestGap(heatmap.points.map((p) => p.lat)), smallestGap(heatmap.points.map((p) => p.lon)))
   return Number.isFinite(spacing) ? spacing : 0.25
+}
+
+function smallestGap(values: number[]) {
+  const sorted = [...new Set(values)].sort((a, b) => a - b)
+  let gap = Infinity
+  for (let i = 1; i < sorted.length; i++) gap = Math.min(gap, sorted[i] - sorted[i - 1])
+  return gap
 }
 
 function withAlpha(hex: string, alpha: number) {
