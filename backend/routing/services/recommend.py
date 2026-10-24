@@ -13,6 +13,9 @@ Miles are compared rounded to 0.1.
 from .types import Checkpoint, Level, RouteSummary
 
 METERS_PER_MILE = 1609.344
+# Used both to compare routes and to print the reason, so the two can't drift apart
+MILES_DECIMALS = 1
+AVG_RISK_DECIMALS = 2
 
 
 def summarize_route(
@@ -45,10 +48,10 @@ def ranking_key(summary: RouteSummary) -> tuple:
     """Sort key implementing the order above. Lower sorts first."""
     miles = summary.miles_by_level
     return (
-        round(miles.get(Level.NO_TRAVEL, 0.0), 1),
-        round(miles.get(Level.SEVERE, 0.0), 1),
-        round(miles.get(Level.HIGH, 0.0), 1),
-        round(summary.avg_risk, 2),
+        round(miles.get(Level.NO_TRAVEL, 0.0), MILES_DECIMALS),
+        round(miles.get(Level.SEVERE, 0.0), MILES_DECIMALS),
+        round(miles.get(Level.HIGH, 0.0), MILES_DECIMALS),
+        round(summary.avg_risk, AVG_RISK_DECIMALS),
         summary.duration_s,
     )
 
@@ -71,7 +74,11 @@ def rank_routes(summaries: list[RouteSummary]) -> tuple[list[str], str]:
 
 
 def _miles(value: float) -> str:
-    return f"{value:.1f}"
+    return f"{value:.{MILES_DECIMALS}f}"
+
+
+def _avg_risk(value: float) -> str:
+    return f"{value:.{AVG_RISK_DECIMALS}f}"
 
 
 def _duration(seconds: float) -> str:
@@ -85,16 +92,17 @@ _REASONS = (
     ("Fewest no-travel miles", _miles),
     ("Fewest severe miles", _miles),
     ("Fewest high-risk miles", _miles),
-    ("Lower average risk", lambda v: f"{v:.2f}"),
+    ("Lower average risk", _avg_risk),
     ("Shorter travel time", _duration),
 )
 
 
 def _reason(best: tuple, runner_up: tuple) -> str:
-    for (label, fmt), ours, theirs in zip(_REASONS, best, runner_up):
+    for (label, fmt), ours, theirs in zip(_REASONS, best, runner_up, strict=True):
         if ours != theirs:
             if fmt(ours) == fmt(theirs):
-                # only travel time can get here: both round to the same minute
+                # the risk keys print at the precision they were rounded to, so only
+                # travel time (raw seconds) can get here: both round to the same minute
                 return f"{label} by under a minute"
             return f"{label} ({fmt(ours)} vs {fmt(theirs)})"
     return "Tied with the next route on risk and travel time"

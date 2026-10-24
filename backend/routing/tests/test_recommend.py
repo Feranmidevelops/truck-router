@@ -161,6 +161,7 @@ def test_no_routes_is_an_error():
         ({"nt": 12.5}, {}, "Fewest no-travel miles (0.0 vs 12.5)"),
         ({"severe": 25}, {}, "Fewest severe miles (0.0 vs 25.0)"),
         ({"high": 40}, {"high": 10}, "Fewest high-risk miles (10.0 vs 40.0)"),
+        ({"severe": 10.06}, {"severe": 10.04}, "Fewest severe miles (10.0 vs 10.1)"),
         ({"duration": 36_720}, {"duration": 32_700}, "Shorter travel time (9 h 5 min vs 10 h 12 min)"),
         ({"duration": 3570}, {"duration": 2700}, "Shorter travel time (45 min vs 1 h 0 min)"),
         ({"duration": 36_020}, {"duration": 36_000}, "Shorter travel time by under a minute"),
