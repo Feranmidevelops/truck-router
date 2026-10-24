@@ -19,4 +19,9 @@ services:
       - key: TOMTOM_API_KEY
         sync: false
       - key: USE_FIXTURES
-        value: "true"
+        value: "false"
+      # Render puts Cloudflare in front of its own proxy and both append to X-Forwarded-For
+      # ("<client-sent...>, <client>, <Cloudflare edge>"), so the visitor is 2 from the end.
+      # 1 would key every limit on a Cloudflare address shared by strangers.
+      - key: NUM_PROXIES
+        value: "2"

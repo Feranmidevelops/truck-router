@@ -28,6 +28,8 @@ class HealthView(APIView):
 
 
 class GeocodeView(APIView):
+    throttle_scope = "geocode"
+
     def get(self, request):
         query = request.query_params.get("q", "").strip()
         if len(query) < 2:
@@ -46,6 +48,8 @@ class GeocodeView(APIView):
 
 
 class PlanView(APIView):
+    throttle_scope = "plan"
+
     def post(self, request):
         serializer = PlanRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -61,6 +65,8 @@ class PlanView(APIView):
 
 
 class HeatmapView(APIView):
+    throttle_scope = "heatmap"
+
     def get(self, request):
         plan_id = request.query_params.get("plan_id", "")
         if settings.USE_FIXTURES:

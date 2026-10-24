@@ -19,6 +19,11 @@ def env_list(name: str, default: str = "") -> list[str]:
     return [item.strip() for item in os.environ.get(name, default).split(",") if item.strip()]
 
 
+def env_int(name: str, default: int) -> int:
+    value = os.environ.get(name, "").strip()
+    return int(value) if value else default
+
+
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-insecure-key")
 DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
@@ -68,6 +73,12 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "UNAUTHENTICATED_USER": None,
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    # Limits per client IP, for views that set throttle_scope (health doesn't). History lives in
+    # the shared cache so all gunicorn workers count together. The IP is REMOTE_ADDR, or with
+    # NUM_PROXIES > 0 the X-Forwarded-For entry that many places from the end.
+    "NUM_PROXIES": env_int("NUM_PROXIES", 0),
+    "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
+    "DEFAULT_THROTTLE_RATES": {"plan": "10/min", "geocode": "120/min", "heatmap": "30/min"},
 }
 
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:5173")
