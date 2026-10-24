@@ -1,6 +1,6 @@
 import { memo, useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import type { Checkpoint, RiskLevel, Route } from '../api/types'
-import { LEVEL_COLOR, timeFormatter, type TimeFormatter } from '../lib/risk'
+import { LEVEL_COLOR, formatSky, timeFormatter, type TimeFormatter } from '../lib/risk'
 import { CheckpointTable } from './CheckpointTable'
 import { ChevronDown, RainIcon, SnowIcon, WindIcon } from './icons'
 import { LevelBadge } from './Level'
@@ -64,6 +64,7 @@ export const AlongRoute = memo(function AlongRoute({ route, timeZone, intervalMi
 function NotableRow({ checkpoint: c, time }: { checkpoint: Checkpoint; time: TimeFormatter }) {
   const { weather: w, risk } = c
   const gust = Math.round(w.gust_mph) > Math.round(w.wind_mph) ? `gusts ${Math.round(w.gust_mph)}` : undefined
+  const sky = formatSky(w)
   return (
     <li className="along-row">
       <span className="along-when">
@@ -71,6 +72,7 @@ function NotableRow({ checkpoint: c, time }: { checkpoint: Checkpoint; time: Tim
         <span className="along-mile">mile {Math.round(c.mile)}</span>
       </span>
       <LevelBadge level={risk.level} />
+      {sky && <span className="along-sky">{sky}</span>}
       <span className="along-readings">
         <Reading icon={<WindIcon size={15} />} label="Wind" level={risk.wind} driver={risk.drivers.includes('wind')}>
           {Math.round(w.wind_mph)} mph{gust && <span className="reading-extra">, {gust}</span>}

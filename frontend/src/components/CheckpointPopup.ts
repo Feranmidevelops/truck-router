@@ -1,5 +1,5 @@
 import type { Checkpoint, RiskLevel, Route } from '../api/types'
-import { LEVEL_COLOR, LEVEL_LABEL, formatTime } from '../lib/risk'
+import { LEVEL_COLOR, LEVEL_LABEL, formatSky, formatTime } from '../lib/risk'
 import './CheckpointPopup.css'
 
 type Factor = 'wind' | 'rain' | 'snow'
@@ -13,6 +13,8 @@ export function checkpointPopup(route: Route, cp: Checkpoint, timeZone: string):
   const head = el('div', 'cp-head')
   head.append(levelTag(risk.level), el('span', 'cp-mile', `Mile ${Math.round(cp.mile)}`))
   root.append(head, el('div', 'cp-route', route.label), el('div', 'cp-eta', `ETA ${formatTime(cp.eta, timeZone)}`))
+  const sky = formatSky(weather)
+  if (sky) root.append(el('div', 'cp-sky', sky))
 
   const rows = el('dl', 'cp-rows')
   const gust = weather.gust_mph > weather.wind_mph ? `, gusts ${Math.round(weather.gust_mph)}` : ''

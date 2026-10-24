@@ -1,5 +1,5 @@
 import type { ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec'
-import type { RiskLevel } from '../api/types'
+import type { CheckpointWeather, RiskLevel } from '../api/types'
 
 export const LEVELS: RiskLevel[] = ['LOW', 'MODERATE', 'HIGH', 'SEVERE', 'NO_TRAVEL']
 
@@ -44,6 +44,13 @@ export function durationParts(seconds: number) {
 export function formatDuration(seconds: number) {
   const { h, m } = durationParts(seconds)
   return h ? `${h} h ${m} min` : `${m} min`
+}
+
+// The sky and temperature, shown but not scored: "Heavy snow, 28°F". Empty when neither is known.
+export function formatSky(weather: CheckpointWeather) {
+  const sky = weather.weather_code === null ? '' : weather.conditions
+  const temp = weather.temp_f === null ? '' : `${Math.round(weather.temp_f)}°F`
+  return [sky, temp].filter(Boolean).join(', ')
 }
 
 // A level's colour, see-through: for tinted badges and the map's weather shading
