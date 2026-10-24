@@ -198,6 +198,8 @@ def test_no_routes_is_an_error():
         ({"severe": 10.06}, {"severe": 10.04}, "Fewest severe miles (10.0 vs 10.1)"),
         ({"duration": 36_720}, {"duration": 32_700}, "Shorter travel time (9 h 5 min vs 10 h 12 min)"),
         ({"duration": 3570}, {"duration": 2700}, "Shorter travel time (45 min vs 1 h 0 min)"),
+        # 90.5 min rounds up to 91, not to the even 90; 119.5 min rolls over to 2 h 0 min
+        ({"duration": 7170}, {"duration": 5430}, "Shorter travel time (1 h 31 min vs 2 h 0 min)"),
         ({"duration": 36_020}, {"duration": 36_000}, "Shorter travel time by under a minute"),
     ],
 )
