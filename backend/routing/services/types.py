@@ -49,7 +49,9 @@ class WeatherSample:
     gust_mph: float
     rain_in_hr: float  # rain + showers
     snow_in_hr: float
-    forecast_time: datetime  # the forecast hour the values came from
+    forecast_time: datetime  # the forecast hour of the wind, gusts, temperature and weather code
+    temp_f: float | None  # shown, not scored; None when the forecast has no value
+    weather_code: int | None  # WMO code, shown as text (conditions.describe), not scored
 
 
 @dataclass(frozen=True)

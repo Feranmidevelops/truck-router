@@ -218,10 +218,12 @@ def sample_at(series: HourlySeries, when: datetime) -> WeatherSample:
       value comes from one forecast row.
     - Gusts are shown, not scored, so they come from the wind's hour and the
       two read together.
+    - Temperature and the weather code are instantaneous too ("Instant" in
+      Open-Meteo's docs), so they also use the nearest hour, the wind's.
     - Rain and snow are preceding-hour sums: use the first forecast hour >= when
       (the hour whose window contains `when`).
     - Clamp to the first/last hour if `when` is outside the series.
-    forecast_time is the hour used for wind.
+    forecast_time is the hour used for wind, gusts, temperature and the code.
     """
     if when.tzinfo is None:
         raise ValueError("sample_at needs a timezone-aware datetime")
@@ -238,6 +240,8 @@ def sample_at(series: HourlySeries, when: datetime) -> WeatherSample:
         rain_in_hr=series.rain_in_hr[precip_i],
         snow_in_hr=series.snow_in_hr[precip_i],
         forecast_time=series.times[wind_i],
+        temp_f=series.temp_f[wind_i],
+        weather_code=series.weather_code[wind_i],
     )
 
 

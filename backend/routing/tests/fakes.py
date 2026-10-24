@@ -82,6 +82,8 @@ def fake_sample_at(series, when):
         rain_in_hr=series.rain_in_hr[0],
         snow_in_hr=series.snow_in_hr[0],
         forecast_time=weather.floor_hour(when),
+        temp_f=series.temp_f[0],
+        weather_code=series.weather_code[0],
     )
 
 

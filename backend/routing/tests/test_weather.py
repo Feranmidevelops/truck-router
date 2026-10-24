@@ -304,6 +304,31 @@ def test_sample_at_uses_nearest_hour_for_wind_and_next_hour_for_precip():
     assert clamped.wind_mph == 30.0
 
 
+def test_sample_at_reads_temperature_and_weather_code_from_the_winds_hour():
+    # Both are instantaneous like the wind, so at :20 they come from the hour before the rain's
+    s = weather.parse_location(location_payload(), LatLon(32.78, -96.80))
+    w = weather.sample_at(s, T0 + timedelta(minutes=20))
+    assert w.forecast_time == T0
+    assert (w.temp_f, w.weather_code) == (50.0, 2)
+    assert w.rain_in_hr == pytest.approx(0.15)  # from T0+1h
+
+    late = weather.sample_at(s, T0 + timedelta(minutes=40))
+    assert late.forecast_time == T0 + timedelta(hours=1)
+    assert (late.temp_f, late.weather_code) == (41.0, 61)
+
+    clamped = weather.sample_at(s, T0 + timedelta(hours=10))
+    assert (clamped.temp_f, clamped.weather_code) == (32.0, 73)
+
+
+def test_sample_at_passes_a_missing_temperature_or_code_through():
+    payload = location_payload()
+    payload["hourly"]["temperature_2m"] = [None, 41.0, 32.0]
+    payload["hourly"]["weather_code"] = [None, 61, 73]
+    w = weather.sample_at(weather.parse_location(payload, LatLon(32.78, -96.80)), T0)
+    assert (w.temp_f, w.weather_code) == (None, None)
+    assert w.wind_mph == 10.0
+
+
 def test_sample_at_half_past_goes_to_the_later_hour():
     s = weather.parse_location(location_payload(), LatLon(32.78, -96.80))
     just_before = weather.sample_at(s, T0 + timedelta(minutes=29, seconds=59))
