@@ -71,7 +71,7 @@ any API keys.
 | --- | --- | --- |
 | `POST` | `/api/plan` | Three ranked routes with checkpoints, risk and the recommendation |
 | `GET` | `/api/heatmap?plan_id=` | Risk level per grid point for each hour, 0-48 h |
-| `GET` | `/api/geocode?q=` | Place suggestions |
+| `GET` | `/api/geocode?q=` | Place suggestions, each with its IANA time zone |
 | `GET` | `/api/health` | Health check |
 
 Types: `frontend/src/api/types.ts`.
@@ -140,6 +140,16 @@ runner-up, for example "Fewest severe miles (0.0 vs 25.0)".
   de-duplicated before the request, so checkpoints on shared road cost one lookup.
 - Responses are cached for 30 minutes, and a rate-limited request is retried once before the app
   shows a clear "try again in a minute".
+
+### Time zones
+
+- **The departure is local time at the origin**, not the viewer's time zone. The backend looks up
+  the origin's zone from its coordinates (offline, with `tzfpy`), reads the typed time there,
+  and returns the zone with the plan so every time on screen is shown in it. A time sent with an
+  offset is kept as that instant. The "1 hour ago to 5 days ahead" check runs on the result.
+- **Clock-change nights:** a time that happens twice (01:30 when clocks go back) means the first
+  one; a time that is skipped (02:30 when clocks go forward) moves on by the jump, to 03:30. This
+  is what JavaScript's `Date` does too.
 
 ## Tests
 
