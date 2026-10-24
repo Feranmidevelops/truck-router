@@ -1,13 +1,16 @@
 """Open-Meteo hourly forecast client.
 
 Docs: https://open-meteo.com/en/docs
-- Many coordinates per request (comma-separated, up to 1,000); the response is
-  then a JSON list in request order.
+- Many coordinates per request (comma-separated); the response is then a JSON
+  list in request order.
 - start_hour and end_hour are both inclusive, in the requested timezone (GMT).
 - wind_speed_10m is instantaneous. wind_gusts_10m is the preceding hour's max.
   rain, showers and snowfall are sums over the preceding hour, so they read as in/hr.
-- Free tier: under 10,000 calls/day, 5,000/hour, 600/minute, and every location
-  in a request counts as a call. Round, de-duplicate, cache and batch.
+- Free tier: under 10,000 calls/day, 5,000/hour, 600/minute
+  (https://open-meteo.com/en/pricing). Up to 10 variables over up to 2 weeks is
+  one call; a request for several locations is weighted by how many it asks for
+  (maintainer, https://github.com/open-meteo/open-meteo/issues/438).
+  Round, de-duplicate, cache and batch.
 
 Units are read from `hourly_units` and converted. With the params below the API
 returns "mp/h" for wind and "inch" for rain, showers and snowfall.
