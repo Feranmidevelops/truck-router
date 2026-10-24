@@ -198,3 +198,32 @@ def test_route_shorter_than_half_a_mile_is_one_checkpoint():
     assert cps[0].position == pts[0]
     assert cps[0].eta == T0
     assert cps[0].segment_miles == pytest.approx(0.3)
+
+
+def test_checkpoint_positions_lie_on_the_polyline():
+    pts = [LatLon(30, -97)]
+    for i in range(40):
+        last = pts[-1]
+        pts.append(LatLon(last.lat + 0.05 + 0.01 * (i % 3), last.lon + (0.08 if i % 2 else -0.03)))
+    cum = cumulative_m(pts)
+    cps = sample_checkpoints(pts, uniform_timing(pts, 55), T0, 10)
+    assert len(cps) == 23
+    for c in cps:
+        m = c.mile * METERS_PER_MILE
+        i = max(j for j in range(len(pts) - 1) if cum[j] <= m)
+        a, b = pts[i], pts[i + 1]
+        # On the segment: going through the checkpoint is no longer than going straight from a to b.
+        detour = haversine_m(a, c.position) + haversine_m(c.position, b) - haversine_m(a, b)
+        assert detour == pytest.approx(0, abs=0.01)
+        assert haversine_m(a, c.position) == pytest.approx(m - cum[i], abs=1)
+
+
+def test_duplicate_points_do_not_change_checkpoints():
+    clean = meridian_line(60)
+    doubled = [p for p in clean for _ in range(2)]
+    timing = uniform_timing(clean, 60)
+
+    def fields(cps):
+        return [(c.mile, c.position, c.segment_miles, c.eta) for c in cps]
+
+    assert fields(sample_checkpoints(doubled, timing, T0, 25)) == fields(sample_checkpoints(clean, timing, T0, 25))
