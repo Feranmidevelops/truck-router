@@ -134,11 +134,26 @@ so Route A is always the recommended one.
 
 ### Routes
 
-- TomTom's own truck alternatives come first. When it returns fewer than three, extra routes are
-  requested through points offset to the left and right of the trip's midpoint.
+- TomTom's own truck alternatives come first. It often returns fewer than three, so two extra
+  routes are requested through points 15% of the trip to the left and right of the straight
+  origin -> destination line's midpoint.
+- **Those two go out at the same time as the main request, not after it.** Live, the main
+  request (with alternatives) took 6-10 s and a via-point request 2-3 s, so sending them one
+  after the other added 2-3 s to every plan that needed a fallback. On Dallas -> Denver the
+  fallback step went from 2.3-3.3 s to 0.1 s. Once the main request is back, a via-point
+  request still out gets 2 s more, then it is ignored; any via-point request gives up after
+  10 s.
+- If that still isn't three, more routes are requested through points off the fastest route's
+  midpoint, 15% then 25%. A point within 1% of the trip of one already asked is skipped, and a
+  plan never asks for more than 6 via-point routes.
 - Any candidate that takes over 1.5 times as long as the fastest route, or overlaps a route
   already kept by more than 90%, is dropped. If that leaves fewer than three, the app shows what
   it has rather than padding with a silly detour.
+- If TomTom has no route for the trip itself, the answer is "no route", even when a via-point
+  request found one.
+- **The cost is TomTom requests.** Every plan now makes at least 3, even when TomTom's own
+  three routes were enough (that used to be 1), and at most 7. The free tier's 2,500 requests a
+  day covers about 830 plans, or 350 if every plan needed every fallback.
 
 ### Weather requests
 
