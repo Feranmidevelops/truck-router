@@ -135,6 +135,16 @@ The reason shown under the recommended route names the first key that separates 
 runner-up, for example "Fewest severe miles (0.0 vs 25.0)". Routes are lettered in that order,
 so Route A is always the recommended one.
 
+### Journey report
+
+- **Each route comes with a short report:** the weather at the origin on departure and at the
+  destination on arrival, then every run of consecutive Moderate-or-worse checkpoints with its
+  miles, times, worst level and why, and its peak wind, rain, snow and temperatures. Temperature
+  and sky conditions are shown, not scored. Each run is named after the town near its start
+  ("near Capulin, NM") with TomTom's reverse geocoding: up to 6 requests per plan on top of the
+  1-3 for routes, sent together and cached for 30 days, with "at mile 412" when a lookup fails
+  or the cap is hit.
+
 ### Routes
 
 - **TomTom's own truck alternatives come first.** It often returns fewer than three.
