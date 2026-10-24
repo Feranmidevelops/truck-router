@@ -111,18 +111,6 @@ def test_eleventh_plan_in_a_minute_is_throttled(api, clock):
 
 @override_settings(USE_FIXTURES=True)
 @pytest.mark.parametrize(
-    "send, limit", [(get_geocode, 120), (get_heatmap, 30)], ids=["geocode", "heatmap"]
-)
-def test_geocode_and_heatmap_allow_more_than_plan(api, clock, send, limit):
-    for _ in range(limit):
-        assert send(api).status_code == 200
-    res = send(api)
-    assert res.status_code == 429
-    assert res["Retry-After"] == "60"
-
-
-@override_settings(USE_FIXTURES=True)
-@pytest.mark.parametrize(
     "send, limit",
     [(post_plan, 10), (get_geocode, 120), (get_heatmap, 30)],
     ids=["plan", "geocode", "heatmap"],
@@ -130,6 +118,9 @@ def test_geocode_and_heatmap_allow_more_than_plan(api, clock, send, limit):
 def test_limit_frees_up_a_minute_after_the_first_request(api, clock, send, limit):
     for _ in range(limit):
         assert send(api).status_code == 200
+    res = send(api)
+    assert res.status_code == 429
+    assert res["Retry-After"] == "60"
     clock.now += 59
     assert send(api).status_code == 429
     clock.now += 1.5
