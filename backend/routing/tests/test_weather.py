@@ -225,6 +225,14 @@ def test_one_rate_limited_chunk_fails_the_whole_lookup_with_the_friendly_message
     assert str(exc_info.value) == weather.RATE_LIMITED_MESSAGE
 
 
+def test_a_response_that_is_not_json_is_a_weather_error():
+    calls: list = []
+    client = scripted_client([httpx.Response(200, text="<html>Bad gateway</html>")], calls)
+    with pytest.raises(weather.WeatherError, match="isn't JSON"):
+        weather.fetch_hourly([LatLon(39.7, -105.0)], T0, T0, client=client)
+    assert len(calls) == 1
+
+
 def test_unknown_unit_is_an_error():
     client = mock_client(location_payload(snow_unit="furlongs"))
     with pytest.raises(weather.WeatherError):

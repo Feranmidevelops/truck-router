@@ -139,7 +139,10 @@ def _get_json(client: httpx.Client, params: dict) -> dict | list:
         raise WeatherError(RATE_LIMITED_MESSAGE)
     if resp.status_code != 200:
         raise WeatherError(f"Open-Meteo {resp.status_code}: {resp.text[:200]}")
-    return resp.json()
+    try:
+        return resp.json()
+    except ValueError as exc:  # JSONDecodeError is a ValueError
+        raise WeatherError(f"Open-Meteo sent a response that isn't JSON: {resp.text[:200]}") from exc
 
 
 def _send(client: httpx.Client, params: dict) -> httpx.Response:
