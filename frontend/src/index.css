@@ -138,6 +138,16 @@ body {
   background: var(--bg);
 }
 
+.place-status {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.place-status.failed {
+  color: var(--danger);
+}
+
 button[type='submit'] {
   font: inherit;
   font-weight: 600;
