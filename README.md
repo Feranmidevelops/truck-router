@@ -163,6 +163,32 @@ so Route A is always the recommended one.
 - Responses are cached for 30 minutes, and a rate-limited request is retried once before the app
   shows a clear "try again in a minute".
 
+### Heatmap
+
+- **Where it samples.** Cell centres on a fixed 0.25 degree grid (about 17 x 14 miles) within 30
+  miles of any route, capped at 250 points. Long trips get coarser cells until they fit, and the
+  cell each stretch of road passes through is always kept, so the road never has a hole in it.
+- **What it shows.** The risk level (Low to No Travel) at each point for every hour from the
+  departure, rounded down to the hour, to 48 hours later, using the same rules and load as the
+  checkpoints, so the shading and the dots agree.
+- **Drawn as blurred circles in each point's exact level colour.** A density heatmap was tried
+  first, but it blends neighbours by weight: a lone Severe cell came out faint green and Low
+  showed nothing at all. Circles keep every point's colour honest and still read as a smooth
+  field.
+- **The slider never refetches.** All 49 hours arrive in one request and sit on every point as
+  `h0`..`h48`. Moving the slider only changes which property the colour expression reads
+  (`setPaintProperty`): no network, no re-sent data. Measured at about 3 ms per tick and a steady
+  60 fps while dragging.
+
+### Rate limits
+
+- Each visitor gets 10 plans, 120 place searches and 30 heatmaps a minute; a limited request gets
+  a 429 with `Retry-After`. Health checks are never limited.
+- On Render, Cloudflare sits in front of Render's own proxy and both append to
+  `X-Forwarded-For`, so the visitor's address is the second entry from the end
+  (`NUM_PROXIES=2`). The last entry would be a Cloudflare server shared by strangers; the first
+  is whatever the client chose to send.
+
 ### Response size
 
 - **Route lines are simplified before they are sent.** TomTom returns about 10,000 points per
