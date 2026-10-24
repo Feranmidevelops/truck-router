@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { getHeatmap, isAbortError, planTrip } from './api/client'
+import { ApiError, getHeatmap, isAbortError, planTrip } from './api/client'
 import type { Plan, PlanRequest } from './api/types'
 import type { HeatmapState } from './components/HeatmapSlider'
 import { MapView } from './components/MapView'
@@ -11,7 +11,9 @@ export default function App() {
   const [plan, setPlan] = useState<Plan | null>(null)
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // retry: the same request again could work (a network or server problem). It can't when the
+  // server turned the trip down, e.g. a departure in the past or no truck route.
+  const [error, setError] = useState<{ message: string; retry: boolean } | null>(null)
   const pending = useRef<AbortController | null>(null)
   const lastRequest = useRef<PlanRequest | null>(null)
   const [heatmap, setHeatmap] = useState<HeatmapState>({ status: 'idle' })
@@ -46,7 +48,10 @@ export default function App() {
       setSelectedRouteId(result.recommended_route_id)
       loadHeatmap(result.plan_id)
     } catch (e) {
-      if (!isAbortError(e)) setError(e instanceof Error ? e.message : String(e))
+      if (!isAbortError(e)) {
+        const retry = !(e instanceof ApiError) || e.status === 0 || e.status === 429 || e.status >= 500
+        setError({ message: e instanceof Error ? e.message : String(e), retry })
+      }
     } finally {
       if (pending.current === ctrl) setLoading(false)
     }
@@ -64,10 +69,10 @@ export default function App() {
         <PlanResults
           plan={plan}
           loading={loading}
-          error={error}
+          error={error?.message ?? null}
           selectedRouteId={selectedRouteId}
           onSelect={setSelectedRouteId}
-          onRetry={() => lastRequest.current && handlePlan(lastRequest.current)}
+          onRetry={error?.retry ? () => lastRequest.current && handlePlan(lastRequest.current) : undefined}
         />
       </aside>
       <main className="main">
