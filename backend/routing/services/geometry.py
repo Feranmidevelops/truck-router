@@ -1,4 +1,4 @@
-"""Distance, checkpoint sampling and ETA interpolation along a route. Pure functions.
+"""Distance, checkpoint sampling, ETA interpolation and line simplification. Pure functions.
 
 Decisions (README, "Decisions"):
 - Checkpoints sit at mile 0, every `interval_miles`, and at the destination.
@@ -18,6 +18,7 @@ from .types import Checkpoint, LatLon, TimingPoint
 EARTH_RADIUS_M = 6_371_008.8
 METERS_PER_MILE = 1609.344
 DESTINATION_MERGE_MILES = 0.5
+MERCATOR_MAX_LAT = 85.051129  # where Web Mercator tiles stop
 
 
 def haversine_m(a: LatLon, b: LatLon) -> float:
@@ -114,3 +115,51 @@ def sample_checkpoints(
 
 def eta(departure: datetime, seconds: float) -> datetime:
     return departure + timedelta(seconds=seconds)
+
+
+def simplify(points: list[LatLon], tolerance_m: float) -> list[LatLon]:
+    """Douglas-Peucker: drop points until any more would move the line over `tolerance_m`.
+
+    Every input point stays within `tolerance_m` of the returned line, and the first and last
+    points are always kept. Straight means straight on the map, so distances are taken in Web
+    Mercator (what MapLibre draws in) and turned into metres with the scale at the middle of the
+    segment being tested. Iterative, so a 10k-point route can't hit the recursion limit.
+    """
+    n = len(points)
+    if n <= 2:
+        return list(points)
+    x = [math.radians(p.lon) for p in points]
+    y = [_mercator_y(p.lat) for p in points]
+    keep = [False] * n
+    keep[0] = keep[-1] = True
+    tol = tolerance_m / EARTH_RADIUS_M
+    stack = [(0, n - 1)]
+    while stack:
+        first, last = stack.pop()
+        if last - first < 2:
+            continue
+        x0, y0 = x[first], y[first]
+        bx, by = x[last] - x0, y[last] - y0
+        seg2 = bx * bx + by * by
+        # Mercator stretches by 1/cos(lat); compare in Mercator units against a stretched tolerance
+        mid_lat = (points[first].lat + points[last].lat) / 2
+        worst, worst_d2 = -1, (tol / math.cos(math.radians(mid_lat))) ** 2
+        for i in range(first + 1, last):
+            px, py = x[i] - x0, y[i] - y0
+            # Distance to the segment, not the infinite line, so a route that doubles back
+            # past an end point still counts as far away.
+            t = 0.0 if seg2 == 0 else max(0.0, min(1.0, (px * bx + py * by) / seg2))
+            dx, dy = px - t * bx, py - t * by
+            d2 = dx * dx + dy * dy
+            if d2 > worst_d2:
+                worst, worst_d2 = i, d2
+        if worst >= 0:
+            keep[worst] = True
+            stack.append((first, worst))
+            stack.append((worst, last))
+    return [p for p, k in zip(points, keep) if k]
+
+
+def _mercator_y(lat: float) -> float:
+    lat = max(-MERCATOR_MAX_LAT, min(MERCATOR_MAX_LAT, lat))
+    return math.log(math.tan(math.pi / 4 + math.radians(lat) / 2))
