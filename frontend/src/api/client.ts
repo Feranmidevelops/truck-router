@@ -3,6 +3,8 @@ import type { Heatmap, Place, Plan, PlanRequest } from './types'
 const BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
 const OFFLINE_MESSAGE = "Can't reach the server. Check your connection and try again."
+// A live plan takes 5-10 s; past this something is stuck
+const PLAN_TIMEOUT_S = 45
 
 export class ApiError extends Error {
   readonly status: number // 0 when no HTTP response came back
@@ -30,6 +32,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     text = await res.text()
   } catch (e) {
     if (isAbortError(e)) throw e
+    // AbortSignal.timeout() rejects with a TimeoutError rather than an AbortError
+    if (e instanceof Error && e.name === 'TimeoutError') {
+      throw new ApiError(0, `The server took longer than ${PLAN_TIMEOUT_S} seconds to answer. Try again in a moment.`)
+    }
     throw new ApiError(0, OFFLINE_MESSAGE)
   }
 
@@ -103,7 +109,12 @@ export async function geocode(q: string, signal?: AbortSignal): Promise<Place[]>
 }
 
 export function planTrip(body: PlanRequest, signal?: AbortSignal) {
-  return request<Plan>('/api/plan', { method: 'POST', body: JSON.stringify(body), signal })
+  const timeout = AbortSignal.timeout(PLAN_TIMEOUT_S * 1000)
+  return request<Plan>('/api/plan', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+  })
 }
 
 export function getHeatmap(planId: string, signal?: AbortSignal) {
