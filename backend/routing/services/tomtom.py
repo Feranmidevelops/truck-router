@@ -15,6 +15,7 @@ A real route response, trimmed, is in routing/tests/data/tomtom_dallas_denver.js
 
 from __future__ import annotations
 
+from bisect import bisect_left, bisect_right
 from collections import defaultdict
 from collections.abc import Iterable
 from concurrent.futures import Future, ThreadPoolExecutor, wait
@@ -41,6 +42,10 @@ MAX_OVERLAP = 0.9  # drop a route when over 90% of it runs along a route already
 FALLBACK_OFFSETS = (0.15, 0.25)  # via point distance from the route, as a share of the straight-line trip
 MAX_FALLBACK_CALLS = 6  # via-point requests per plan, at most
 SAME_VIA_SHARE = 0.01  # a via point this close to one already asked (share of the trip) isn't asked again
+AVOID_SPAN = (0.3, 0.7)  # the middle of a route, as shares of its length, for the next one to keep out of
+AVOID_MARGIN_M = 5 * METERS_PER_MILE  # how far the boxes over it reach past the road
+MAX_AVOID_BOXES = 10  # TomTom's limit per request
+MAX_BOX_SIDE_M = 150_000  # TomTom allows about 160 km a side
 
 REQUEST_TIMEOUT_S = 20
 # A via-point request answered in 2-3 s live. One still silent after 10 s is skipped like any
@@ -413,6 +418,40 @@ def offset_via_points(route: list[LatLon], origin: LatLon, destination: LatLon, 
         LatLon(mid.lat + left_north, mid.lon + left_east / k),
         LatLon(mid.lat - left_north, mid.lon - left_east / k),
     ]
+
+
+def avoid_boxes(routes: list[list[LatLon]], origin: LatLon, destination: LatLon) -> list[Box]:
+    """Boxes over the middle of each route, for TomTom to route around. 10 at most in all.
+
+    Each route's stretch from 30% to 70% of the way along is cut into equal pieces, one box
+    each, reaching 5 miles past its piece of road all round. Small boxes hug a diagonal road,
+    where one big box would also shut the country either side of it. A piece is never more
+    than 134 km of road, which keeps its box under TomTom's 160 km limit; on a very long route
+    the stretch shrinks round the middle instead. A box over the origin or destination is left
+    out, since the route has to go there.
+    """
+    per_route = MAX_AVOID_BOXES // len(routes)
+    longest = MAX_BOX_SIDE_M - 2 * AVOID_MARGIN_M
+    boxes = []
+    for points in routes:
+        cum = cumulative_m(points)
+        start, end = (share * cum[-1] for share in AVOID_SPAN)
+        piece = min((end - start) / per_route, longest)
+        start = (start + end - piece * per_route) / 2
+        boxes += [_box_over(points, cum, start + k * piece, start + (k + 1) * piece) for k in range(per_route)]
+    return [b for b in boxes if not b.contains(origin) and not b.contains(destination)]
+
+
+def _box_over(points: list[LatLon], cum: list[float], start: float, end: float) -> Box:
+    """The box round the road from `start` to `end` metres along, AVOID_MARGIN_M wider all round."""
+    road = [point_at_distance(points, cum, start)]
+    road += points[bisect_right(cum, start) : bisect_left(cum, end)]
+    road.append(point_at_distance(points, cum, end))
+    south, north = min(p.lat for p in road), max(p.lat for p in road)
+    west, east = min(p.lon for p in road), max(p.lon for p in road)
+    dlat = AVOID_MARGIN_M / _M_PER_DEG_LAT
+    dlon = dlat / math.cos(math.radians((south + north) / 2))
+    return Box(south - dlat, west - dlon, north + dlat, east + dlon)
 
 
 def overlap_fraction(route: list[LatLon], other: list[LatLon]) -> float:

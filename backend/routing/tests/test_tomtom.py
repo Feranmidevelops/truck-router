@@ -261,6 +261,79 @@ def test_doubling_back_is_quick_on_a_long_dense_route():
     assert time.perf_counter() - start < 0.5  # about 40 ms on a laptop
 
 
+def along(points: list[LatLon]) -> list[float]:
+    """How far along the route each point is, as a share of its length."""
+    cum = cumulative_m(points)
+    return [m / cum[-1] for m in cum]
+
+
+def boxed(point: LatLon, boxes: list[tomtom.Box]) -> bool:
+    return any(b.contains(point) for b in boxes)
+
+
+def test_avoid_boxes_cover_the_middle_of_the_route_and_no_more():
+    route = line(WEST, EAST, 2000)  # 570 miles, so 5 miles is 0.9% of it
+    boxes = tomtom.avoid_boxes([route], WEST, EAST)
+    assert len(boxes) == tomtom.MAX_AVOID_BOXES == 10
+    for p, share in zip(route, along(route)):
+        if 0.3 <= share <= 0.7:
+            assert boxed(p, boxes)
+        elif share < 0.29 or share > 0.71:
+            assert not boxed(p, boxes)
+
+
+def test_avoid_boxes_reach_5_miles_past_the_road():
+    boxes = tomtom.avoid_boxes([line(WEST, EAST, 2000)], WEST, EAST)
+    start = -97.0  # 30% of the way from -100 to -90
+    for miles, inside in [(4.9, True), (5.1, False)]:
+        assert boxed(LatLon(35.0 + miles * DEG_LAT_PER_MILE, -95.0), boxes) is inside  # beside the road
+        assert boxed(LatLon(35.0, start - miles * DEG_LON_PER_MILE), boxes) is inside  # before the stretch
+
+
+def box_sides_m(b: tomtom.Box) -> list[float]:
+    sw, nw = LatLon(b.south, b.west), LatLon(b.north, b.west)
+    return [haversine_m(sw, nw), haversine_m(sw, LatLon(b.south, b.east)), haversine_m(nw, LatLon(b.north, b.east))]
+
+
+@pytest.mark.parametrize("kept", [1, 2])
+def test_avoid_boxes_stay_within_tomtoms_limits_on_the_longest_trips(kept):
+    seattle, miami = LatLon(47.6, -122.3), LatLon(25.8, -80.2)
+    route = line(seattle, miami, 3000)  # about 2,700 miles
+    boxes = tomtom.avoid_boxes([route] * kept, seattle, miami)
+    assert len(boxes) == 10
+    assert max(side for b in boxes for side in box_sides_m(b)) < 160_000
+    # The blocked stretch shrinks round the middle instead of growing the boxes
+    shares = [s for p, s in zip(route, along(route)) if boxed(p, boxes)]
+    assert max(shares) - min(shares) < 0.35
+    assert (min(shares) + max(shares)) / 2 == pytest.approx(0.5, abs=0.01)
+
+
+def test_two_routes_get_five_boxes_each():
+    boxes = tomtom.avoid_boxes([NORTHERN, SOUTHERN], WEST, EAST)
+    assert len(boxes) == 10
+    for route in (NORTHERN, SOUTHERN):
+        middle = [p for p, s in zip(route, along(route)) if 0.3 <= s <= 0.7]
+        assert sum(any(b.contains(p) for p in middle) for b in boxes) == 5
+
+
+def test_a_box_over_the_origin_or_destination_is_left_out():
+    # On a 12 mile trip, the 5 mile margin round the middle reaches both ends
+    origin, destination = LatLon(35.0, -100.0), LatLon(35.0, -100.0 + 12 * DEG_LON_PER_MILE)
+    boxes = tomtom.avoid_boxes([line(origin, destination, 200)], origin, destination)
+    assert 0 < len(boxes) < 10
+    assert not boxed(origin, boxes) and not boxed(destination, boxes)
+
+
+def test_blocking_the_real_fastest_route_leaves_tomtoms_other_two_routes_open():
+    r0, r1, r2 = real_routes()
+    origin, destination = r0.points[0], r0.points[-1]
+    boxes = tomtom.avoid_boxes([r0.points], origin, destination)
+    assert any(boxed(p, boxes) for p in r0.points)
+    assert not any(boxed(p, boxes) for p in r1.points + r2.points)
+    boxes = tomtom.avoid_boxes([r0.points, r1.points], origin, destination)
+    assert not any(boxed(p, boxes) for p in r2.points)
+
+
 def test_via_points_sit_left_and_right_of_the_route_midpoint():
     left, right = tomtom.offset_via_points(line(WEST, EAST, 1000), WEST, EAST, 0.15)
     straight = haversine_m(WEST, EAST)
