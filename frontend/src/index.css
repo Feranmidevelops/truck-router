@@ -300,6 +300,101 @@ button[type='submit']:disabled {
   font-size: 0.85rem;
 }
 
+.checkpoints h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-base);
+}
+
+.checkpoints-route {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.checkpoint-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* No outer padding, a gap before every column but the first: the table has to fit the 328px
+   a 360px phone leaves */
+.checkpoint-table th,
+.checkpoint-table td {
+  padding: var(--space-1) 0 var(--space-1) var(--space-2);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.checkpoint-table :is(th, td):first-child {
+  padding-left: 0;
+}
+
+/* Headers and drivers may wrap; numbers never do */
+.checkpoint-table th,
+.checkpoint-table .drivers {
+  white-space: normal;
+}
+
+.checkpoint-table thead th {
+  font-weight: 600;
+  color: var(--muted);
+  vertical-align: bottom;
+  background: var(--panel);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
+.checkpoint-table .day-row th {
+  padding-top: var(--space-3);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+
+.checkpoint-table td {
+  border-bottom: 1px solid var(--border);
+}
+
+.checkpoint-table .num {
+  text-align: right;
+}
+
+.checkpoint-table .unit {
+  display: block;
+  font-weight: 400;
+}
+
+.gust {
+  color: var(--muted);
+}
+
+.level {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.level-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.load-mark {
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--danger);
+  cursor: help;
+}
+
+.table-note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
 .main,
 .map-wrap {
   position: relative;

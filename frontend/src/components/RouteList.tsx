@@ -7,7 +7,6 @@ interface Props {
   onSelect: (id: string) => void
 }
 
-// TODO(day 2): checkpoint table for the selected route (mile, ETA, conditions, level).
 export function RouteList({ plan, selectedRouteId, onSelect }: Props) {
   const best = plan.routes.find((r) => r.id === plan.recommended_route_id)
   // No Travel miles are the first ranking key, so if the best route has any, every route does

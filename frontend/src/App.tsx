@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { isAbortError, planTrip } from './api/client'
 import type { Plan, PlanRequest } from './api/types'
+import { CheckpointTable } from './components/CheckpointTable'
 import { MapView } from './components/MapView'
 import { RouteList } from './components/RouteList'
 import { SampleDataBanner } from './components/SampleDataBanner'
@@ -12,6 +13,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const pending = useRef<AbortController | null>(null)
+  const selectedRoute = plan?.routes.find((r) => r.id === selectedRouteId)
 
   async function handlePlan(req: PlanRequest) {
     pending.current?.abort()
@@ -46,6 +48,7 @@ export default function App() {
           </p>
         )}
         {plan && <RouteList plan={plan} selectedRouteId={selectedRouteId} onSelect={setSelectedRouteId} />}
+        {selectedRoute && <CheckpointTable route={selectedRoute} />}
       </aside>
       <main className="main">
         <MapView plan={plan} selectedRouteId={selectedRouteId} onSelectRoute={setSelectedRouteId} />
