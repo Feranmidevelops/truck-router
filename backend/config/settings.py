@@ -106,7 +106,7 @@ LOGGING = {
     "loggers": {
         "django": {"level": "WARNING"},
         "django.request": {"level": "ERROR"},  # 5xx only; 4xx are bad input or throttling
-        "routing": {"level": os.environ.get("LOG_LEVEL", "INFO")},
+        "routing": {"level": "INFO"},
     },
 }
 
