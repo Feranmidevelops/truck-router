@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 import math
 
@@ -94,6 +95,19 @@ def plan(**overrides):
     }
     kwargs.update(overrides)
     return planner.build_plan(**kwargs)
+
+
+def test_routes_get_unique_ids_whatever_the_routing_client_returns(faked, monkeypatch):
+    clashing = [replace(r, id=i) for r, i in zip(faked, ["r0", "r0", "via15L-0"])]
+    monkeypatch.setattr(tomtom, "ensure_three_routes", lambda *a, **k: clashing)
+    data = plan()
+    ids = [r["id"] for r in data["routes"]]
+    assert sorted(ids) == ["r0", "r1", "r2"]
+    assert data["recommended_route_id"] == ids[0]
+    for route in data["routes"]:
+        # Each route still has its own checkpoints: the fake wind follows the line's longitude
+        lon = route["geometry"][0][0]
+        assert {cp["weather"]["wind_mph"] for cp in route["checkpoints"]} == {wind_at(LatLon(0, lon))}
 
 
 def test_response_lines_are_simplified(faked):

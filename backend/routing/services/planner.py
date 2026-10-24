@@ -6,6 +6,7 @@ The response shape here must match frontend/src/api/types.ts.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta
 import uuid
 
@@ -43,6 +44,9 @@ def build_plan(
 
     routes = tomtom.calculate_routes(o, d, departure_time, load_weight_lb, key)
     routes = tomtom.ensure_three_routes(routes, o, d, departure_time, load_weight_lb, key)
+    # Every lookup below is keyed by route id, so number them here rather than trust the
+    # routing client to keep TomTom's routes and the fallbacks apart.
+    routes = [replace(r, id=f"r{i}") for i, r in enumerate(routes)]
 
     checkpoints = {
         r.id: geometry.sample_checkpoints(r.points, r.timing, r.departure_time, interval_miles) for r in routes
