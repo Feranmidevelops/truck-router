@@ -174,6 +174,9 @@ def ensure_three_routes(
     the fastest route's midpoint, 15% of the straight-line trip away, then 25%. That is at most
     4 extra calls, sent two at a time. A fallback that fails is skipped. If fewer than 3
     survive, the caller gets what is left.
+
+    A fallback can, rarely, beat TomTom's fastest route. The 1.5x limit is then checked again
+    against it at the end, so a route kept earlier can still drop out.
     """
     lat0 = (origin.lat + destination.lat) / 2
     kept: list[RouteOption] = []  # kept[0] is the fastest route TomTom gave us
@@ -212,7 +215,8 @@ def ensure_three_routes(
         for route in sorted(candidates, key=_duration):
             consider(route)
 
-    return sorted(kept, key=_duration)  # a fallback can, rarely, beat TomTom's fastest
+    kept.sort(key=_duration)
+    return [r for r in kept if r.duration_s <= MAX_SLOWDOWN * kept[0].duration_s]
 
 
 def offset_via_points(route: list[LatLon], origin: LatLon, destination: LatLon, share: float) -> list[LatLon]:

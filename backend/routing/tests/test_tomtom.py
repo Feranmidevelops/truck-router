@@ -396,8 +396,16 @@ def test_a_fallback_on_the_same_road_as_an_earlier_fallback_is_dropped():
 
 
 def test_a_fallback_faster_than_tomtoms_route_comes_first():
-    fake = FakeTomTom(lambda via: (through(via), 0.5))
+    fake = FakeTomTom(lambda via: (through(via), 0.9))
     assert [r.id for r in ensure([drive("r0", FASTEST)], fake)] == ["via15L-0", "via15R-0", "r0"]
+
+
+def test_a_fallback_faster_than_tomtoms_route_sets_the_time_limit():
+    # TomTom gives 10 h and 14.9 h, then a fallback takes 9.3 h: 14.9 h is now over 1.5x that.
+    fast, slow = drive("r0", FASTEST), drive("r1", NORTHERN)
+    slow.duration_s = fast.duration_s * 1.49
+    fake = FakeTomTom(lambda via: (through(via), 0.9))
+    assert [r.id for r in ensure([fast, slow], fake)] == ["via15L-0", "r0"]
 
 
 def test_never_more_than_three_routes():
