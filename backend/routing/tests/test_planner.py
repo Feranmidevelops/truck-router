@@ -55,7 +55,7 @@ def test_a_past_departure_starts_the_whole_plan_now(faked, monkeypatch):
     start = datetime.fromisoformat(data["input"]["departure_time"])
     assert before <= start <= datetime.now(timezone.utc)
     assert start.utcoffset() == timedelta(hours=-5)  # still shown in the origin's offset
-    assert sent and set(sent) == {start}  # the trip, and the fallbacks asked for alongside it
+    assert sent == [start]
     for route in data["routes"]:
         assert datetime.fromisoformat(route["departure_time"]) == start
         assert datetime.fromisoformat(route["checkpoints"][0]["eta"]) == start

@@ -80,8 +80,8 @@ def test_dallas_to_denver_plan_and_heatmap(api, upstream):
     assert datetime.fromisoformat(plan["input"]["departure_time"]) == leave
     assert plan["input"]["departure_time"] == leave.isoformat()
 
-    # TomTom was asked for a truck route with alternatives, and at the same time for two
-    # fallbacks through via points. Those made three distinct routes, so there was no top-up.
+    # TomTom was asked for a truck route with alternatives. It had just the one, so the
+    # top-up asked for two more through via points.
     calls = upstream.calls("api.tomtom.com")
     [trip] = [c for c in calls if len(stops(c)) == 2]
     assert trip.url.params["travelMode"] == "truck"
