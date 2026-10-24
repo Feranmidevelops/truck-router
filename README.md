@@ -1,0 +1,100 @@
+# Weather-Aware Truck Routing
+
+Plan a truck trip and pick the safest of three routes, based on the weather the truck will meet
+at each point along the way, the load weight and the travel time.
+
+- **Live app:** TODO
+- **Loom walkthrough:** TODO
+
+## What it does
+
+1. Enter origin, destination, departure time, load weight, and how often to check the weather
+   (every 10, 25 or 50 miles).
+2. The backend gets three truck routes from TomTom and places checkpoints along each one.
+3. For each checkpoint it works out when the truck gets there and reads the forecast for that hour
+   from Open-Meteo.
+4. Each checkpoint gets a risk level from the wind, rain and snow thresholds and the load rules.
+5. Routes are ranked: fewest Severe miles, then fewest High miles, then lowest average risk, then
+   shortest travel time.
+6. The map shows all three routes, coloured checkpoints, and a weather-risk heatmap along the
+   corridor with a 0-48 hour slider.
+
+## Stack
+
+| Part | Choice |
+| --- | --- |
+| Frontend | React 19, TypeScript, Vite, MapLibre GL |
+| Backend | Django 5.2, Django REST Framework, httpx |
+| Routing and geocoding | TomTom Routing API (truck mode) and Search API |
+| Weather | Open-Meteo hourly forecast |
+| Map tiles | OpenFreeMap |
+
+## Run locally
+
+Backend (Python 3.11+):
+
+```bash
+cd backend
+python -m venv .venv
+.venv\Scripts\activate          # Windows; on mac/linux: source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env            # add TOMTOM_API_KEY, set USE_FIXTURES=false for live data
+python manage.py runserver
+pytest
+```
+
+Frontend (Node 20+):
+
+```bash
+cd frontend
+npm install
+npm run dev                     # http://localhost:5173
+```
+
+With `USE_FIXTURES=true` the API serves a canned Dallas -> Denver trip, so the UI runs without
+any API keys.
+
+## Environment variables
+
+| Name | Where | Purpose |
+| --- | --- | --- |
+| `TOMTOM_API_KEY` | backend | Routing and geocoding |
+| `USE_FIXTURES` | backend | `true` serves canned data |
+| `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS` | backend | Django |
+| `CORS_ALLOWED_ORIGINS` | backend | Frontend origin(s), comma-separated |
+| `VITE_API_BASE_URL` | frontend | Backend URL in production (empty in dev) |
+| `VITE_MAP_STYLE_URL` | frontend | Optional map style override |
+
+## API
+
+| Method | Path | Returns |
+| --- | --- | --- |
+| `POST` | `/api/plan` | Three ranked routes with checkpoints, risk and the recommendation |
+| `GET` | `/api/heatmap?plan_id=` | Risk level per grid point for each hour, 0-48 h |
+| `GET` | `/api/geocode?q=` | Place suggestions |
+| `GET` | `/api/health` | Health check |
+
+Types: `frontend/src/api/types.ts`.
+
+## Decisions
+
+Where the brief left room for interpretation.
+
+- TODO: summarise the boundary convention, checkpoint ownership, ETA method, the No Travel rule
+  in ranking, and the average-risk rounding.
+
+## Tests
+
+`cd backend && pytest` covers every threshold boundary, the load rules, ranking order,
+checkpoint sampling and ETAs, the weather client's unit handling, and the API contract.
+
+## Deploy
+
+- Backend: `render.yaml` (Render blueprint). Free Render instances sleep after a period of no
+  traffic, and the first request after that is slow, so keep it warm during the review window or
+  use a paid instance.
+- Frontend: Netlify with the root `netlify.toml`. Set `VITE_API_BASE_URL`.
+
+## Known limits
+
+- TODO

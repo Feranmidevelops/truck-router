@@ -1,0 +1,46 @@
+"""Checkpoint risk classification. Pure functions, no I/O.
+
+Thresholds and load rules come from the assessment brief. Boundary decisions
+are in the README ("Decisions"); tests/test_risk.py is the executable version.
+
+Boundary convention: a value on a shared boundary goes to the higher band
+(e.g. rain 0.25 in/hr is HIGH), except where the brief states the operator
+explicitly (rain > 1.00 is NO_TRAVEL, so 1.00 itself is SEVERE).
+"""
+
+from .types import Assessment, Level
+
+
+def classify_wind(mph: float) -> Level:
+    """<25 LOW, 25-34 MODERATE, 35-44 HIGH, 45-54 SEVERE, >=55 NO_TRAVEL."""
+    raise NotImplementedError("classify_wind")
+
+
+def classify_rain(in_per_hr: float) -> Level:
+    """<0.10 LOW, 0.10-0.25 MODERATE, 0.25-0.50 HIGH, 0.50-1.00 SEVERE, >1.00 NO_TRAVEL."""
+    raise NotImplementedError("classify_rain")
+
+
+def classify_snow(in_per_hr: float) -> Level:
+    """<0.5 LOW, 0.5-1.0 MODERATE, 1.0-2.0 HIGH, 2.0-3.0 SEVERE, >3.0 NO_TRAVEL."""
+    raise NotImplementedError("classify_snow")
+
+
+def apply_load_rules(wind_mph: float, wind_level: Level, load_lb: float) -> Level:
+    """Raise the wind level for heavy loads.
+
+    - >=55 mph: NO_TRAVEL for any load
+    - 45-54 mph and load > 30,000 lb: NO_TRAVEL
+    - 35-44 mph and load > 40,000 lb: SEVERE
+    Never lowers a level.
+    """
+    raise NotImplementedError("apply_load_rules")
+
+
+def assess(wind_mph: float, rain_in_hr: float, snow_in_hr: float, load_lb: float) -> Assessment:
+    """Final checkpoint level = worst of wind (after load rules), rain and snow.
+
+    `drivers` lists every factor that sits at the final level, in the order
+    wind, rain, snow. When the final level is LOW, drivers is empty.
+    """
+    raise NotImplementedError("assess")

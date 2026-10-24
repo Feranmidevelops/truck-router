@@ -1,0 +1,160 @@
+"""Orchestration: routes -> checkpoints -> weather -> risk -> recommendation.
+
+This is the only service module that touches Django (settings, cache).
+The response shape here must match frontend/src/api/types.ts.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta
+import uuid
+
+from django.conf import settings
+from django.core.cache import cache
+
+from . import corridor, geometry, recommend, risk, tomtom, weather
+from .types import Checkpoint, LatLon, Level, RouteOption, RouteSummary
+
+PLAN_TTL_S = 60 * 60
+HEATMAP_HOURS = 48
+METERS_PER_MILE = 1609.344
+
+
+class PlanNotFound(Exception):
+    pass
+
+
+def build_plan(
+    *, origin: dict, destination: dict, departure_time: datetime, load_weight_lb: int, interval_miles: int
+) -> dict:
+    o = LatLon(origin["lat"], origin["lon"])
+    d = LatLon(destination["lat"], destination["lon"])
+    key = settings.TOMTOM_API_KEY
+
+    routes = tomtom.calculate_routes(o, d, departure_time, load_weight_lb, key)
+    routes = tomtom.ensure_three_routes(routes, o, d, departure_time, load_weight_lb, key)
+
+    checkpoints = {
+        r.id: geometry.sample_checkpoints(r.points, r.timing, r.departure_time, interval_miles) for r in routes
+    }
+    flat = [cp for cps in checkpoints.values() for cp in cps]
+    series = weather.fetch_hourly(
+        [cp.position for cp in flat],
+        min(cp.eta for cp in flat),
+        max(cp.eta for cp in flat),
+        cache=cache,
+    )
+    for cp, s in zip(flat, series):
+        cp.weather = weather.sample_at(s, cp.eta)
+        cp.assessment = risk.assess(
+            cp.weather.wind_mph, cp.weather.rain_in_hr, cp.weather.snow_in_hr, load_weight_lb
+        )
+
+    summaries = {
+        r.id: recommend.summarize_route(r.id, r.distance_m, r.duration_s, checkpoints[r.id]) for r in routes
+    }
+    order, reason = recommend.rank_routes(list(summaries.values()))
+
+    plan_id = uuid.uuid4().hex
+    cache.set(
+        f"plan:{plan_id}",
+        {
+            "routes": [r.points for r in routes],
+            "departure_time": departure_time,
+            "load_weight_lb": load_weight_lb,
+        },
+        PLAN_TTL_S,
+    )
+
+    by_id = {r.id: r for r in routes}
+    labels = {r.id: f"Route {chr(65 + i)}" for i, r in enumerate(routes)}
+    return {
+        "plan_id": plan_id,
+        "input": {
+            "origin": origin,
+            "destination": destination,
+            "departure_time": departure_time.isoformat(),
+            "load_weight_lb": load_weight_lb,
+            "interval_miles": interval_miles,
+        },
+        "recommended_route_id": order[0],
+        "recommendation_reason": reason,
+        "routes": [
+            _route_json(by_id[rid], labels[rid], rank, summaries[rid], checkpoints[rid])
+            for rank, rid in enumerate(order, 1)
+        ],
+    }
+
+
+def build_heatmap(plan_id: str) -> dict:
+    stored = cache.get(f"plan:{plan_id}")
+    if stored is None:
+        raise PlanNotFound(plan_id)
+    grid = corridor.build_grid(stored["routes"])
+    start = weather.floor_hour(stored["departure_time"])
+    end = start + timedelta(hours=HEATMAP_HOURS)
+    series = weather.fetch_hourly(grid, start, end, cache=cache)
+    load = stored["load_weight_lb"]
+    points = []
+    for s in series:
+        levels = [
+            int(risk.assess(w, r, sn, load).level)
+            for w, r, sn in zip(s.wind_mph, s.rain_in_hr, s.snow_in_hr)
+        ][: HEATMAP_HOURS + 1]
+        points.append({"lat": s.position.lat, "lon": s.position.lon, "v": levels})
+    return {
+        "plan_id": plan_id,
+        "start_time": start.isoformat(),
+        "hours": HEATMAP_HOURS,
+        "points": points,
+    }
+
+
+def _route_json(
+    route: RouteOption, label: str, rank: int, summary: RouteSummary, checkpoints: list[Checkpoint]
+) -> dict:
+    return {
+        "id": route.id,
+        "label": label,
+        "rank": rank,
+        "source": route.source,
+        "distance_miles": round(route.distance_m / METERS_PER_MILE, 1),
+        "duration_s": round(route.duration_s),
+        "departure_time": route.departure_time.isoformat(),
+        "arrival_time": route.arrival_time.isoformat(),
+        "geometry": [[round(p.lon, 5), round(p.lat, 5)] for p in route.points],
+        "summary": {
+            "miles_by_level": {lvl.name: round(summary.miles_by_level.get(lvl, 0.0), 1) for lvl in Level},
+            "avg_risk": round(summary.avg_risk, 2),
+            "max_level": summary.max_level.name,
+        },
+        "checkpoints": [_checkpoint_json(cp) for cp in checkpoints],
+    }
+
+
+def _checkpoint_json(cp: Checkpoint) -> dict:
+    w, a = cp.weather, cp.assessment
+    assert w is not None and a is not None
+    return {
+        "index": cp.index,
+        "mile": round(cp.mile, 1),
+        "lat": round(cp.position.lat, 5),
+        "lon": round(cp.position.lon, 5),
+        "segment_miles": round(cp.segment_miles, 2),
+        "eta": cp.eta.isoformat(),
+        "weather": {
+            "wind_mph": round(w.wind_mph, 1),
+            "gust_mph": round(w.gust_mph, 1),
+            "rain_in_hr": round(w.rain_in_hr, 3),
+            "snow_in_hr": round(w.snow_in_hr, 3),
+            "forecast_time": w.forecast_time.isoformat(),
+        },
+        "risk": {
+            "level": a.level.name,
+            "wind": a.wind_level.name,
+            "rain": a.rain_level.name,
+            "snow": a.snow_level.name,
+            "load_adjusted": a.load_adjusted,
+            "drivers": list(a.drivers),
+        },
+    }
