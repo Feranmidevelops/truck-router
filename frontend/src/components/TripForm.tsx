@@ -43,7 +43,8 @@ export function TripForm({ loading, onSubmit }: Props) {
     onSubmit({
       origin,
       destination,
-      departure_time: new Date(departure).toISOString(),
+      // As typed: the server reads it as local time at the origin, whatever zone this device is in
+      departure_time: departure,
       load_weight_lb: load,
       interval_miles: interval,
     })
@@ -55,7 +56,7 @@ export function TripForm({ loading, onSubmit }: Props) {
       <PlaceInput label="Destination" value={destination} onChange={setDestination} />
       {(!origin || !destination) && <p className="hint">Pick a place from the suggestions</p>}
       <div className="field">
-        <label htmlFor="departure">Departure</label>
+        <label htmlFor="departure">Departure (local time at the origin)</label>
         <input
           id="departure"
           type="datetime-local"
