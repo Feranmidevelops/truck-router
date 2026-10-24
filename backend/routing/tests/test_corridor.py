@@ -50,6 +50,7 @@ def every_centre_near(route: list[LatLon], cell_deg: float) -> list[LatLon]:
 
 TEXAS = polyline(DALLAS, WACO)
 ALASKA = polyline(FAIRBANKS, LIVENGOOD)
+SVALBARD = polyline(LatLon(78.22, 15.65), LatLon(78.45, 16.30))
 
 
 def test_no_routes_means_no_points():
@@ -65,7 +66,7 @@ def test_points_sit_on_a_fixed_global_grid():
     assert LatLon(32.875, -96.875) in grid
 
 
-@pytest.mark.parametrize("route", [TEXAS, ALASKA], ids=["texas", "alaska"])
+@pytest.mark.parametrize("route", [TEXAS, ALASKA, SVALBARD], ids=["texas", "alaska", "svalbard"])
 def test_matches_a_brute_force_check_of_every_nearby_cell(route):
     grid = set(build_grid([route], max_points=NO_CAP))
     # Route samples are up to a mile from any vertex, hence the tolerance.
@@ -74,6 +75,16 @@ def test_matches_a_brute_force_check_of_every_nearby_cell(route):
     assert missing == []
     too_far = [c for c in grid if miles_to_route(c, route) > BUFFER + 1]
     assert too_far == []
+
+
+def test_buffer_reaching_over_the_pole_stays_on_valid_coordinates():
+    route = polyline(LatLon(89.5, 0.0), LatLon(89.6, 40.0))
+    grid = build_grid([route], max_points=NO_CAP)
+    assert grid
+    assert all(-90 <= p.lat <= 90 and -180 <= p.lon <= 180 for p in grid)
+    assert all(miles_to_route(p, route) <= BUFFER + 1 for p in grid)
+    # This close to the pole, a cell 80 degrees of longitude away is only 27.5 miles off.
+    assert LatLon(89.875, 119.875) in grid
 
 
 def test_single_point_route_still_gets_cells_around_it():
