@@ -19,4 +19,4 @@ services:
       - key: TOMTOM_API_KEY
         sync: false
       - key: USE_FIXTURES
-        value: "true"
+        value: "false"
