@@ -114,3 +114,33 @@ def test_single_route():
     order, reason = rank_routes([summary("only")])
     assert order == ["only"]
     assert reason == "Only route available"
+
+
+def test_no_routes_is_an_error():
+    with pytest.raises(ValueError):
+        rank_routes([])
+
+
+@pytest.mark.parametrize(
+    ("worse", "better", "expected"),
+    [
+        ({"nt": 12.5}, {}, "Fewest no-travel miles (0.0 vs 12.5)"),
+        ({"severe": 25}, {}, "Fewest severe miles (0.0 vs 25.0)"),
+        ({"high": 40}, {"high": 10}, "Fewest high-risk miles (10.0 vs 40.0)"),
+        ({"duration": 36_720}, {"duration": 32_700}, "Shorter travel time (9 h 5 min vs 10 h 12 min)"),
+        ({"duration": 3570}, {"duration": 2700}, "Shorter travel time (45 min vs 1 h 0 min)"),
+        ({"duration": 36_020}, {"duration": 36_000}, "Shorter travel time by under a minute"),
+    ],
+)
+def test_reason_names_the_first_key_that_differs(worse, better, expected):
+    order, reason = rank_routes([summary("a", **worse), summary("b", **better)])
+    assert order == ["b", "a"]
+    assert reason == expected
+
+
+def test_full_tie_keeps_input_order():
+    order, reason = rank_routes([summary("a", high=10), summary("b", high=10)])
+    assert order == ["a", "b"]
+    assert reason == "Tied with the next route on risk and travel time"
+    order, _ = rank_routes([summary("b", high=10), summary("a", high=10)])
+    assert order == ["b", "a"]

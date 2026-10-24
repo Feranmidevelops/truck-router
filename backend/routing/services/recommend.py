@@ -60,4 +60,41 @@ def rank_routes(summaries: list[RouteSummary]) -> tuple[list[str], str]:
     the winner from the runner-up, e.g. "Fewest severe miles (0.0 vs 25.0)".
     With a single route the reason is "Only route available".
     """
-    raise NotImplementedError("rank_routes")
+    if not summaries:
+        raise ValueError("rank_routes needs at least one route")
+    # sorted() is stable: routes with equal keys keep their input order
+    ranked = sorted(summaries, key=ranking_key)
+    ids = [s.route_id for s in ranked]
+    if len(ranked) == 1:
+        return ids, "Only route available"
+    return ids, _reason(ranking_key(ranked[0]), ranking_key(ranked[1]))
+
+
+def _miles(value: float) -> str:
+    return f"{value:.1f}"
+
+
+def _duration(seconds: float) -> str:
+    # half up, the same way the UI rounds durations
+    hours, minutes = divmod(int(seconds / 60 + 0.5), 60)
+    return f"{hours} h {minutes} min" if hours else f"{minutes} min"
+
+
+# One entry per ranking_key position, in the same order
+_REASONS = (
+    ("Fewest no-travel miles", _miles),
+    ("Fewest severe miles", _miles),
+    ("Fewest high-risk miles", _miles),
+    ("Lower average risk", lambda v: f"{v:.1f}"),
+    ("Shorter travel time", _duration),
+)
+
+
+def _reason(best: tuple, runner_up: tuple) -> str:
+    for (label, fmt), ours, theirs in zip(_REASONS, best, runner_up):
+        if ours != theirs:
+            if fmt(ours) == fmt(theirs):
+                # only travel time can get here: both round to the same minute
+                return f"{label} by under a minute"
+            return f"{label} ({fmt(ours)} vs {fmt(theirs)})"
+    return "Tied with the next route on risk and travel time"
