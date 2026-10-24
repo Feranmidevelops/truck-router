@@ -15,6 +15,12 @@ export class ApiError extends Error {
   }
 }
 
+// GET /api/health. Not part of the plan contract, so it lives here rather than in types.ts.
+export interface Health {
+  ok: boolean
+  fixtures: boolean // the API serves the canned Dallas -> Denver trip
+}
+
 // The caller cancelled (a newer search or plan replaced this one). Not worth showing.
 export function isAbortError(e: unknown) {
   return e instanceof Error && e.name === 'AbortError'
@@ -101,6 +107,10 @@ function leafMessages(value: unknown): string[] {
   if (Array.isArray(value)) return value.flatMap(leafMessages)
   if (isObject(value)) return Object.values(value).flatMap(leafMessages)
   return []
+}
+
+export function getHealth(signal?: AbortSignal) {
+  return request<Health>('/api/health', { signal })
 }
 
 export async function geocode(q: string, signal?: AbortSignal): Promise<Place[]> {
