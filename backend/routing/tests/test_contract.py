@@ -121,6 +121,7 @@ PRIMITIVES = {
     "string": lambda v: isinstance(v, str),
     "number": _is_number,
     "boolean": lambda v: isinstance(v, bool),
+    "null": lambda v: v is None,
 }
 
 
@@ -178,6 +179,8 @@ def test_the_checker_catches_drift(contract, faked):
         "undeclared field": lambda d: d["input"].update(units="metric"),
         "bad tuple": lambda d: d["routes"][0]["geometry"][0].append(0),
         "bad interval": lambda d: d["input"].update(interval_miles=30),
+        "null number": lambda d: d["routes"][0]["checkpoints"][0]["weather"].update(gust_mph=None),
+        "temperature as text": lambda d: d["routes"][0]["checkpoints"][0]["weather"].update(temp_f="60"),
     }
     for label, break_it in cases.items():
         broken = copy.deepcopy(good)

@@ -13,7 +13,13 @@ import pytest
 
 from routing.services import recommend, risk, tomtom, weather
 from routing.services.types import Level, RouteSummary
-from routing.tests.fakes import FakeUpstream, install_fake_http, upstream_rain_in_hr, upstream_wind_mph
+from routing.tests.fakes import (
+    FakeUpstream,
+    install_fake_http,
+    upstream_rain_in_hr,
+    upstream_temp_f,
+    upstream_wind_mph,
+)
 
 DALLAS = {"label": "Dallas, TX", "lat": 32.7767, "lon": -96.797}
 DENVER = {"label": "Denver, CO", "lat": 39.7392, "lon": -104.9903}
@@ -121,6 +127,10 @@ def test_dallas_to_denver_plan_and_heatmap(api, upstream):
             # coordinates before Open-Meteo is asked
             assert w["wind_mph"] == pytest.approx(upstream_wind_mph(cp["lon"]), abs=1.0)
             assert w["rain_in_hr"] in {upstream_rain_in_hr(cp["lat"] + d) for d in NEARBY_DEG}
+            assert w["temp_f"] == pytest.approx(upstream_temp_f(cp["lat"]), abs=0.3)
+            # The fake's code is heavy rain wherever it rains, read from the same cell as the rain
+            shown = (w["weather_code"], w["conditions"])
+            assert shown == ((65, "Heavy rain") if w["rain_in_hr"] else (1, "Mostly clear"))
             level = risk.assess(w["wind_mph"], w["rain_in_hr"], w["snow_in_hr"], LOAD_LB).level
             assert cp["risk"]["level"] == level.name
         miles = route["summary"]["miles_by_level"]

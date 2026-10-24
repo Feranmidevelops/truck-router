@@ -80,6 +80,48 @@ def test_a_future_departure_is_used_as_given(faked, monkeypatch):
     assert datetime.fromisoformat(heatmap["start_time"]) == T0
 
 
+def test_the_first_and_last_checkpoints_are_the_two_places_when_the_truck_is_there(faked):
+    # The frontend reads what the origin and destination are like from these two checkpoints
+    for route in plan()["routes"]:
+        first, last = route["checkpoints"][0], route["checkpoints"][-1]
+        assert [first["lon"], first["lat"]] == route["geometry"][0]
+        assert [last["lon"], last["lat"]] == route["geometry"][-1]
+        assert first["eta"] == route["departure_time"]
+        assert last["eta"] == route["arrival_time"]
+        for cp in (first, last):
+            weather_shown = {k: cp["weather"][k] for k in ("temp_f", "conditions", "weather_code")}
+            assert weather_shown == {"temp_f": 60.0, "conditions": "Partly cloudy", "weather_code": 2}
+
+
+def every_hour_shows(monkeypatch, temp_f, weather_code):
+    """The faked forecast, with this temperature and weather code every hour."""
+    fetch = weather.fetch_hourly
+
+    def fetch_hourly(*args, **kwargs):
+        series = fetch(*args, **kwargs)
+        hours = len(series[0].times)
+        return [replace(s, temp_f=[temp_f] * hours, weather_code=[weather_code] * hours) for s in series]
+
+    monkeypatch.setattr(weather, "fetch_hourly", fetch_hourly)
+
+
+def test_a_missing_temperature_and_weather_code_are_sent_as_null_and_unknown(faked, monkeypatch):
+    every_hour_shows(monkeypatch, None, None)
+    for cp in plan()["routes"][0]["checkpoints"]:
+        assert (cp["weather"]["temp_f"], cp["weather"]["weather_code"]) == (None, None)
+        assert cp["weather"]["conditions"] == "Unknown"
+
+
+def test_temperature_and_conditions_do_not_change_the_risk(faked, monkeypatch):
+    calm = plan()
+    every_hour_shows(monkeypatch, -20.0, 75)
+    cold = plan()
+    for a, b in zip(calm["routes"], cold["routes"]):
+        assert [cp["risk"] for cp in a["checkpoints"]] == [cp["risk"] for cp in b["checkpoints"]]
+        assert a["summary"] == b["summary"]
+        assert {cp["weather"]["conditions"] for cp in b["checkpoints"]} == {"Heavy snow"}
+
+
 def test_plan_and_heatmap_log_how_long_each_step_took(faked, caplog):
     data = plan()
     planner.build_heatmap(data["plan_id"])
