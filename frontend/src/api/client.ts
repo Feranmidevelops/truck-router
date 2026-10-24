@@ -105,7 +105,8 @@ function validationMessages(body: unknown): string[] {
     if (!text) return []
     if (key === 'non_field_errors') return [text]
     const label = FIELD_LABEL[key] ?? key.charAt(0).toUpperCase() + key.slice(1).replaceAll('_', ' ')
-    return [`${label}: ${text}`]
+    // "Departure time is in the past." already names its field
+    return [text.startsWith(label) ? text : `${label}: ${text}`]
   })
 }
 
