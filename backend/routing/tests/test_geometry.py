@@ -41,6 +41,29 @@ def test_point_at_distance_interpolates_and_clamps():
     assert point_at_distance(pts, cum, cum[-1] + 10) == pts[-1]
 
 
+def test_point_at_distance_picks_the_right_segment():
+    pts = [LatLon(0, 0), LatLon(1, 0), LatLon(1, 1)]
+    cum = cumulative_m(pts)
+    assert point_at_distance(pts, cum, cum[1]) == pts[1]
+    on_second = point_at_distance(pts, cum, (cum[1] + cum[2]) / 2)
+    assert on_second.lat == pytest.approx(1.0)
+    assert on_second.lon == pytest.approx(0.5, abs=1e-6)
+
+
+def test_point_at_distance_survives_zero_length_segments():
+    pts = [LatLon(0, 0), LatLon(1, 0), LatLon(1, 0), LatLon(1, 0), LatLon(2, 0)]
+    cum = cumulative_m(pts)
+    assert point_at_distance(pts, cum, cum[1]) == LatLon(1, 0)
+    assert point_at_distance(pts, cum, cum[1] / 2).lat == pytest.approx(0.5, abs=1e-6)
+    assert point_at_distance(pts, cum, cum[1] * 1.5).lat == pytest.approx(1.5, abs=1e-6)
+
+
+def test_point_at_distance_on_a_single_point():
+    pts = [LatLon(30, -97)]
+    assert point_at_distance(pts, [0.0], 0) == pts[0]
+    assert point_at_distance(pts, [0.0], 100) == pts[0]
+
+
 def test_seconds_at_distance_uses_timing_profile_not_average_speed():
     m = METERS_PER_MILE
     timing = [TimingPoint(0, 0), TimingPoint(50 * m, 3600), TimingPoint(100 * m, 5400)]

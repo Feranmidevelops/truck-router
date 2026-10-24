@@ -9,6 +9,7 @@ Decisions (README, "Decisions"):
   interpolated linearly between timing points. Not from an average speed.
 """
 
+from bisect import bisect_right
 from datetime import datetime, timedelta
 import math
 
@@ -36,7 +37,16 @@ def cumulative_m(points: list[LatLon]) -> list[float]:
 
 def point_at_distance(points: list[LatLon], cumulative: list[float], meters: float) -> LatLon:
     """Linearly interpolated position `meters` along the polyline (clamped to the ends)."""
-    raise NotImplementedError("point_at_distance")
+    if meters <= 0:
+        return points[0]
+    if meters >= cumulative[-1]:
+        return points[-1]
+    # bisect_right skips past repeated distances (duplicate points), so
+    # cumulative[i - 1] <= meters < cumulative[i] and the segment has length > 0.
+    i = bisect_right(cumulative, meters)
+    a, b = points[i - 1], points[i]
+    t = (meters - cumulative[i - 1]) / (cumulative[i] - cumulative[i - 1])
+    return LatLon(a.lat + (b.lat - a.lat) * t, a.lon + (b.lon - a.lon) * t)
 
 
 def seconds_at_distance(timing: list[TimingPoint], meters: float) -> float:
