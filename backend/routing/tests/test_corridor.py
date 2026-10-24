@@ -137,9 +137,14 @@ def test_matches_a_brute_force_check_of_every_nearby_cell(route):
     assert too_far == []
 
 
-def test_buffer_edge_is_exact_for_a_single_point():
-    # A one-point route is its own only sample, so distances to it are exact.
-    centre = LatLon(32.875, -96.875)
+@pytest.mark.parametrize(
+    "centre",
+    [LatLon(32.875, -96.875), LatLon(-65.125, -64.875)],
+    ids=["north", "south"],
+)
+def test_buffer_edge_is_exact_for_a_single_point(centre):
+    # A one-point route is its own only sample, so distances to it are exact. In the
+    # south, the cell only fits the longitude window if it is sized at the pole-ward edge.
     inside = miles_west_on_parallel(centre, BUFFER - 0.1)
     outside = miles_west_on_parallel(centre, BUFFER + 0.1)
     assert centre in build_grid([[inside]], max_points=NO_CAP)
