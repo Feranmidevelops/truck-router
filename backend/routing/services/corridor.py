@@ -17,20 +17,28 @@ def build_grid(
     buffer_miles: float = 30,
     max_points: int = 250,
 ) -> list[LatLon]:
-    """Cell centres on a `cell_deg` lat/lon grid that lie within `buffer_miles` of any route.
+    """Cell centres on a `cell_deg` lat/lon grid that lie within `buffer_miles` of any route,
+    plus the centre of every cell a route passes through.
 
     - Snap to a fixed grid (not relative to the route) so neighbouring requests
       reuse cached weather.
     - Speed-up: only test cells near route points sampled every few miles,
       not every cell in the bounding box.
     - If the result exceeds max_points, multiply cell_deg by 1.5 and rebuild.
+      Once cells are wider than the buffer, a cell the route crosses near its
+      corner can have its centre outside the buffer. It is kept anyway, so the
+      heatmap has no gaps along the road.
     Return points sorted by (lat, lon) so output is deterministic.
 
     Distances are measured to route samples, so a cell within a mile of the
-    buffer's edge can be missed; a cell outside the buffer is never kept.
+    buffer's edge can be missed. Apart from cells a route passes through, a cell
+    outside the buffer is never kept.
     """
-    if cell_deg <= 0 or max_points < 1:
-        raise ValueError("cell_deg and max_points must be positive")
+    # Grid lines always fall on the equator and the prime meridian, so a route
+    # crossing both needs 4 cells however coarse the grid gets. Starting at most
+    # 90 degrees, coarsening hits a 4-cell world grid before cells outgrow the map.
+    if not 0 < cell_deg <= 90 or max_points < 4:
+        raise ValueError("cell_deg must be in (0, 90] and max_points at least 4")
     step_m = SAMPLE_STEP_MILES * METERS_PER_MILE
     samples = [p for route in routes for p in _sample_route(route, step_m)]
     if not samples:
@@ -65,17 +73,24 @@ def _sample_route(points: list[LatLon], step_m: float) -> list[LatLon]:
 
 
 def _cells_within(samples: list[LatLon], cell_deg: float, buffer_m: float) -> set[tuple[int, int]]:
-    """(row, col) of every cell whose centre is within `buffer_m` of at least one sample."""
+    """(row, col) of every cell holding a sample or with its centre within `buffer_m` of one."""
     lat_reach = math.degrees(buffer_m / EARTH_RADIUS_M)
+    all_rows = _indices(-90.0, 90.0, cell_deg, 90.0)
+    all_cols = _indices(-180.0, 180.0, cell_deg, 180.0)
     kept: set[tuple[int, int]] = set()
     for s in samples:
+        # The cell the route passes through. Past a pole or the antimeridian its
+        # centre is off the map, so take the nearest cell that is on it.
+        row = _clamp(math.floor(s.lat / cell_deg), all_rows)
+        col = _clamp(math.floor(s.lon / cell_deg), all_cols)
+        kept.add((row, col))
         # A degree of longitude shrinks with cos(lat), so size the longitude window
         # at the pole-ward edge of the buffer, where it is widest.
         edge_lat = min(abs(s.lat) + lat_reach, 90.0)
         lon_reach = lat_reach / math.cos(math.radians(edge_lat))
         if lon_reach >= 180:
             # The window wraps all the way round, e.g. a buffer over the pole.
-            cols = _indices(-180.0, 180.0, cell_deg, 180.0)
+            cols = all_cols
         else:
             cols = _indices(s.lon - lon_reach, s.lon + lon_reach, cell_deg, 180.0)
         for i in _indices(s.lat - lat_reach, s.lat + lat_reach, cell_deg, 90.0):
@@ -94,6 +109,10 @@ def _indices(lo: float, hi: float, cell_deg: float, limit: float) -> range:
     """
     lo, hi = max(lo, -limit), min(hi, limit)
     return range(math.ceil(lo / cell_deg - 0.5), math.floor(hi / cell_deg - 0.5) + 1)
+
+
+def _clamp(k: int, valid: range) -> int:
+    return min(max(k, valid.start), valid.stop - 1)
 
 
 def _centre(k: int, cell_deg: float) -> float:

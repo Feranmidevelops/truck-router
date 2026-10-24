@@ -4,7 +4,7 @@ import time
 import pytest
 
 from routing.services.corridor import build_grid
-from routing.services.geometry import METERS_PER_MILE, haversine_m
+from routing.services.geometry import EARTH_RADIUS_M, METERS_PER_MILE, haversine_m
 from routing.services.types import LatLon
 
 BUFFER = 30
@@ -15,6 +15,8 @@ WACO = LatLon(31.55, -97.15)
 TYLER = LatLon(32.35, -95.30)
 FAIRBANKS = LatLon(64.84, -147.72)
 LIVENGOOD = LatLon(65.52, -148.55)
+LOS_ANGELES = LatLon(34.05, -118.24)
+NEW_YORK = LatLon(40.71, -74.01)
 
 
 def polyline(*waypoints: LatLon, step_miles: float = 1.0) -> list[LatLon]:
@@ -50,6 +52,20 @@ def every_centre_near(route: list[LatLon], cell_deg: float) -> list[LatLon]:
     return [LatLon((i + 0.5) * cell_deg, (j + 0.5) * cell_deg) for i in rows for j in cols]
 
 
+def cells_near(p: LatLon, cell_deg: float, miles: float) -> set[tuple[int, int]]:
+    """(row, col) of the cells touched by a box reaching `miles` each way from p.
+
+    The box is smaller than a cell, so its corners land in every cell it touches.
+    """
+    dlat = math.degrees(miles * METERS_PER_MILE / EARTH_RADIUS_M)
+    dlon = dlat / math.cos(math.radians(p.lat))
+    return {
+        (math.floor((p.lat + a) / cell_deg), math.floor((p.lon + b) / cell_deg))
+        for a in (-dlat, dlat)
+        for b in (-dlon, dlon)
+    }
+
+
 def three_long_routes(step_miles: float) -> list[list[LatLon]]:
     """A straight 1,000-mile route and two longer ones bending east and west of it."""
     start, end = LatLon(30.0, -100.0), LatLon(44.5, -100.0)
@@ -64,6 +80,7 @@ TEXAS = polyline(DALLAS, WACO)
 ALASKA = polyline(FAIRBANKS, LIVENGOOD)
 SVALBARD = polyline(LatLon(78.22, 15.65), LatLon(78.45, 16.30))
 NEAR_POLE = polyline(LatLon(89.8, 100.0), LatLon(89.85, 120.0))
+ACROSS_EQUATOR_AND_MERIDIAN = polyline(LatLon(-1.0, -1.0), LatLon(1.0, 1.0))
 
 
 def test_no_routes_means_no_points():
@@ -138,6 +155,23 @@ def test_too_many_cells_coarsens_the_grid_until_it_fits_the_cap():
     assert all(is_centre(p.lat, cell) and is_centre(p.lon, cell) for p in capped)
 
 
+def test_coarse_cells_still_cover_the_whole_route():
+    # Coast to coast needs three coarsenings, to cells of about 58 x 45 miles. A cell
+    # the road crosses near its corner then has its centre more than 30 miles away.
+    routes = [
+        polyline(LOS_ANGELES, NEW_YORK),
+        polyline(LOS_ANGELES, LatLon(39.0, -105.0), NEW_YORK),
+        polyline(LOS_ANGELES, LatLon(33.0, -97.0), NEW_YORK),
+    ]
+    cell = 0.25 * 1.5**3
+    grid = build_grid(routes)
+    assert all(is_centre(p.lat, cell) and is_centre(p.lon, cell) for p in grid)
+    kept = {(math.floor(p.lat / cell), math.floor(p.lon / cell)) for p in grid}
+    # Cells are found from route samples 2 miles apart, so a vertex may be a mile off one.
+    stranded = [p for route in routes for p in route if not cells_near(p, cell, 1.5) & kept]
+    assert stranded == []
+
+
 def test_three_1000_mile_routes_build_in_well_under_a_second():
     # A vertex every 0.1 mile, about as dense as TomTom route geometry.
     routes = three_long_routes(step_miles=0.1)
@@ -148,13 +182,23 @@ def test_three_1000_mile_routes_build_in_well_under_a_second():
     assert elapsed < 0.5
 
 
-def test_small_cap_on_a_short_route():
-    grid = build_grid([TEXAS], max_points=10)
-    assert 0 < len(grid) <= 10
+@pytest.mark.parametrize("cap", [4, 250])
+@pytest.mark.parametrize(
+    "route",
+    [TEXAS, NEAR_POLE, ACROSS_EQUATOR_AND_MERIDIAN],
+    ids=["texas", "near-pole", "equator-and-meridian"],
+)
+def test_a_route_never_gets_an_empty_grid(route, cap):
+    grid = build_grid([route], max_points=cap)
+    assert 0 < len(grid) <= cap
+    assert all(-90 <= p.lat <= 90 and -180 <= p.lon <= 180 for p in grid)
 
 
-def test_rejects_a_zero_cell_size_or_cap():
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"cell_deg": 0}, {"cell_deg": 91}, {"max_points": 3}],
+    ids=["zero-cell", "cell-over-90", "cap-under-4"],
+)
+def test_rejects_a_cell_size_or_cap_no_grid_can_meet(kwargs):
     with pytest.raises(ValueError):
-        build_grid([TEXAS], cell_deg=0)
-    with pytest.raises(ValueError):
-        build_grid([TEXAS], max_points=0)
+        build_grid([TEXAS], **kwargs)
