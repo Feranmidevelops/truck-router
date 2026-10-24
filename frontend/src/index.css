@@ -6,6 +6,17 @@
   --border: #dde2ea;
   --accent: #1f5fbf;
   --danger: #b42318;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 8px;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8rem;
+  --text-md: 0.85rem;
+  --text-base: 0.9rem;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
   background: var(--bg);
@@ -74,6 +85,24 @@ body {
   border: 1px solid var(--border);
   border-radius: 6px;
   background: #fff;
+}
+
+.field input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.field-error,
+.hint {
+  margin: calc(-1 * var(--space-1)) 0 0;
+  font-size: var(--text-sm);
+}
+
+.field-error {
+  color: var(--danger);
+}
+
+.hint {
+  color: var(--muted);
 }
 
 .row {
