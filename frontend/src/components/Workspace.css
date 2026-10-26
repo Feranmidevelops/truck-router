@@ -6,6 +6,7 @@
   position: relative;
   isolation: isolate;
   height: calc(100svh - var(--trip-bar-height));
+  scroll-margin-top: var(--trip-bar-height); /* "See the weather map" lands below the trip bar */
   min-height: 560px;
   /* clip, not hidden: nothing (a focused row, scrollIntoView) can scroll the stage itself */
   overflow: hidden;
