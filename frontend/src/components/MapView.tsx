@@ -332,10 +332,7 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
     const bounds = new LngLatBounds()
     plan.routes.forEach((r) => r.geometry.forEach((c) => bounds.extend(c)))
     const fit = (duration: number) =>
-      map.fitBounds(bounds, {
-        padding: fitPadding(map, [panelRef.current, stackRef.current, coverRef?.current]),
-        duration,
-      })
+      map.fitBounds(bounds, { padding: fitPadding(map, [panelRef.current, stackRef.current, coverRef?.current]), duration })
     fit(600)
 
     let timer: ReturnType<typeof setTimeout> | undefined
