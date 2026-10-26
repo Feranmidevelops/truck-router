@@ -1,11 +1,17 @@
-import type { Heatmap, Place, Plan, PlanRequest } from './types'
+import type { ForecastRequest, Heatmap, Place, Plan, PlanRequest } from './types'
 
 const BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
 const OFFLINE_MESSAGE = "Can't reach the server. Check your connection and try again."
+const WEATHER_DOWN = "Couldn't get the weather forecast from Open-Meteo. Try again in a minute."
+const WEATHER_LIMIT =
+  "Open-Meteo's free forecast limit for your network is used up for now. Try again later or from another network."
 // A live plan takes 5-15 s and a heatmap a few seconds; past these something is stuck
 const PLAN_TIMEOUT_S = 45
 const HEATMAP_TIMEOUT_S = 30
+// For each Open-Meteo request, and the wait before its one retry
+const FORECAST_TIMEOUT_S = 20
+const FORECAST_RETRY_MS = 2000
 
 export class ApiError extends Error {
   readonly status: number // 0 when no HTTP response came back
@@ -126,10 +132,57 @@ export async function geocode(q: string, signal?: AbortSignal): Promise<Place[]>
   return Array.isArray(body.results) ? body.results : []
 }
 
-export function planTrip(body: PlanRequest, signal?: AbortSignal) {
-  return request<Plan>('/api/plan', { method: 'POST', body: JSON.stringify(body), signal }, PLAN_TIMEOUT_S)
+export async function planTrip(body: PlanRequest, signal?: AbortSignal): Promise<Plan> {
+  const init = { method: 'POST', body: JSON.stringify(body), signal }
+  const first = await request<Plan | ForecastRequest>('/api/plan', init, PLAN_TIMEOUT_S)
+  if (!needsForecasts(first)) return first
+  return sendForecasts<Plan>('/api/plan/forecasts', first, PLAN_TIMEOUT_S, signal)
 }
 
-export function getHeatmap(planId: string, signal?: AbortSignal) {
-  return request<Heatmap>(`/api/heatmap?plan_id=${encodeURIComponent(planId)}`, { signal }, HEATMAP_TIMEOUT_S)
+export async function getHeatmap(planId: string, signal?: AbortSignal): Promise<Heatmap> {
+  const path = `/api/heatmap?plan_id=${encodeURIComponent(planId)}`
+  const first = await request<Heatmap | ForecastRequest>(path, { signal }, HEATMAP_TIMEOUT_S)
+  if (!needsForecasts(first)) return first
+  return sendForecasts<Heatmap>('/api/heatmap/forecasts', first, HEATMAP_TIMEOUT_S, signal)
+}
+
+// Sample data comes back whole. Live data comes back as the forecasts to fetch first.
+function needsForecasts(body: object): body is ForecastRequest {
+  return 'forecast_urls' in body
+}
+
+// Open-Meteo's free limit is per IP address, and the server shares its address with other apps,
+// so the browser fetches the forecasts the server lists and posts the replies back to be scored.
+async function sendForecasts<T>(path: string, req: ForecastRequest, timeoutS: number, signal?: AbortSignal) {
+  const forecasts = await Promise.all(req.forecast_urls.map((url) => fetchForecast(url, signal)))
+  const body = JSON.stringify({ plan_id: req.plan_id, forecasts })
+  return request<T>(path, { method: 'POST', body, signal }, timeoutS)
+}
+
+// Tried once more after a short wait when the network, a timeout, a server error or Open-Meteo's
+// per-minute limit gets in the way. Its hourly and daily limits won't clear in that time.
+async function fetchForecast(url: string, signal?: AbortSignal, retry = true): Promise<unknown> {
+  const again = async () => {
+    await new Promise((resolve) => setTimeout(resolve, FORECAST_RETRY_MS))
+    return fetchForecast(url, signal, false) // an abort meanwhile makes this fetch throw at once
+  }
+  const timeout = AbortSignal.timeout(FORECAST_TIMEOUT_S * 1000)
+  let res: Response
+  let text: string
+  try {
+    res = await fetch(url, { signal: signal ? AbortSignal.any([signal, timeout]) : timeout })
+    text = await res.text()
+  } catch (e) {
+    if (isAbortError(e)) throw e
+    if (retry) return again()
+    throw new ApiError(0, WEATHER_DOWN)
+  }
+
+  const body = parseJson(text)
+  if (res.ok && body !== undefined) return body
+  // e.g. {"error": true, "reason": "Daily API request limit exceeded. Please try again tomorrow."}
+  const reason = isObject(body) && typeof body.reason === 'string' ? body.reason : ''
+  if (res.status === 429 && /daily|hourly/i.test(reason)) throw new ApiError(429, WEATHER_LIMIT)
+  if (retry && (res.status === 429 || res.status >= 500)) return again()
+  throw new ApiError(res.status, WEATHER_DOWN)
 }

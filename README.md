@@ -11,8 +11,8 @@ at each point along the way, the load weight and the travel time.
 1. Enter origin, destination, departure time, load weight, and how often to check the weather
    (every 10, 25 or 50 miles).
 2. The backend gets three truck routes from TomTom and places checkpoints along each one.
-3. For each checkpoint it works out when the truck gets there and reads the forecast for that hour
-   from Open-Meteo.
+3. For each checkpoint it works out when the truck gets there. The browser fetches the Open-Meteo
+   forecasts the backend lists for them, and the backend reads the hour the truck is there.
 4. Each checkpoint gets a risk level from the wind, rain and snow thresholds and the load rules.
 5. Routes are ranked: fewest Severe miles, then fewest High miles, then lowest average risk, then
    shortest travel time.
@@ -26,7 +26,7 @@ at each point along the way, the load weight and the travel time.
 | Frontend | React 19, TypeScript, Vite, MapLibre GL |
 | Backend | Django 5.2, Django REST Framework, httpx |
 | Routing and geocoding | TomTom Routing API (truck mode) and Search API |
-| Weather | Open-Meteo hourly forecast |
+| Weather | Open-Meteo hourly forecast, fetched by the browser |
 | Map tiles | OpenFreeMap |
 
 ## Run locally
@@ -72,17 +72,23 @@ any API keys.
 
 | Method | Path | Returns |
 | --- | --- | --- |
-| `POST` | `/api/plan` | Three ranked routes with checkpoints, risk and the recommendation |
-| `GET` | `/api/heatmap?plan_id=` | Risk level per grid point for each hour, 0-48 h |
+| `POST` | `/api/plan` | The routes found, kept on the server, and the forecasts to fetch: `{plan_id, forecast_urls}` |
+| `POST` | `/api/plan/forecasts` | Takes `{plan_id, forecasts}` (Open-Meteo's replies, in order). Three ranked routes with checkpoints, risk and the recommendation |
+| `GET` | `/api/heatmap?plan_id=` | The forecasts to fetch for the heatmap grid: `{plan_id, forecast_urls}` |
+| `POST` | `/api/heatmap/forecasts` | Takes `{plan_id, forecasts}`. Risk level per grid point for each hour, 0-48 h |
 | `GET` | `/api/geocode?q=` | Place suggestions, each with its IANA time zone |
 | `GET` | `/api/health` | Health check |
 
+With sample data on (`USE_FIXTURES`), `/api/plan` and `/api/heatmap` answer with the whole plan
+or heatmap at once. Why there are two steps: see [Weather requests](#weather-requests).
+
 Types: `frontend/src/api/types.ts`. Bad input is a 400 with DRF's field errors,
 `{"field": ["message"]}` (a body that isn't JSON gets `{"detail": "..."}`). Every other error is
-`{"detail": "..."}`: 404 when a heatmap's plan has expired, 422 when TomTom has no truck route
-between the places, 429 with `Retry-After` when a client sends too many requests, 502 with a
-"try again in a minute" message when TomTom or Open-Meteo fails, and 503 when `TOMTOM_API_KEY`
-is not set.
+`{"detail": "..."}`: 400 when the forecasts sent back aren't the ones the plan asked for, 404 when
+the plan has expired (15 minutes between a plan's two steps, an hour for its heatmap), 413 when
+the forecasts are over 4 MB, 422 when TomTom has no truck route between the places, 429 with
+`Retry-After` when a client sends too many requests, 502 with a "try again in a minute" message
+when TomTom fails, and 503 when `TOMTOM_API_KEY` is not set.
 
 ## Decisions
 
@@ -190,15 +196,25 @@ so Route A is always the recommended one.
 
 ### Weather requests
 
-- Open-Meteo's free tier allows 600 locations a minute. Coordinates are rounded to 0.1 degrees and
-  de-duplicated before the request, so checkpoints on shared road cost one lookup.
+- **The browser fetches the forecasts, not the server.** Open-Meteo's free limits (10,000
+  locations a day, 600 a minute) are per IP address, and a free Render server shares its outgoing
+  address with other apps: on the live site Open-Meteo was already answering "Daily API request
+  limit exceeded" before 9 am UTC. So the backend lists the exact Open-Meteo URLs a plan needs,
+  the browser fetches them on the visitor's own limit, and posts the replies back. The backend
+  checks they are the forecasts it asked for (the number of replies and locations, the hours,
+  the units), then samples, scores and ranks them as before. The heatmap works the same way. The
+  rules and the ranking stay on the server, and the server never calls Open-Meteo itself.
+- Coordinates are rounded to 0.1 degrees and de-duplicated before the URLs are made, so
+  checkpoints on shared road cost one location, and the same places always make the same URLs.
 - **A plan asks for 340 locations at most.** Every location in a request counts against the 600,
   and the heatmap that follows asks for up to 250. Seattle -> Miami at a 10-mile interval needs
   about 880 at 0.1 degrees, which Open-Meteo refused, so a plan that needs more than 340 gets a
   coarser grid (0.2, 0.25, then 0.5 degrees) until it fits, and each checkpoint reads the
   nearest grid point. Dallas -> Denver stays at 0.1 degrees even every 10 miles.
-- Responses are cached for 30 minutes, and a rate-limited request is retried once before the app
-  shows a clear "try again in a minute".
+- The browser tries a failed request once more after 2 seconds (network error, timeout, server
+  error, per-minute limit). For the hourly or daily limit it says so straight away instead.
+- What goes back up: about 100 kB of forecasts for Dallas -> Denver and about 500 kB for its
+  heatmap. The backend refuses anything over 4 MB.
 
 ### Heatmap
 
@@ -213,7 +229,7 @@ so Route A is always the recommended one.
   first, but it blends neighbours by weight: a lone Severe cell came out faint green and Low
   showed nothing at all. Circles keep every point's colour honest and still read as a smooth
   field.
-- **The slider never refetches.** All 49 hours arrive in one request and sit on every point as
+- **The slider never refetches.** All 49 hours arrive at once and sit on every point as
   `h0`..`h48`. Moving the slider only changes which property the colour expression reads
   (`setPaintProperty`): no network, no re-sent data. Measured at about 3 ms per tick and a steady
   60 fps while dragging.
@@ -253,8 +269,9 @@ so Route A is always the recommended one.
 
 ### Rate limits
 
-- Each visitor gets 10 plans, 120 place searches and 30 heatmaps a minute; a limited request gets
-  a 429 with `Retry-After`. Health checks are never limited.
+- Each visitor gets 10 plans, 120 place searches and 30 heatmaps a minute, and 40 forecast posts
+  (the second step of each plan and heatmap); a limited request gets a 429 with `Retry-After`.
+  Health checks are never limited.
 - On Render a request arrives with `X-Forwarded-For` reading "anything the client sent, the
   visitor, a Cloudflare edge, Render's load balancer" (checked on a live request), so the
   visitor's address is the third entry from the end (`NUM_PROXIES=3`). The two after it change
@@ -280,7 +297,8 @@ so Route A is always the recommended one.
 
 ## Tests
 
-`cd backend && pytest` runs about 510 tests in under 10 seconds, with no network access.
+`cd backend && pytest` runs about 530 tests in under half a minute. A test that tries to reach a
+real server fails.
 
 - **Rules:** every wind, rain and snow boundary just below, at and above its edge, a grid of load
   rule edges, each level's score in the average, and every ranking key and reason.
@@ -289,8 +307,10 @@ so Route A is always the recommended one.
   way round, de-duplication per chunk) to make sure each one fails a test.
 - **Real data:** a trimmed real TomTom Dallas -> Denver response, and Open-Meteo unit strings
   confirmed against a live call.
-- **End to end:** a whole trip goes through the API, the real HTTP clients and the planner
-  against fake TomTom and Open-Meteo servers, including "no route" and failure cases.
+- **End to end:** a whole trip goes through both steps of the API, the real TomTom client and
+  the planner against a fake TomTom, with the forecasts fetched from a fake Open-Meteo the way
+  the browser does it, including "no route" and failure cases. It also checks that the server
+  itself only ever talked to TomTom.
 - **Contract:** a test reads `frontend/src/api/types.ts` and checks every API response and sample
   file against it, so the backend and the frontend can't drift apart silently.
 - **Frontend:** `npm run build` type-checks it and `npm run lint` lints it.
@@ -325,9 +345,9 @@ so Route A is always the recommended one.
 - **Free tiers.** TomTom allows 2,500 requests a day. A plan uses 1-3 routing requests plus up
   to 6 town lookups for its report (cached for 30 days), so that's somewhere between about 280
   and 2,500 plans. Place search uses TomTom too, one request per new search text (cached for a
-  day), so the real number of plans a day is somewhat lower. Open-Meteo allows 600 locations a
-  minute, and a free Render instance sleeps when idle, so the first request after a quiet spell
-  is slow.
+  day), so the real number of plans a day is somewhat lower. Open-Meteo allows each visitor's
+  network 10,000 locations a day and 600 a minute; a trip and its heatmap use about 300 to 600.
+  A free Render instance sleeps when idle, so the first request after a quiet spell is slow.
 
 ## Credits
 

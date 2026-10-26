@@ -1,4 +1,7 @@
-"""Open-Meteo hourly forecast client.
+"""Open-Meteo hourly forecasts: the requests to make, and reading the replies.
+
+The browser makes the requests (see planner.py for why) and sends the replies back, so
+this module builds the URLs and checks and reads what comes back, but never calls out.
 
 Docs: https://open-meteo.com/en/docs
 - Many coordinates per request (comma-separated); the response is then a JSON
@@ -10,8 +13,8 @@ Docs: https://open-meteo.com/en/docs
 - Free tier: under 10,000 calls/day, 5,000/hour, 600/minute
   (https://open-meteo.com/en/pricing). Up to 10 variables over up to 2 weeks is
   one call; a request for several locations is weighted by how many it asks for
-  (maintainer, https://github.com/open-meteo/open-meteo/issues/438).
-  Round, de-duplicate, cache and batch, and cap the locations one plan asks for.
+  (maintainer, https://github.com/open-meteo/open-meteo/issues/438). The limit is
+  per IP address. Round, de-duplicate and batch, and cap the locations one plan asks for.
 
 Units are read from `hourly_units` and converted. With the params below the API
 returns "mp/h" for wind, "inch" for rain, showers and snowfall, and "°F" for
@@ -21,16 +24,13 @@ temperature. weather_code is a WMO code ("wmo code"), described in conditions.py
 from __future__ import annotations
 
 from bisect import bisect_left
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
-import hashlib
 import logging
-import time
+import math
+from urllib.parse import urlencode
 
-import httpx
-
-from .types import Cache, LatLon, WeatherSample
+from .types import LatLon, WeatherSample
 
 BASE_URL = "https://api.open-meteo.com/v1/forecast"
 # Temperature and weather_code are shown, not scored. Seven variables still count as one call.
@@ -49,10 +49,6 @@ CHUNK_SIZE = 50
 # coarser in these steps, then keeps doubling, until they fit.
 CELL_STEPS_DEG = (0.1, 0.2, 0.25, 0.5)
 GRID_DECIMALS = 6  # hides float noise such as 32.300000000000004, which would be another cell
-MAX_WORKERS = 4
-CACHE_TTL_S = 30 * 60
-RETRY_WAIT_S = 2.0
-RATE_LIMITED_MESSAGE = "The weather service is rate-limiting requests. Try again in a minute."
 
 SPEED_TO_MPH = {"mp/h": 1.0, "mph": 1.0, "km/h": 0.621371, "m/s": 2.236936, "kn": 1.150779}
 DEPTH_TO_IN = {"inch": 1.0, "in": 1.0, "mm": 1 / 25.4, "cm": 1 / 2.54}
@@ -78,6 +74,78 @@ class HourlySeries:
     weather_code: list[int | None]  # WMO code
 
 
+@dataclass
+class ForecastRequests:
+    """The Open-Meteo requests that cover some positions, and how to read the replies back."""
+
+    positions: list[LatLon]  # as the caller passed them
+    cells: list[LatLon]  # each position's grid point, in the same order
+    chunks: list[list[LatLon]]  # the distinct grid points, sorted, CHUNK_SIZE to a request
+    start: datetime  # first and last hour asked for, both included, UTC
+    end: datetime
+
+    def urls(self) -> list[str]:
+        return [forecast_url(chunk, self.start, self.end) for chunk in self.chunks]
+
+    @property
+    def hours(self) -> int:
+        return int((self.end - self.start) / timedelta(hours=1)) + 1
+
+
+def forecast_requests(
+    positions: list[LatLon], start: datetime, end: datetime, *, max_cells: int | None = None
+) -> ForecastRequests:
+    """What to ask Open-Meteo for to cover each position hourly from floor(start) to ceil(end).
+
+    Positions are snapped to a 0.1 degree grid and de-duplicated, so nearby checkpoints cost one
+    location. With `max_cells`, at most that many locations are asked for (see snap_cells). The
+    grid points are sorted before chunking, so the same points in any order make the same URLs.
+    """
+    cells = snap_cells(positions, max_cells) if positions else []
+    unique = sorted(set(cells), key=lambda c: (c.lat, c.lon))
+    chunks = [unique[i : i + CHUNK_SIZE] for i in range(0, len(unique), CHUNK_SIZE)]
+    return ForecastRequests(list(positions), cells, chunks, floor_hour(start), ceil_hour(end))
+
+
+def forecast_url(chunk: list[LatLon], start: datetime, end: datetime) -> str:
+    return f"{BASE_URL}?{urlencode(_params(chunk, start, end), safe=',:')}"
+
+
+def read_forecasts(requests: ForecastRequests, replies: list) -> list[HourlySeries]:
+    """Each position's series from Open-Meteo's replies to requests.urls(), in the same order.
+
+    The replies come from the browser, so anything that isn't the forecast that was asked for
+    (another number of replies or locations, other hours, missing values) is a WeatherError.
+    """
+    if not isinstance(replies, list) or len(replies) != len(requests.chunks):
+        count = len(replies) if isinstance(replies, list) else "no list of"
+        raise WeatherError(f"Expected {len(requests.chunks)} forecast replies, got {count}")
+    by_cell = {}
+    for chunk, reply in zip(requests.chunks, replies):
+        items = reply if isinstance(reply, list) else [reply]
+        if len(items) != len(chunk):
+            raise WeatherError(f"A forecast reply has {len(items)} locations for {len(chunk)} requested")
+        for cell, item in zip(chunk, items):
+            try:
+                series = parse_location(item, cell)
+            except (KeyError, TypeError, ValueError, AttributeError) as exc:
+                raise WeatherError(f"A forecast is in an unexpected shape: {exc!r}") from exc
+            _check_hours(series, requests)
+            by_cell[cell] = series
+    return [replace(by_cell[cell], position=p) for cell, p in zip(requests.cells, requests.positions)]
+
+
+def _check_hours(series: HourlySeries, requests: ForecastRequests) -> None:
+    values = (series.wind_mph, series.gust_mph, series.rain_in_hr, series.snow_in_hr, series.temp_f)
+    if not series.times or series.times[0] != requests.start or len(series.times) != requests.hours:
+        raise WeatherError("A forecast covers other hours than the ones asked for")
+    if any(len(v) != requests.hours for v in (*values, series.weather_code)):
+        raise WeatherError("A forecast is missing values for some hours")
+    # e.g. 1e308 m/s turns into infinite mph, which can't be sent back as JSON
+    if not all(math.isfinite(x) for v in values for x in v if x is not None):
+        raise WeatherError("A forecast has a value that isn't a finite number")
+
+
 def floor_hour(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
 
@@ -85,41 +153,6 @@ def floor_hour(dt: datetime) -> datetime:
 def ceil_hour(dt: datetime) -> datetime:
     floored = floor_hour(dt)
     return floored if floored == dt.astimezone(timezone.utc) else floored + timedelta(hours=1)
-
-
-def fetch_hourly(
-    positions: list[LatLon],
-    start: datetime,
-    end: datetime,
-    *,
-    max_cells: int | None = None,
-    client: httpx.Client | None = None,
-    cache: Cache | None = None,
-) -> list[HourlySeries]:
-    """Hourly series from floor(start) to ceil(end) for each position, in input order.
-
-    Positions are snapped to a 0.1 degree grid and de-duplicated before the request,
-    so nearby checkpoints cost one location. With `max_cells`, at most that many
-    locations are asked for (see snap_cells). Each result keeps its original position.
-    The cells are sorted before chunking, so the same cells in any order make the
-    same requests and hit the same cache entries.
-    """
-    if not positions:
-        return []
-    start_h, end_h = floor_hour(start), ceil_hour(end)
-    cells = snap_cells(positions, max_cells)
-    unique = sorted(set(cells), key=lambda c: (c.lat, c.lon))
-    chunks = [unique[i : i + CHUNK_SIZE] for i in range(0, len(unique), CHUNK_SIZE)]
-    own_client = client is None
-    client = client or httpx.Client(timeout=20)
-    try:
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-            results = list(pool.map(lambda c: _fetch_chunk(client, c, start_h, end_h, cache), chunks))
-    finally:
-        if own_client:
-            client.close()
-    by_cell = {series.position: series for chunk in results for series in chunk}
-    return [replace(by_cell[cell], position=p) for cell, p in zip(cells, positions)]
 
 
 def snap_cells(positions: list[LatLon], max_cells: int | None = None) -> list[LatLon]:
@@ -160,10 +193,8 @@ def _to_grid(value: float, step: float) -> float:
     return round(round(value / step) * step, GRID_DECIMALS)
 
 
-def _fetch_chunk(
-    client: httpx.Client, chunk: list[LatLon], start: datetime, end: datetime, cache: Cache | None
-) -> list[HourlySeries]:
-    params = {
+def _params(chunk: list[LatLon], start: datetime, end: datetime) -> dict[str, str]:
+    return {
         "latitude": ",".join(f"{p.lat:.4f}" for p in chunk),
         "longitude": ",".join(f"{p.lon:.4f}" for p in chunk),
         "hourly": ",".join(HOURLY_VARS),
@@ -174,44 +205,6 @@ def _fetch_chunk(
         "start_hour": start.strftime("%Y-%m-%dT%H:%M"),
         "end_hour": end.strftime("%Y-%m-%dT%H:%M"),
     }
-    key = "wx:" + hashlib.sha1(repr(sorted(params.items())).encode()).hexdigest()
-    cached = cache.get(key) if cache is not None else None
-    payload = cached if cached is not None else _get_json(client, params)
-
-    items = payload if isinstance(payload, list) else [payload]
-    if len(items) != len(chunk):
-        raise WeatherError(f"Open-Meteo returned {len(items)} locations for {len(chunk)} requested")
-    try:
-        series = [parse_location(item, pos) for item, pos in zip(items, chunk)]
-    except (KeyError, TypeError, ValueError) as exc:
-        raise WeatherError(f"Open-Meteo sent a forecast in an unexpected shape: {exc!r}") from exc
-    # Cached only once it parses, so a bad reply isn't served again for the next half hour.
-    if cache is not None and cached is None:
-        cache.set(key, payload, CACHE_TTL_S)
-    return series
-
-
-def _get_json(client: httpx.Client, params: dict) -> dict | list:
-    resp = _send(client, params)
-    if resp.status_code == 429:
-        # Retry once only: the driver is waiting on this request.
-        time.sleep(RETRY_WAIT_S)
-        resp = _send(client, params)
-    if resp.status_code == 429:
-        raise WeatherError(RATE_LIMITED_MESSAGE)
-    if resp.status_code != 200:
-        raise WeatherError(f"Open-Meteo {resp.status_code}: {resp.text[:200]}")
-    try:
-        return resp.json()
-    except ValueError as exc:  # JSONDecodeError is a ValueError
-        raise WeatherError(f"Open-Meteo sent a response that isn't JSON: {resp.text[:200]}") from exc
-
-
-def _send(client: httpx.Client, params: dict) -> httpx.Response:
-    try:
-        return client.get(BASE_URL, params=params)
-    except httpx.HTTPError as exc:
-        raise WeatherError(f"Open-Meteo request failed: {exc}") from exc
 
 
 def parse_location(item: dict, position: LatLon) -> HourlySeries:

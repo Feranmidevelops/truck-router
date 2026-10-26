@@ -132,3 +132,11 @@ export interface Heatmap {
   hours: number
   points: HeatmapPoint[]
 }
+
+// With live data, POST /api/plan and GET /api/heatmap answer with this instead. The browser
+// fetches each URL from Open-Meteo and posts the replies, in order, as {plan_id, forecasts} to
+// /api/plan/forecasts or /api/heatmap/forecasts, which answer with the Plan or Heatmap.
+export interface ForecastRequest {
+  plan_id: string
+  forecast_urls: string[]
+}
