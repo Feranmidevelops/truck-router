@@ -26,6 +26,12 @@ const STYLE_URL = import.meta.env.VITE_MAP_STYLE_URL || 'https://tiles.openfreem
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
 // After a resize, wait this long for it to settle before fitting the routes again
 const REFIT_DELAY_MS = 150
+// The lower 48 states: what the map shows before there's a trip, so the US fills the screen
+// instead of a corner of North America
+const CONTIGUOUS_US: [[number, number], [number, number]] = [
+  [-124.8, 24.4],
+  [-66.9, 49.4],
+]
 // Black and greys like the rest of the page, so the risk colours on the dots stand out
 const ROUTE_COLOR = '#8b8d94'
 const SELECTED_ROUTE_COLOR = '#111113'
@@ -289,16 +295,17 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
   }, [])
   const toggleHeat = useCallback(() => setShowHeat((v) => !v), [])
 
-  // Fit the routes into the part of the map nothing floats over, and again whenever the map
-  // changes size (a window resize, a phone turned sideways)
+  // Fit the routes (or the lower 48 before any trip) into the part of the map nothing floats
+  // over, and again whenever the map changes size (a window resize, a phone turned sideways)
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !ready || !plan) return
+    if (!map || !ready) return
     const bounds = new LngLatBounds()
-    plan.routes.forEach((r) => r.geometry.forEach((c) => bounds.extend(c)))
+    if (plan) plan.routes.forEach((r) => r.geometry.forEach((c) => bounds.extend(c)))
+    else CONTIGUOUS_US.forEach((c) => bounds.extend(c))
     const fit = (duration: number) =>
       map.fitBounds(bounds, { padding: fitPadding(map, [panelRef.current, coverRef?.current]), duration })
-    fit(600)
+    fit(plan ? 600 : 0)
 
     let timer: ReturnType<typeof setTimeout> | undefined
     let first = true // the observer reports the current size straight away; that's not a resize
