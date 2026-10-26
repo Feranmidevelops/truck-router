@@ -142,8 +142,13 @@ def finish_plan(plan_id: str, replies: list) -> dict:
     """The plan, from Open-Meteo's replies to the forecast_urls start_plan listed, in that order.
 
     Raises PlanNotFound when there's no started plan with this id, and weather.WeatherError when
-    the replies aren't the forecasts that were asked for.
+    the replies aren't the forecasts that were asked for. A plan is finished once: asked again
+    (say the first answer never reached the browser), it gives the same answer without reading
+    the replies, so made-up ones can't make it look up more place names.
     """
+    finished = cache.get(f"finished:{plan_id}")
+    if finished is not None:
+        return finished
     pending = cache.get(f"pending:{plan_id}")
     if pending is None:
         raise PlanNotFound(plan_id)
@@ -193,7 +198,7 @@ def finish_plan(plan_id: str, replies: list) -> dict:
         rid: _report_json(by_id[rid], checkpoints[rid], stretches[rid], names, origin, destination)
         for rid in order
     }
-    return {
+    finished = {
         "plan_id": plan_id,
         "input": pending["input"],
         "recommended_route_id": order[0],
@@ -205,6 +210,9 @@ def finish_plan(plan_id: str, replies: list) -> dict:
             for rank, rid in enumerate(order, 1)
         ],
     }
+    cache.set(f"finished:{plan_id}", finished, PENDING_TTL_S)
+    cache.delete(f"pending:{plan_id}")
+    return finished
 
 
 def heatmap_request(plan_id: str) -> dict:

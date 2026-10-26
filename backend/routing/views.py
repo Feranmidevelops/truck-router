@@ -15,9 +15,6 @@ from .services import planner, timezones, tomtom, weather
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 PLACES_CACHE_S = 24 * 60 * 60  # place names and their positions hardly ever change
-# A plan's forecasts are well under 1 MB and a heatmap's about 1 MB. DRF reads a JSON body
-# without Django's upload limit, so this one is checked here.
-MAX_FORECASTS_BYTES = 4_000_000
 
 ROUTES_DOWN = "Couldn't get routes from TomTom right now. Try again in a minute."
 SEARCH_DOWN = "Couldn't search for places right now. Try again in a minute."
@@ -80,8 +77,11 @@ class GeocodeView(APIView):
 
 def with_forecasts(request, finish) -> Response:
     """Pass the forecasts the browser fetched to `finish(plan_id, replies)` and answer with it."""
+    # Django refuses a body over DATA_UPLOAD_MAX_MEMORY_SIZE (2.5 MB) with an HTML 400 and an
+    # error in the log. No real plan comes close (Seattle -> Miami every 10 miles sends about
+    # 0.85 MB, a heatmap at most about 0.8 MB), so a bigger one is turned away first, as JSON.
     try:
-        too_big = int(request.META.get("CONTENT_LENGTH") or 0) > MAX_FORECASTS_BYTES
+        too_big = int(request.META.get("CONTENT_LENGTH") or 0) > settings.DATA_UPLOAD_MAX_MEMORY_SIZE
     except ValueError:
         too_big = True
     if too_big:
@@ -94,7 +94,8 @@ def with_forecasts(request, finish) -> Response:
     except planner.PlanNotFound:
         return Response({"detail": PLAN_GONE}, status=404)
     except weather.WeatherError as exc:
-        log.warning("Forecasts for %s rejected: %s", plan_id, exc)
+        # The reason can quote whatever was sent, so only its start is kept
+        log.warning("Forecasts for %s rejected: %.300s", plan_id, exc)
         return Response({"detail": BAD_FORECASTS}, status=400)
 
 

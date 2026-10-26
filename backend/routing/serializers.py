@@ -24,12 +24,22 @@ class LocalDateTimeField(serializers.DateTimeField):
         return value
 
 
+class BoundedListField(serializers.ListField):
+    """A ListField that checks max_length before it looks at any item, not after all of them."""
+
+    def to_internal_value(self, data):
+        if isinstance(data, list) and self.max_length is not None and len(data) > self.max_length:
+            self.fail("max_length", max_length=self.max_length)
+        return super().to_internal_value(data)
+
+
 class ForecastRepliesSerializer(serializers.Serializer):
     """Open-Meteo's replies to the forecast_urls a plan or heatmap listed, in the same order."""
 
     plan_id = serializers.RegexField(r"^[0-9a-f]{32}$")
-    # A plan lists at most 7 URLs and a heatmap 5; planner.finish_plan checks the exact number
-    forecasts = serializers.ListField(child=serializers.JSONField(), max_length=20)
+    # A plan lists at most 7 URLs and a heatmap 5. The replies themselves are checked by
+    # weather.read_forecasts, which also checks the exact number.
+    forecasts = BoundedListField(max_length=20)
 
 
 class PlanRequestSerializer(serializers.Serializer):

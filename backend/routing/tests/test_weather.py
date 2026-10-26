@@ -333,6 +333,9 @@ def metres_per_second(payload):
         ([one_reply(wind_speed_10m=[10.0, 20.0])], "missing values"),
         ([one_reply(weather_code=[2, 61])], "missing values"),
         ([metres_per_second(one_reply(wind_speed_10m=[10.0, 1e308, 30.0]))], "finite"),
+        ([one_reply(wind_speed_10m=[10.0, 10**400, 30.0])], "unexpected shape"),
+        ([one_reply(temperature_2m=[50.0, 10**400, 32.0])], "unexpected shape"),
+        ([one_reply(weather_code=[2, float("inf"), 73])], "unexpected shape"),
     ],
     ids=[
         "none",
@@ -350,6 +353,9 @@ def metres_per_second(payload):
         "short wind",
         "short weather code",
         "too big to be a number in mph",
+        "an integer too big for a float",
+        "a temperature too big for a float",
+        "an endless weather code",
     ],
 )
 def test_replies_that_are_not_the_forecast_asked_for_are_a_weather_error(replies, message):

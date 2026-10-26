@@ -245,6 +245,30 @@ def test_forecasts_that_are_not_the_ones_asked_for_are_a_400(api, monkeypatch, c
 
 
 @override_settings(USE_FIXTURES=False)
+@pytest.mark.parametrize("path", ["/api/plan", *FORECASTS_PATHS])
+def test_json_nested_too_deeply_to_read_is_a_400(api, path):
+    deep = "[" * 100_000 + "]" * 100_000  # far past Python's recursion limit, whatever it is
+    res = api.post(path, '{"forecasts": ' + deep + "}", content_type="application/json")
+    assert res.status_code == 400
+    assert res.json() == {"detail": "JSON parse error - nested too deeply."}
+
+
+@override_settings(USE_FIXTURES=False)
+def test_a_body_that_is_not_json_is_refused(api):
+    res = api.post("/api/plan", "origin=Dallas", content_type="application/x-www-form-urlencoded")
+    assert res.status_code == 415
+
+
+@override_settings(USE_FIXTURES=False)
+def test_a_rejected_forecast_logs_only_the_start_of_what_was_sent(api, monkeypatch, caplog):
+    monkeypatch.setattr(planner, "finish_plan", raise_(weather.WeatherError("Bad hour " + "x" * 1_000_000)))
+    assert post_forecasts(api).status_code == 400
+    [record] = [r for r in caplog.records if r.name == "routing.views"]
+    assert record.getMessage().startswith(f"Forecasts for {PLAN_ID} rejected: Bad hour xxx")
+    assert len(record.getMessage()) < 400
+
+
+@override_settings(USE_FIXTURES=False)
 @pytest.mark.parametrize("path, finish", FINISHERS)
 def test_forecasts_go_to_the_plan_they_were_listed_for(api, monkeypatch, path, finish):
     seen = []
@@ -281,12 +305,25 @@ def test_forecasts_with_a_bad_id_or_list_are_a_400(api, monkeypatch, body):
 
 
 @override_settings(USE_FIXTURES=False)
-def test_more_forecast_data_than_a_plan_needs_is_a_413(api, monkeypatch):
+@pytest.mark.parametrize("hours", [150_000, 250_000], ids=["3 MB", "5 MB"])
+def test_more_forecast_data_than_a_plan_needs_is_a_413(api, monkeypatch, caplog, hours):
+    # 3 MB is over Django's own 2.5 MB limit, which would answer with an HTML 400 and log an error
     monkeypatch.setattr(planner, "finish_plan", raise_(AssertionError("the planner was called")))
-    huge = [{"hourly": {"time": ["2026-10-24T12:00"] * 250_000}}]
+    huge = [{"hourly": {"time": ["2026-10-24T12:00"] * hours}}]
     res = post_forecasts(api, forecasts=huge)
     assert res.status_code == 413
     assert res.json() == {"detail": "That's more forecast data than a plan needs."}
+    assert not [r for r in caplog.records if r.levelname == "ERROR"]
+
+
+@override_settings(USE_FIXTURES=False)
+def test_a_long_list_of_forecasts_is_refused_before_any_is_looked_at(api, monkeypatch):
+    from rest_framework import serializers
+
+    monkeypatch.setattr(serializers.ListField, "run_child_validation", raise_(AssertionError("items checked")))
+    res = post_forecasts(api, forecasts=[[]] * 100_000)
+    assert res.status_code == 400
+    assert list(res.json()) == ["forecasts"]
 
 
 @override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="")

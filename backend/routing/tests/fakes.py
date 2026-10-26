@@ -173,7 +173,7 @@ class FakeUpstream:
         self.no_direct_route = False  # the same, but only for the request for the trip itself
         self.no_place_names = False  # fail every reverse geocoding request
         self.requests: list[httpx.Request] = []
-        self._lock = threading.Lock()  # fallbacks and weather chunks arrive from worker threads
+        self._lock = threading.Lock()  # place-name lookups arrive from worker threads
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         with self._lock:
