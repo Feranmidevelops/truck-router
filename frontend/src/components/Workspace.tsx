@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import type { Plan } from '../api/types'
-import { createChannel } from '../lib/channel'
+import { createChannel, type CheckpointRun } from '../lib/channel'
 import { NARROW_SCREEN, useMediaQuery } from '../lib/layout'
 import { afterLoadWhenIdle, loadMapView } from '../lib/loadMap'
 import { BottomSheet } from './BottomSheet'
@@ -30,6 +30,8 @@ export function Workspace({ plan, loading, error, onRetry, selectedRouteId, onSe
   const coverRef = useRef<HTMLDivElement>(null)
   // The checkpoint hovered in the list, for the map to ring. Never changes identity.
   const [hoverChannel] = useState(() => createChannel<string | null>(null))
+  // The stretch picked in the journey report, for the map to ring and frame
+  const [focusChannel] = useState(() => createChannel<CheckpointRun | null>(null))
 
   const results = (
     <PlanResults
@@ -41,6 +43,7 @@ export function Workspace({ plan, loading, error, onRetry, selectedRouteId, onSe
       onRetry={onRetry}
       onPlanTrip={onPlanTrip}
       hoverChannel={hoverChannel}
+      focusChannel={focusChannel}
     />
   )
 
@@ -79,6 +82,7 @@ export function Workspace({ plan, loading, error, onRetry, selectedRouteId, onSe
               heatmap={heatmap}
               coverRef={coverRef}
               hoverChannel={hoverChannel}
+              focusChannel={focusChannel}
             />
           </Suspense>
         </ErrorBoundary>

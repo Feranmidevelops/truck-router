@@ -1,5 +1,5 @@
 import type { Plan } from '../api/types'
-import type { Channel } from '../lib/channel'
+import type { Channel, CheckpointRun } from '../lib/channel'
 import { AlongRoute } from './AlongRoute'
 import { JourneyReport } from './JourneyReport'
 import { PlaceWeather } from './PlaceWeather'
@@ -14,6 +14,7 @@ interface Props {
   onRetry?: () => void // only when the same request again could work
   onPlanTrip: () => void // back to the form
   hoverChannel?: Channel<string | null> // the checkpoint hovered in the list, for the map
+  focusChannel?: Channel<CheckpointRun | null> // the stretch picked in the journey report, for the map
 }
 
 // The results panel (the bottom sheet on phones): loading and error states, the weather at
@@ -28,6 +29,7 @@ export function PlanResults({
   onRetry,
   onPlanTrip,
   hoverChannel,
+  focusChannel,
 }: Props) {
   const selectedRoute = plan?.routes.find((r) => r.id === selectedRouteId)
 
@@ -46,7 +48,9 @@ export function PlanResults({
         <div className={loading ? 'results-body stale' : 'results-body'} inert={loading}>
           {selectedRoute && <PlaceWeather route={selectedRoute} timeZone={plan.input.timezone} />}
           <RouteList plan={plan} selectedRouteId={selectedRouteId} onSelect={onSelect} />
-          {selectedRoute && <JourneyReport route={selectedRoute} timeZone={plan.input.timezone} />}
+          {selectedRoute && (
+            <JourneyReport route={selectedRoute} timeZone={plan.input.timezone} focusChannel={focusChannel} />
+          )}
           {selectedRoute && (
             <AlongRoute
               route={selectedRoute}

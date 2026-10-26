@@ -1,5 +1,6 @@
-import { memo, useId, useMemo, type CSSProperties } from 'react'
+import { memo, useEffect, useId, useMemo, useState, type CSSProperties } from 'react'
 import type { ReportStop, ReportStretch, RiskLevel, Route } from '../api/types'
+import type { Channel, CheckpointRun } from '../lib/channel'
 import {
   formatTempRange,
   hasPrecip,
@@ -18,15 +19,34 @@ import './JourneyReport.css'
 interface Props {
   route: Route
   timeZone: string // the plan's zone (the origin's): every time here reads in it
+  focusChannel?: Channel<CheckpointRun | null> // the stretch picked here, for the map to frame
 }
 
 // The selected route as a story: leave, the stretches above Low in driving order, arrive.
-// memo: only re-renders when the selected route changes.
-export const JourneyReport = memo(function JourneyReport({ route, timeZone }: Props) {
+// Picking a stretch rings its checkpoints on the map and zooms to them; picking it again
+// shows the whole trip. memo: only re-renders when the selected route changes.
+export const JourneyReport = memo(function JourneyReport({ route, timeZone, focusChannel }: Props) {
   const titleId = useId()
+  const hintId = useId()
   const time = useMemo(() => timeFormatter(timeZone), [timeZone])
   const times = useMemo(() => reportTimes(route.report, time), [route, time])
   const { departure, stretches, arrival } = route.report
+
+  // The picked stretch, by its first checkpoint. Another route starts with none picked;
+  // adjusted while rendering rather than in an effect, so there's no extra render.
+  const [picked, setPicked] = useState<number | null>(null)
+  const [pickedOn, setPickedOn] = useState(route)
+  if (route !== pickedOn) {
+    setPickedOn(route)
+    setPicked(null)
+  }
+
+  useEffect(() => {
+    const s = route.report.stretches.find((x) => x.first_index === picked)
+    focusChannel?.set(s ? { routeId: route.id, first: s.first_index, last: s.last_index } : null)
+  }, [focusChannel, route, picked])
+  // Nothing stays ringed on the map once the report goes away
+  useEffect(() => () => focusChannel?.set(null), [focusChannel])
 
   return (
     <section className="journey" aria-labelledby={titleId}>
@@ -41,7 +61,14 @@ export const JourneyReport = memo(function JourneyReport({ route, timeZone }: Pr
       <ol className="journey-list">
         <Stop verb="Leave" stop={departure} when={times.departure} />
         {stretches.map((s, i) => (
-          <Stretch key={s.first_index} stretch={s} when={times.stretches[i]} />
+          <Stretch
+            key={s.first_index}
+            stretch={s}
+            when={times.stretches[i]}
+            picked={s.first_index === picked}
+            hintId={hintId}
+            onPick={() => setPicked((p) => (p === s.first_index ? null : s.first_index))}
+          />
         ))}
         {!stretches.length && (
           <li className="journey-item journey-calm" style={levelStyle('LOW')}>
@@ -50,6 +77,11 @@ export const JourneyReport = memo(function JourneyReport({ route, timeZone }: Pr
         )}
         <Stop verb="Arrive" stop={arrival} when={times.arrival} />
       </ol>
+      {stretches.length > 0 && (
+        <p id={hintId} className="journey-hint">
+          Select a stretch to zoom the map to it.
+        </p>
+      )}
     </section>
   )
 })
@@ -72,21 +104,30 @@ function Stop({ verb, stop, when }: { verb: string; stop: ReportStop; when: stri
   )
 }
 
-function Stretch({ stretch: s, when }: { stretch: ReportStretch; when: string }) {
+interface StretchProps {
+  stretch: ReportStretch
+  when: string // its times, as reportTimes() prints them
+  picked: boolean // on the map now
+  hintId: string // the line that says what picking does
+  onPick: () => void
+}
+
+// A button holds only inline content, so the lines are spans laid out by CSS
+function Stretch({ stretch: s, when, picked, hintId, onPick }: StretchProps) {
   const temps = formatTempRange(s.min_temp_f, s.max_temp_f)
   const gust = Math.round(s.max_gust_mph) > Math.round(s.max_wind_mph) ? Math.round(s.max_gust_mph) : null
   const drives = (factor: ReportStretch['drivers'][number]) => s.drivers.includes(factor)
   return (
     <li className="journey-item journey-stretch" style={levelStyle(s.level)}>
-      <div className="stretch">
-        <p className="stretch-head">
+      <button type="button" className="stretch" aria-pressed={picked} aria-describedby={hintId} onClick={onPick}>
+        <span className="stretch-head">
           <LevelBadge level={s.level} />
           <span className="stretch-cause">{stretchCause(s)}</span>
-        </p>
-        <p className="stretch-when">
+        </span>
+        <span className="stretch-when">
           {stretchMiles(s)} · {when}
-        </p>
-        <p className="stretch-peaks">
+        </span>
+        <span className="stretch-peaks">
           {(hasPrecip(s.max_rain_in_hr) || drives('rain')) && (
             <Reading icon={<RainIcon size={15} />} label="Peak rain" level={s.level} driver={drives('rain')}>
               {s.max_rain_in_hr.toFixed(2)} in/h
@@ -106,8 +147,8 @@ function Stretch({ stretch: s, when }: { stretch: ReportStretch; when: string })
               {temps}
             </span>
           )}
-        </p>
-      </div>
+        </span>
+      </button>
     </li>
   )
 }
