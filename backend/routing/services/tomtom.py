@@ -120,7 +120,8 @@ def vehicle_weight_kg(load_lb: float) -> int:
 def geocode(
     query: str, api_key: str, *, country_set: str = "US", limit: int = 5, client: httpx.Client | None = None
 ) -> list[Place]:
-    url = f"{BASE_URL}/search/2/search/{quote(query)}.json"
+    # safe="" escapes "/" too, so "1/2 Main St" or "../x" can't step out of the search path
+    url = f"{BASE_URL}/search/2/search/{quote(query, safe='')}.json"
     # Places, addresses and streets only: points of interest crowd out towns ("salt lake" brought up
     # a street in Huntington Park, CA) and make the search slower.
     params = {

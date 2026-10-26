@@ -63,6 +63,25 @@ def test_place_search_leaves_out_points_of_interest():
     assert seen[0].url.params["countrySet"] == "US"
 
 
+@pytest.mark.parametrize(
+    "query, path",
+    [
+        ("a/b", "/search/2/search/a%2Fb.json"),
+        ("../x", "/search/2/search/..%2Fx.json"),
+        ("123 1/2 Main St", "/search/2/search/123%201%2F2%20Main%20St.json"),
+    ],
+)
+def test_place_search_keeps_the_query_inside_the_search_path(query, path):
+    seen: list[httpx.Request] = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, json={"results": []})
+
+    tomtom.geocode(query, "test-key", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    assert seen[0].url.raw_path.decode().split("?")[0] == path
+
+
 # A live reverse geocode with entityType=Municipality in open country in New Mexico, trimmed
 CAPULIN = {
     "summary": {"queryTime": 11, "numResults": 1},
