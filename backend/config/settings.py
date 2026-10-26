@@ -41,7 +41,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
-    # Above CommonMiddleware so it compresses the final body. A plan is ~100 kB of JSON, ~20 kB gzipped.
+    # Above CommonMiddleware so it compresses the final body. A plan is ~100 kB of JSON, ~24 kB gzipped.
     "django.middleware.gzip.GZipMiddleware",
     "django.middleware.common.CommonMiddleware",
 ]

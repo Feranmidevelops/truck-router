@@ -228,7 +228,7 @@ so Route A is always the recommended one.
 
 - **Route lines are simplified before they are sent.** TomTom returns about 10,000 points per
   route. The map gets a Douglas-Peucker copy that never strays more than 20 m from the real line
-  (about 900 points), which takes a Dallas -> Denver plan from ~700 kB to ~95 kB of JSON, ~18 kB
+  (about 900 points), which takes a Dallas -> Denver plan from ~700 kB to ~100 kB of JSON, ~24 kB
   gzipped. Checkpoints and ETAs are still worked out on the full line.
 
 ### Time zones
@@ -243,7 +243,7 @@ so Route A is always the recommended one.
 
 ## Tests
 
-`cd backend && pytest` runs about 400 tests in a few seconds, with no network access.
+`cd backend && pytest` runs about 510 tests in under 10 seconds, with no network access.
 
 - **Rules:** every wind, rain and snow boundary just below, at and above its edge, a grid of load
   rule edges, each level's score in the average, and every ranking key and reason.
