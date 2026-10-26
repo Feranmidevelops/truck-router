@@ -932,9 +932,21 @@ def test_a_fallback_gets_less_time_to_answer_than_the_main_request():
     tomtom.calculate_routes(WEST, EAST, T0, 20_000, "test-key", client=client)
     tomtom.ensure_three_routes([drive("r0", FASTEST)], WEST, EAST, T0, 20_000, "test-key", client=client)
     main, *fallbacks = timeouts
-    assert main == tomtom.REQUEST_TIMEOUT_S
-    assert fallbacks and set(fallbacks) == {tomtom.FALLBACK_TIMEOUT_S}
-    assert tomtom.FALLBACK_TIMEOUT_S < tomtom.REQUEST_TIMEOUT_S
+    assert main == tomtom.ROUTE_TIMEOUT_S == 35
+    assert fallbacks and set(fallbacks) == {tomtom.FALLBACK_TIMEOUT_S} == {10}
+    # The frontend gives up on a plan after 45 s
+    assert tomtom.FALLBACK_TIMEOUT_S < tomtom.ROUTE_TIMEOUT_S < 45
+
+
+def test_place_search_keeps_the_shorter_request_timeout():
+    timeouts = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        timeouts.append(request.extensions["timeout"]["read"])
+        return httpx.Response(200, json={"results": []})
+
+    tomtom.geocode("denver", "test-key", client=httpx.Client(transport=httpx.MockTransport(respond)))
+    assert timeouts == [tomtom.REQUEST_TIMEOUT_S] == [20]
 
 
 # A real TomTom truck response for Dallas -> Denver with two alternatives, trimmed to every

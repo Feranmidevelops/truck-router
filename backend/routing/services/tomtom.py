@@ -50,9 +50,12 @@ AVOID_MARGIN_M = 5 * METERS_PER_MILE  # how far the boxes over it reach past the
 MAX_AVOID_BOXES = 10  # TomTom's limit per request
 MAX_BOX_SIDE_M = 150_000  # TomTom allows about 160 km a side
 
-REQUEST_TIMEOUT_S = 20
+REQUEST_TIMEOUT_S = 20  # place search, and any request that doesn't set its own
+# The trip's own route request. Seattle -> Miami with two alternatives took 17-21 s live, close to
+# 20 s. 35 s is still under the frontend's 45 s wait for a plan and gunicorn's 60 s worker timeout.
+ROUTE_TIMEOUT_S = 35
 # A fallback request answered in 1.3-3.3 s live. One still silent after 10 s is skipped like any
-# failed fallback, so it can't hold the plan up for the full 20 s.
+# failed fallback, so it can't hold the plan up for the full 35 s.
 FALLBACK_TIMEOUT_S = 10
 # A town name only decorates the journey report, so a slow answer is not worth waiting for
 PLACE_TIMEOUT_S = 3
@@ -222,7 +225,7 @@ def calculate_routes(
     avoid: list[Box] | None = None,
     max_alternatives: int = 2,
     id_prefix: str = "r",
-    timeout: float = REQUEST_TIMEOUT_S,
+    timeout: float = ROUTE_TIMEOUT_S,
     client: httpx.Client | None = None,
 ) -> list[RouteOption]:
     """TomTom's truck routes for the trip, fastest first. With `avoid`, none goes into those boxes."""
