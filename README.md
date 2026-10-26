@@ -298,7 +298,7 @@ so Route A is always the recommended one.
 
 ## Tests
 
-`cd backend && pytest` runs about 530 tests in under half a minute. A test that tries to reach a
+`cd backend && pytest` runs about 550 tests in under half a minute. A test that tries to reach a
 real server fails.
 
 - **Rules:** every wind, rain and snow boundary just below, at and above its edge, a grid of load
