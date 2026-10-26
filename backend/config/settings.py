@@ -58,7 +58,8 @@ TEMPLATES = [
     },
 ]
 
-# No database: the app is stateless. Plans and weather are kept in the cache.
+# No database: the app is stateless. Plans, place names, place searches and throttle history
+# are kept in the cache.
 DATABASES: dict = {}
 
 # File cache so every gunicorn worker sees the same plans (the heatmap request

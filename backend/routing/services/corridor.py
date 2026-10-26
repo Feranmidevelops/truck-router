@@ -20,8 +20,8 @@ def build_grid(
     """Cell centres on a `cell_deg` lat/lon grid that lie within `buffer_miles` of any route,
     plus the centre of every cell a route passes through.
 
-    - Snap to a fixed grid (not relative to the route) so neighbouring requests
-      reuse cached weather.
+    - Snap to a fixed grid (not relative to the route) so the same places always
+      give the same cells, and so the same forecast URLs.
     - Speed-up: only test cells near route points sampled every few miles,
       not every cell in the bounding box.
     - If the result exceeds max_points, multiply cell_deg by 1.5 and rebuild.
