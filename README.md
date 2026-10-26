@@ -76,9 +76,12 @@ any API keys.
 | `GET` | `/api/geocode?q=` | Place suggestions, each with its IANA time zone |
 | `GET` | `/api/health` | Health check |
 
-Types: `frontend/src/api/types.ts`. Errors come back as `{"detail": "..."}`: 400 for bad input,
-422 when TomTom has no truck route between the places, 429 when a client sends too many
-requests, and 502 with a "try again in a minute" message when TomTom or Open-Meteo fails.
+Types: `frontend/src/api/types.ts`. Bad input is a 400 with DRF's field errors,
+`{"field": ["message"]}` (a body that isn't JSON gets `{"detail": "..."}`). Every other error is
+`{"detail": "..."}`: 404 when a heatmap's plan has expired, 422 when TomTom has no truck route
+between the places, 429 with `Retry-After` when a client sends too many requests, 502 with a
+"try again in a minute" message when TomTom or Open-Meteo fails, and 503 when `TOMTOM_API_KEY`
+is not set.
 
 ## Decisions
 
