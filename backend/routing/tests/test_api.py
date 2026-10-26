@@ -361,7 +361,7 @@ def test_limit_frees_up_a_minute_after_the_first_request(api, clock, send, limit
     assert send(api).status_code == 200
 
 
-@override_settings(USE_FIXTURES=False)
+@override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="")
 def test_forecasts_have_their_own_limit_with_room_for_every_plan_and_heatmap(api, clock):
     # Both second steps share one limit of 40 a minute: 10 plans and 30 heatmaps
     for i in range(40):
@@ -369,7 +369,7 @@ def test_forecasts_have_their_own_limit_with_room_for_every_plan_and_heatmap(api
     res = post_forecasts(api)
     assert res.status_code == 429
     assert res["Retry-After"] == "60"
-    assert post_plan(api).status_code != 429  # the first steps keep their own limits
+    assert post_plan(api).status_code == 503  # the first steps keep their own limits (no key: no TomTom call)
 
 
 @override_settings(USE_FIXTURES=True)
