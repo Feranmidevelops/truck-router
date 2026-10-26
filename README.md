@@ -188,6 +188,11 @@ so Route A is always the recommended one.
 
 - Open-Meteo's free tier allows 600 locations a minute. Coordinates are rounded to 0.1 degrees and
   de-duplicated before the request, so checkpoints on shared road cost one lookup.
+- **A plan asks for 340 locations at most.** Every location in a request counts against the 600,
+  and the heatmap that follows asks for up to 250. Seattle -> Miami at a 10-mile interval needs
+  about 880 at 0.1 degrees, which Open-Meteo refused, so a plan that needs more than 340 gets a
+  coarser grid (0.2, 0.25, then 0.5 degrees) until it fits, and each checkpoint reads the
+  nearest grid point. Dallas -> Denver stays at 0.1 degrees even every 10 miles.
 - Responses are cached for 30 minutes, and a rate-limited request is retried once before the app
   shows a clear "try again in a minute".
 
@@ -270,8 +275,8 @@ so Route A is always the recommended one.
   heatmap shows the corridor in between, and a 10-mile interval narrows the gap.
 - **Gusts are shown but not scored**, because the brief's wind thresholds read as sustained wind.
 - **Forecast detail.** Open-Meteo blends weather models on grids of a few kilometres, and
-  lookups are rounded to 0.1 degrees (about 7 miles), so very local storms can be missed or
-  smeared.
+  lookups are rounded to 0.1 degrees (about 7 miles; up to 0.5 degrees on coast-to-coast trips),
+  so very local storms can be missed or smeared.
 - **Sometimes only two routes.** TomTom often returns fewer than three distinct truck routes,
   and when the route found round them is over 1.35x the fastest, the app shows two rather than a
   detour no driver would take. With live traffic the routes can change between runs.
