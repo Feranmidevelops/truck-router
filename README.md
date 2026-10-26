@@ -203,7 +203,8 @@ so Route A is always the recommended one.
   cell each stretch of road passes through is always kept, so the road never has a hole in it.
 - **What it shows.** The risk level (Low to No Travel) at each point for every hour from the
   departure, rounded down to the hour, to 48 hours later, using the same rules and load as the
-  checkpoints, so the shading and the dots agree.
+  checkpoints. It is sampled on its own 0.25 degree grid (coarser on long trips), not at the
+  checkpoints, so in patchy weather a checkpoint's dot can differ from the shading around it.
 - **Drawn as blurred circles in each point's exact level colour.** A density heatmap was tried
   first, but it blends neighbours by weight: a lone Severe cell came out faint green and Low
   showed nothing at all. Circles keep every point's colour honest and still read as a smooth
