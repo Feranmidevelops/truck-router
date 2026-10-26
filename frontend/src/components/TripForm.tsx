@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type Ref } from 'react'
 import { geocode } from '../api/client'
 import type { Place, PlanRequest } from '../api/types'
 import { ArrowRight } from './icons'
@@ -7,6 +7,7 @@ import { PlaceInput } from './PlaceInput'
 interface Props {
   loading: boolean
   onSubmit: (req: PlanRequest) => void
+  ref?: Ref<HTMLFormElement> // lets Try again submit the form as it is now
 }
 
 const MAX_LOAD_LB = 80000
@@ -74,7 +75,7 @@ async function bestMatch(text: string, fail: (message: string) => void): Promise
   }
 }
 
-export function TripForm({ loading, onSubmit }: Props) {
+export function TripForm({ loading, onSubmit, ref }: Props) {
   const [origin, setOrigin] = useState<Place | null>(null)
   const [destination, setDestination] = useState<Place | null>(null)
   const [originText, setOriginText] = useState('')
@@ -129,7 +130,7 @@ export function TripForm({ loading, onSubmit }: Props) {
   }
 
   return (
-    <form className="trip-form" onSubmit={submit}>
+    <form ref={ref} className="trip-form" onSubmit={submit}>
       <PlaceInput
         label="Origin"
         value={origin}
