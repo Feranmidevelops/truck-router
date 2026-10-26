@@ -105,8 +105,9 @@ export interface Route {
   arrival_time: string
   geometry: Array<[number, number]> // [lon, lat]
   summary: RouteSummary
-  // The first is the origin at departure and the last the destination at this route's arrival,
-  // so their weather is what each place is like when the truck is there (as in report).
+  // The first is the origin at departure. The last is the destination at this route's arrival or,
+  // when the last interval checkpoint is within 0.5 mi of it, that checkpoint, reached a minute or
+  // so earlier. Their weather is what each place is like when the truck is there (as in report).
   checkpoints: Checkpoint[]
   report: JourneyReport
 }
