@@ -11,7 +11,7 @@ Docs: https://open-meteo.com/en/docs
   (https://open-meteo.com/en/pricing). Up to 10 variables over up to 2 weeks is
   one call; a request for several locations is weighted by how many it asks for
   (maintainer, https://github.com/open-meteo/open-meteo/issues/438).
-  Round, de-duplicate, cache and batch.
+  Round, de-duplicate, cache and batch, and cap the locations one plan asks for.
 
 Units are read from `hourly_units` and converted. With the params below the API
 returns "mp/h" for wind, "inch" for rain, showers and snowfall, and "°F" for
@@ -25,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 import hashlib
+import logging
 import time
 
 import httpx
@@ -43,7 +44,11 @@ HOURLY_VARS = (
     "weather_code",
 )
 CHUNK_SIZE = 50
-COORD_DECIMALS = 1  # 0.1 deg, about 11 km
+# Positions are snapped to a grid this many degrees apart (0.1 deg is about 7 miles), and each
+# grid point is asked for once. When that is more locations than the caller allows, the grid gets
+# coarser in these steps, then keeps doubling, until they fit.
+CELL_STEPS_DEG = (0.1, 0.2, 0.25, 0.5)
+GRID_DECIMALS = 6  # hides float noise such as 32.300000000000004, which would be another cell
 MAX_WORKERS = 4
 CACHE_TTL_S = 30 * 60
 RETRY_WAIT_S = 2.0
@@ -52,6 +57,9 @@ RATE_LIMITED_MESSAGE = "The weather service is rate-limiting requests. Try again
 SPEED_TO_MPH = {"mp/h": 1.0, "mph": 1.0, "km/h": 0.621371, "m/s": 2.236936, "kn": 1.150779}
 DEPTH_TO_IN = {"inch": 1.0, "in": 1.0, "mm": 1 / 25.4, "cm": 1 / 2.54}
 TEMP_TO_F = {"°F": lambda f: f, "°C": lambda c: c * 9 / 5 + 32}
+
+
+log = logging.getLogger(__name__)
 
 
 class WeatherError(Exception):
@@ -84,20 +92,22 @@ def fetch_hourly(
     start: datetime,
     end: datetime,
     *,
+    max_cells: int | None = None,
     client: httpx.Client | None = None,
     cache: Cache | None = None,
 ) -> list[HourlySeries]:
     """Hourly series from floor(start) to ceil(end) for each position, in input order.
 
-    Positions are rounded to COORD_DECIMALS and de-duplicated before the request,
-    so nearby checkpoints cost one location. Each result keeps its original position.
+    Positions are snapped to a 0.1 degree grid and de-duplicated before the request,
+    so nearby checkpoints cost one location. With `max_cells`, at most that many
+    locations are asked for (see snap_cells). Each result keeps its original position.
     The cells are sorted before chunking, so the same cells in any order make the
     same requests and hit the same cache entries.
     """
     if not positions:
         return []
     start_h, end_h = floor_hour(start), ceil_hour(end)
-    cells = [_snap(p) for p in positions]
+    cells = snap_cells(positions, max_cells)
     unique = sorted(set(cells), key=lambda c: (c.lat, c.lon))
     chunks = [unique[i : i + CHUNK_SIZE] for i in range(0, len(unique), CHUNK_SIZE)]
     own_client = client is None
@@ -112,8 +122,42 @@ def fetch_hourly(
     return [replace(by_cell[cell], position=p) for cell, p in zip(cells, positions)]
 
 
-def _snap(p: LatLon) -> LatLon:
-    return LatLon(round(p.lat, COORD_DECIMALS), round(p.lon, COORD_DECIMALS))
+def snap_cells(positions: list[LatLon], max_cells: int | None = None) -> list[LatLon]:
+    """Each position's nearest point on the finest grid with at most `max_cells` distinct points.
+
+    The grid is 0.1 degree, then 0.2, 0.25 and 0.5, then 1, 2, 4... until the points fit,
+    which they always do in the end. A coarser grid is logged.
+    """
+    if max_cells is not None and max_cells < 1:
+        raise ValueError("max_cells must be at least 1")
+    counts = []  # distinct cells at each grid tried
+    for step in _cell_steps():
+        cells = [_snap(p, step) for p in positions]
+        counts.append(len(set(cells)))
+        if max_cells is None or counts[-1] <= max_cells:
+            break
+    if len(counts) > 1:
+        log.info(
+            "%d weather cells at %g deg is over %d, so using %g deg cells (%d)",
+            counts[0], CELL_STEPS_DEG[0], max_cells, step, counts[-1],
+        )
+    return cells
+
+
+def _cell_steps():
+    yield from CELL_STEPS_DEG
+    step = CELL_STEPS_DEG[-1]
+    while True:
+        step *= 2
+        yield step
+
+
+def _snap(p: LatLon, step: float) -> LatLon:
+    return LatLon(_to_grid(p.lat, step), _to_grid(p.lon, step))
+
+
+def _to_grid(value: float, step: float) -> float:
+    return round(round(value / step) * step, GRID_DECIMALS)
 
 
 def _fetch_chunk(

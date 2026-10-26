@@ -14,8 +14,8 @@ import '../lib/maplibre'
 import './MapView.css'
 import type { FeatureCollection, LineString, Point } from 'geojson'
 import type { Plan } from '../api/types'
-import { checkpointKey, type Channel } from '../lib/channel'
-import { NARROW_SCREEN } from '../lib/layout'
+import { checkpointKey, type Channel, type CheckpointRun } from '../lib/channel'
+import { NARROW_SCREEN, prefersReducedMotion } from '../lib/layout'
 import type { MapWeather } from '../lib/liveWeather'
 import { levelColorExpression } from '../lib/risk'
 import { checkpointPopup } from './CheckpointPopup'
@@ -23,6 +23,7 @@ import { HeatmapSlider, type HeatmapState } from './HeatmapSlider'
 import { HEAT_LAYER, addHeatmapLayer, setHeatmapData, showHeatmapHour } from './heatmapLayer'
 import { LiveKey, WeatherSwitch } from './LiveWeather'
 import { isLiveWeatherSource, useLiveWeather } from './liveWeatherLayer'
+import { bindStretchFocus, planBounds } from './stretchFocus'
 
 // OpenFreeMap is free and needs no key. Override with VITE_MAP_STYLE_URL if it's ever down.
 const STYLE_URL = import.meta.env.VITE_MAP_STYLE_URL || 'https://tiles.openfreemap.org/styles/liberty'
@@ -64,9 +65,19 @@ interface Props {
   heatmap: HeatmapState
   coverRef?: RefObject<HTMLElement | null> // the results panel or sheet floating over the map
   hoverChannel?: Channel<string | null> // the checkpoint hovered in the list, as checkpointKey()
+  focusChannel?: Channel<CheckpointRun | null> // the stretch picked in the journey report
 }
 
-export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap, coverRef, hoverChannel }: Props) {
+export function MapView({
+  plan,
+  loading,
+  selectedRouteId,
+  onSelectRoute,
+  heatmap,
+  coverRef,
+  hoverChannel,
+  focusChannel,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const onSelectRef = useRef(onSelectRoute)
@@ -239,7 +250,12 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
           'circle-radius': byZoom(9, 13),
           'circle-stroke-color': SELECTED_ROUTE_COLOR,
           'circle-stroke-width': 3,
-          'circle-stroke-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 1, 0],
+          'circle-stroke-opacity': [
+            'case',
+            ['any', ['boolean', ['feature-state', 'hover'], false], ['boolean', ['feature-state', 'focus'], false]],
+            1,
+            0,
+          ],
         },
       })
 
@@ -287,6 +303,23 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
       ring(null)
     }
   }, [hoverChannel, ready])
+
+  // A stretch picked in the journey report gets the ring too, and the map frames it
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !focusChannel) return
+    return bindStretchFocus(map, focusChannel, {
+      source: HOVER_SOURCE,
+      getPlan: () => planRef.current,
+      // maxZoom is never passed as undefined: fitBounds would take it and zoom to NaN
+      fit: (bounds, maxZoom = map.getMaxZoom()) =>
+        map.fitBounds(bounds, {
+          padding: fitPadding(map, [panelRef.current, coverRef?.current]),
+          maxZoom,
+          duration: prefersReducedMotion() ? 0 : 600,
+        }),
+    })
+  }, [focusChannel, ready, coverRef])
 
   useEffect(() => {
     const map = mapRef.current
@@ -336,9 +369,7 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-    const bounds = new LngLatBounds()
-    if (plan) plan.routes.forEach((r) => r.geometry.forEach((c) => bounds.extend(c)))
-    else CONTIGUOUS_US.forEach((c) => bounds.extend(c))
+    const bounds = plan ? planBounds(plan) : new LngLatBounds(CONTIGUOUS_US)
     // Remember the size each fit was made for: if the map was still settling (a lazy load, a
     // layout shift), the next size report differs and the fit is redone at the real size.
     let fittedFor = ''

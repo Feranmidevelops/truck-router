@@ -1,4 +1,7 @@
 from datetime import datetime, timedelta, timezone
+import logging
+import math
+import random
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
@@ -198,6 +201,83 @@ def test_every_position_maps_to_its_own_cell_across_chunks():
     assert [s.position for s in series] == positions
     for p, s in zip(positions, series):
         assert echoed_cell(s) == pytest.approx((round(p.lat, 1), round(p.lon, 1)))
+
+
+def along(*stops: tuple[float, float], every_deg: float = 0.14) -> list[LatLon]:
+    """A position about every 10 miles (0.14 deg) on straight lines through the stops."""
+    out = []
+    for (lat1, lon1), (lat2, lon2) in zip(stops, stops[1:]):
+        n = max(1, round(math.dist((lat1, lon1), (lat2, lon2)) / every_deg))
+        out += [LatLon(lat1 + (lat2 - lat1) * k / n, lon1 + (lon2 - lon1) * k / n) for k in range(n)]
+    return out + [LatLon(*stops[-1])]
+
+
+SEATTLE, MIAMI = (47.61, -122.33), (25.76, -80.19)
+# Three Seattle -> Miami routes through different parts of the country, at a 10-mile interval
+COAST_TO_COAST = [
+    *along(SEATTLE, (43.62, -116.2), (39.74, -104.99), (32.78, -96.8), MIAMI),
+    *along(SEATTLE, (40.76, -111.89), (39.1, -94.58), (33.75, -84.39), MIAMI),
+    *along(SEATTLE, (45.78, -108.5), (38.63, -90.2), (30.33, -81.66), MIAMI),
+]
+
+
+def requested_cells(calls: list) -> list[tuple[float, float]]:
+    return [
+        (float(lat), float(lon))
+        for call in calls
+        for lat, lon in zip(call.url.params["latitude"].split(","), call.url.params["longitude"].split(","))
+    ]
+
+
+def test_a_coast_to_coast_plan_asks_for_no_more_cells_than_allowed(caplog):
+    caplog.set_level(logging.INFO, logger="routing.services.weather")
+    positions = COAST_TO_COAST
+    assert len(positions) > 1_000
+    assert len(set(weather.snap_cells(positions))) > 340  # what the 0.1 deg grid would ask for
+    calls: list = []
+
+    series = weather.fetch_hourly(positions, T0, T0, max_cells=340, client=echo_client(calls))
+
+    asked = requested_cells(calls)
+    assert len(asked) == len(set(asked)) <= 340
+    assert [s.position for s in series] == positions
+    # Each position is answered from the nearest location asked for: its own cell
+    for p, s in zip(positions, series):
+        nearest = min(max(abs(lat - p.lat), abs(lon - p.lon)) for lat, lon in asked)
+        lat, lon = echoed_cell(s)
+        assert max(abs(lat - p.lat), abs(lon - p.lon)) == pytest.approx(nearest)
+    assert "weather cells at 0.1 deg is over 340, so using 0.5 deg cells" in caplog.text
+
+
+def test_cells_are_only_made_coarser_when_they_have_to_be(caplog):
+    caplog.set_level(logging.INFO, logger="routing.services.weather")
+    positions = [LatLon(30 + i * 0.1, -97 + i * 0.1) for i in range(40)]
+    fine = weather.snap_cells(positions)
+    assert len(set(fine)) == 40
+    assert weather.snap_cells(positions, max_cells=40) == fine
+    assert not caplog.records
+    coarser = weather.snap_cells(positions, max_cells=39)
+    assert len(set(coarser)) <= 39
+    assert all(abs(c.lat - p.lat) <= 0.1 + 1e-9 for c, p in zip(coarser, positions))
+    assert "40 weather cells at 0.1 deg is over 39, so using 0.2 deg cells" in caplog.text
+
+
+@pytest.mark.parametrize("max_cells", [1, 7, 50, 340])
+def test_any_spread_of_positions_fits_the_cap(max_cells):
+    rng = random.Random(42)
+    # Anywhere in the lower 48, far more spread out than any trip
+    positions = [LatLon(rng.uniform(25, 49), rng.uniform(-125, -67)) for _ in range(1_000)]
+    calls: list = []
+    series = weather.fetch_hourly(positions, T0, T0, max_cells=max_cells, client=echo_client(calls))
+    asked = requested_cells(calls)
+    assert len(asked) <= max_cells
+    assert [s.position for s in series] == positions
+    assert all(echoed_cell(s) in asked for s in series)
+
+
+def test_max_cells_must_allow_at_least_one():
+    with pytest.raises(ValueError):
+        weather.snap_cells([LatLon(30, -97)], max_cells=0)
 
 
 class DictCache(dict):

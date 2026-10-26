@@ -20,6 +20,10 @@ from .types import Checkpoint, LatLon, Level, RouteOption, RouteSummary, Stretch
 
 PLAN_TTL_S = 60 * 60
 HEATMAP_HOURS = 48
+# Open-Meteo allows 600 locations a minute, and the heatmap that follows a plan asks for up to 250,
+# so a plan's checkpoints ask for 340 at most. Seattle -> Miami at a 10-mile interval needs about
+# 880 at 0.1 degrees; weather.snap_cells makes the grid coarser until they fit.
+PLAN_WEATHER_CELLS = 340
 METERS_PER_MILE = 1609.344
 # Route lines are drawn and gridded from a simplified copy. 20 m is inside a highway's width and
 # under 3 px up to city-level zoom (13), and cuts a ~10,000-point TomTom route to under 1,000 points.
@@ -87,6 +91,7 @@ def build_plan(
         [cp.position for cp in flat],
         min(cp.eta for cp in flat),
         max(cp.eta for cp in flat),
+        max_cells=PLAN_WEATHER_CELLS,
         cache=cache,
     )
     clock.lap("weather")

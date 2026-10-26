@@ -1,0 +1,71 @@
+/* Two columns, origin and destination, split by a hairline */
+.place-weather {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-alt);
+}
+
+.place-stop {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+}
+
+.place-stop + .place-stop {
+  border-left: 1px solid var(--line);
+}
+
+.place-stop p {
+  margin: 0;
+}
+
+.place-when {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.place-name {
+  overflow: hidden;
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  font-stretch: var(--stretch-wide);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.place-temp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: var(--space-1);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-heavy);
+  font-stretch: var(--stretch-wide);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.place-temp svg {
+  flex: none;
+}
+
+.place-sky {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.place-wind {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.place-wind::first-letter {
+  text-transform: uppercase;
+}

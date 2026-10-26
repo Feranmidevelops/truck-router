@@ -1,20 +1,22 @@
 .hero {
-  /* Black washes over the photo, strongest behind the text */
+  /* Black washes over the photo, dark behind the text and clear over the truck. The side wash
+     leans so it reaches further right at headline height than down at the cab, which sits just
+     below the end of the headline. */
   --hero-wash-side: linear-gradient(
-    90deg,
-    rgb(10 10 11 / 0.86) 0%,
-    rgb(10 10 11 / 0.76) 40%,
-    rgb(10 10 11 / 0.5) 52%,
-    rgb(10 10 11 / 0.12) 64%,
-    rgb(10 10 11 / 0) 100%
+    112deg,
+    rgb(10 10 11 / 0.8) 0%,
+    rgb(10 10 11 / 0.72) 39%,
+    rgb(10 10 11 / 0.54) 49%,
+    rgb(10 10 11 / 0.18) 57%,
+    rgb(10 10 11 / 0) 66%
   );
   --hero-wash-ends: linear-gradient(
     180deg,
-    rgb(10 10 11 / 0.7) 0%,
-    rgb(10 10 11 / 0.4) 9%,
-    rgb(10 10 11 / 0) 26%,
-    rgb(10 10 11 / 0) 60%,
-    rgb(10 10 11 / 0.9) 100%
+    rgb(10 10 11 / 0.66) 0%,
+    rgb(10 10 11 / 0.38) 9%,
+    rgb(10 10 11 / 0) 22%,
+    rgb(10 10 11 / 0) 74%,
+    rgb(10 10 11 / 0.6) 100%
   );
   --hero-rule: rgb(255 255 255 / 0.26);
   --hero-card-shadow: 0 2px 6px rgb(0 0 0 / 0.2), 0 32px 80px rgb(0 0 0 / 0.4);
@@ -148,12 +150,12 @@
 @media (max-width: 1023px) {
   .hero {
     --hero-photo-height: min(78svh, 680px);
-    --hero-wash-side: linear-gradient(rgb(10 10 11 / 0.2), rgb(10 10 11 / 0.2));
+    /* The text carries its own wash (.hero-copy::before), so this one only fades the foot */
+    --hero-wash-side: none;
     --hero-wash-ends: linear-gradient(
       180deg,
-      rgb(10 10 11 / 0.72) 0%,
-      rgb(10 10 11 / 0.6) 48%,
-      rgb(10 10 11 / 0.8) 75%,
+      rgb(10 10 11 / 0) 60%,
+      rgb(10 10 11 / 0.7) 85%,
       rgb(10 10 11 / 1) 100%
     );
   }
@@ -162,6 +164,36 @@
   .hero::before {
     bottom: auto;
     height: var(--hero-photo-height);
+  }
+
+  .hero-copy {
+    position: relative;
+  }
+
+  /* Where the text lands on the photo depends on the screen, so the wash follows the text box:
+     dark from the top of the hero down to the lede, a patch behind the How it works link, and
+     clear below the link, where the truck shows between the text and the card. */
+  .hero-copy::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    top: calc(-1 * var(--header-height) - var(--space-12));
+    right: calc(-1 * var(--page-gutter));
+    bottom: -40px;
+    left: calc(-1 * var(--page-gutter));
+    background:
+      radial-gradient(
+        ellipse 220px 52px at 0 calc(100% - 52px),
+        rgb(10 10 11 / 0.66) 50%,
+        rgb(10 10 11 / 0) 100%
+      ),
+      linear-gradient(
+        0deg,
+        rgb(10 10 11 / 0) 40px,
+        rgb(10 10 11 / 0.68) 88px,
+        rgb(10 10 11 / 0.68) 280px,
+        rgb(10 10 11 / 0.56) 420px
+      );
   }
 
   .hero-inner {

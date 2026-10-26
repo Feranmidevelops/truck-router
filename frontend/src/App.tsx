@@ -23,9 +23,9 @@ export default function App() {
   // server turned the trip down, e.g. a departure in the past or no truck route.
   const [error, setError] = useState<{ message: string; retry: boolean } | null>(null)
   const pending = useRef<AbortController | null>(null)
-  const lastRequest = useRef<PlanRequest | null>(null)
   const [planning, setPlanning] = useState<PlanRequest | null>(null) // for the trip bar
   const belowHero = useRef<HTMLDivElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
   const [heatmap, setHeatmap] = useState<HeatmapState>({ status: 'idle' })
   const heatmapPending = useRef<AbortController | null>(null)
 
@@ -46,7 +46,6 @@ export default function App() {
   }
 
   async function handlePlan(req: PlanRequest) {
-    lastRequest.current = req
     pending.current?.abort()
     const ctrl = new AbortController()
     pending.current = ctrl
@@ -70,6 +69,15 @@ export default function App() {
     }
   }
 
+  // Try again plans what's in the form now, so a load or departure changed after the error
+  // counts. If the form can't be sent as it is, take the driver back up to it.
+  function retryPlan() {
+    const form = formRef.current
+    const button = form?.querySelector<HTMLButtonElement>('button[type=submit]')
+    if (form && button && !button.disabled) form.requestSubmit()
+    else editTrip()
+  }
+
   // Back up to the form, ready to type a new origin
   function editTrip() {
     const card = document.getElementById(PLAN_TRIP_ID)
@@ -88,7 +96,7 @@ export default function App() {
       <main id="top">
         <Hero cardId={PLAN_TRIP_ID}>
           <SampleDataBanner />
-          <TripForm loading={loading} onSubmit={handlePlan} />
+          <TripForm ref={formRef} loading={loading} onSubmit={handlePlan} />
         </Hero>
         {/* The trip bar sticks to the top of the window anywhere below the hero */}
         <div ref={belowHero} className="below-hero">
@@ -97,7 +105,7 @@ export default function App() {
             plan={plan}
             loading={loading}
             error={error?.message ?? null}
-            onRetry={error?.retry ? () => lastRequest.current && handlePlan(lastRequest.current) : undefined}
+            onRetry={error?.retry ? retryPlan : undefined}
             selectedRouteId={selectedRouteId}
             onSelectRoute={setSelectedRouteId}
             heatmap={heatmap}

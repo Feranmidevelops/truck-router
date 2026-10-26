@@ -1,0 +1,136 @@
+import type { CheckpointWeather, JourneyReport, ReportStretch, Route } from '../api/types'
+import { LEVEL_LABEL, formatSky, type TimeFormatter } from './risk'
+import { placeName } from './trip'
+
+// What the sky is doing, in the groups the icons draw. From the WMO weather code Open-Meteo
+// reports; null for no code, and for the few codes outside these groups.
+export type Sky = 'clear' | 'cloud' | 'fog' | 'rain' | 'snow' | 'storm'
+
+export function skyFromCode(code: number | null): Sky | null {
+  if (code === null) return null
+  if (code <= 1) return 'clear'
+  if (code <= 3) return 'cloud'
+  if (code >= 45 && code <= 48) return 'fog'
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return 'rain'
+  if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) return 'snow'
+  if (code >= 95 && code <= 99) return 'storm'
+  return null
+}
+
+// After sunset and before sunrise at a place, for a moon in place of the sun on a clear night.
+// The sun's height from the low-precision solar position formulas, good to about a degree;
+// -0.833° is where it sets once refraction and its own size are allowed for.
+export function isNight(lat: number, lon: number, iso: string) {
+  const rad = Math.PI / 180
+  const d = (Date.parse(iso) - Date.UTC(2000, 0, 1, 12)) / 86_400_000 // days since J2000
+  const g = (357.529 + 0.98560028 * d) * rad // mean anomaly
+  const q = 280.459 + 0.98564736 * d // mean longitude, degrees
+  const ecliptic = (q + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) * rad
+  const tilt = (23.439 - 0.00000036 * d) * rad
+  const rightAscension = Math.atan2(Math.cos(tilt) * Math.sin(ecliptic), Math.cos(ecliptic))
+  const declination = Math.asin(Math.sin(tilt) * Math.sin(ecliptic))
+  const siderealDeg = (18.697374558 + 24.06570982441908 * d) * 15
+  const hourAngle = (siderealDeg + lon) * rad - rightAscension
+  const sinHeight =
+    Math.sin(lat * rad) * Math.sin(declination) + Math.cos(lat * rad) * Math.cos(declination) * Math.cos(hourAngle)
+  return Math.asin(sinHeight) / rad < -0.833
+}
+
+export function formatTemp(tempF: number | null) {
+  return tempF === null ? '—' : `${Math.round(tempF)}°F`
+}
+
+// "wind 13 mph", or "wind 13 mph, gusts 18" when the gusts are stronger
+export function formatWind(windMph: number, gustMph: number) {
+  const wind = Math.round(windMph)
+  const gust = Math.round(gustMph)
+  return gust > wind ? `wind ${wind} mph, gusts ${gust}` : `wind ${wind} mph`
+}
+
+// "38–45°F", or "41°F" when the stretch keeps one temperature. Empty when none is known.
+export function formatTempRange(min: number | null, max: number | null) {
+  if (min === null || max === null) return ''
+  const low = Math.round(min)
+  const high = Math.round(max)
+  return low === high ? `${low}°F` : `${low}–${high}°F`
+}
+
+// Rain and snow print to two decimals; anything that would print as 0.00 isn't worth a line
+export function hasPrecip(inPerHour: number) {
+  return inPerHour >= 0.005
+}
+
+// What made the stretch risky, and where: "Snow and wind near Raton, NM"
+export function stretchCause(stretch: ReportStretch) {
+  const what = stretch.drivers.length ? stretch.drivers.join(' and ') : 'weather'
+  return `${what[0].toUpperCase()}${what.slice(1)} ${stretch.where}`
+}
+
+// "Moderate rain near Grenville, NM", for the plain-text report. "No Travel: snow near …"
+// rather than "No Travel snow".
+export function stretchHeadline(stretch: ReportStretch) {
+  const cause = stretchCause(stretch)
+  const lower = `${cause[0].toLowerCase()}${cause.slice(1)}`
+  return stretch.level === 'NO_TRAVEL' ? `No Travel: ${lower}` : `${LEVEL_LABEL[stretch.level]} ${lower}`
+}
+
+// "miles 525–550", or "mile 675" for a stretch of one checkpoint
+export function stretchMiles(stretch: ReportStretch) {
+  const start = Math.round(stretch.start_mile)
+  const end = Math.round(stretch.end_mile)
+  return start === end ? `mile ${start}` : `miles ${start}–${end}`
+}
+
+// When each line of the report happens, in the plan's zone. The first line names the day, and
+// a later one only when the day has changed, so a long trip reads
+// "Mon 8:00 AM … 11:17 PM–Tue 12:05 AM … 5:08 AM".
+export function reportTimes(report: JourneyReport, time: TimeFormatter) {
+  let day = time.day(report.departure.time)
+  const at = (iso: string) => {
+    const next = time.day(iso)
+    const label = next === day ? time.clock(iso) : time.dayClock(iso)
+    day = next
+    return label
+  }
+  return {
+    departure: time.dayClock(report.departure.time),
+    stretches: report.stretches.map((s) =>
+      s.first_index === s.last_index ? at(s.start_eta) : `${at(s.start_eta)}–${at(s.end_eta)}`,
+    ),
+    arrival: at(report.arrival.time),
+  }
+}
+
+// "Clear, 60°F · wind 5 mph": the sky and temperature when known, then the wind.
+// "Wind 5 mph" when neither is known.
+export function placeWeather(weather: CheckpointWeather) {
+  const sky = formatSky(weather)
+  const wind = formatWind(weather.wind_mph, weather.gust_mph)
+  return sky ? `${sky} · ${wind}` : `${wind[0].toUpperCase()}${wind.slice(1)}`
+}
+
+// The peaks worth naming for a stretch, in words: rain and snow when there was any, the wind
+// always, then the temperature range
+export function stretchPeaks(stretch: ReportStretch) {
+  return [
+    hasPrecip(stretch.max_rain_in_hr) ? `rain ${stretch.max_rain_in_hr.toFixed(2)} in/h` : '',
+    hasPrecip(stretch.max_snow_in_hr) ? `snow ${stretch.max_snow_in_hr.toFixed(2)} in/h` : '',
+    formatWind(stretch.max_wind_mph, stretch.max_gust_mph),
+    formatTempRange(stretch.min_temp_f, stretch.max_temp_f),
+  ].filter(Boolean)
+}
+
+// The journey report as plain text, for pasting into a message to the driver or dispatch
+export function reportText(route: Route, time: TimeFormatter) {
+  const { departure, stretches, arrival } = route.report
+  const times = reportTimes(route.report, time)
+  return [
+    `${route.label}: ${departure.place} to ${arrival.place}. Times in ${time.zone(departure.time)}.`,
+    `Leave ${placeName(departure.place)} ${times.departure} · ${placeWeather(departure.weather)}`,
+    ...stretches.map((s, i) =>
+      [stretchHeadline(s), `${stretchMiles(s)}, ${times.stretches[i]}`, stretchPeaks(s).join(', ')].join(' · '),
+    ),
+    ...(stretches.length ? [] : ['No weather above Low on this route.']),
+    `Arrive ${placeName(arrival.place)} ${times.arrival} · ${placeWeather(arrival.weather)}`,
+  ].join('\n')
+}

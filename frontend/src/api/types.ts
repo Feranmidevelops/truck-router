@@ -98,15 +98,16 @@ export interface Route {
   id: string // "r0", "r1", "r2": unique within a plan
   label: string // "Route A" is always the recommended route, then B, C in rank order
   rank: number
-  source: 'tomtom' | 'via-fallback'
+  source: 'tomtom' // every route, the ones found round avoided areas too, is TomTom's
   distance_miles: number
   duration_s: number
   departure_time: string
   arrival_time: string
   geometry: Array<[number, number]> // [lon, lat]
   summary: RouteSummary
-  // The first is the origin at departure and the last the destination at this route's arrival,
-  // so their weather is what each place is like when the truck is there (as in report).
+  // The first is the origin at departure. The last is the destination at this route's arrival or,
+  // when the last interval checkpoint is within 0.5 mi of it, that checkpoint, reached a minute or
+  // so earlier. Their weather is what each place is like when the truck is there (as in report).
   checkpoints: Checkpoint[]
   report: JourneyReport
 }

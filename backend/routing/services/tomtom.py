@@ -50,15 +50,19 @@ AVOID_MARGIN_M = 5 * METERS_PER_MILE  # how far the boxes over it reach past the
 MAX_AVOID_BOXES = 10  # TomTom's limit per request
 MAX_BOX_SIDE_M = 150_000  # TomTom allows about 160 km a side
 
-REQUEST_TIMEOUT_S = 20
+REQUEST_TIMEOUT_S = 20  # place search, and any request that doesn't set its own
+# The trip's own route request. Seattle -> Miami with two alternatives took 17-21 s live, close to
+# 20 s. 35 s is still under the frontend's 45 s wait for a plan and gunicorn's 60 s worker timeout.
+ROUTE_TIMEOUT_S = 35
 # A fallback request answered in 1.3-3.3 s live. One still silent after 10 s is skipped like any
-# failed fallback, so it can't hold the plan up for the full 20 s.
+# failed fallback, so it can't hold the plan up for the full 35 s.
 FALLBACK_TIMEOUT_S = 10
 # A town name only decorates the journey report, so a slow answer is not worth waiting for
 PLACE_TIMEOUT_S = 3
 MAX_PLACE_LOOKUPS = 6  # reverse geocodes per plan, at most; stretches past that say "at mile N"
 PLACE_DECIMALS = 1  # 0.1 deg, about 7 miles: close enough to say "near" a town
 PLACE_CACHE_S = 30 * 24 * 60 * 60  # towns don't move
+SAME_PLACE_DECIMALS = 4  # search results within about 10 m of each other are one place
 
 OVERLAP_STEP_M = 5 * METERS_PER_MILE  # sample spacing along the candidate route
 OVERLAP_NEAR_M = 0.5 * METERS_PER_MILE  # a sample this close to the other route counts as shared road
@@ -120,7 +124,8 @@ def vehicle_weight_kg(load_lb: float) -> int:
 def geocode(
     query: str, api_key: str, *, country_set: str = "US", limit: int = 5, client: httpx.Client | None = None
 ) -> list[Place]:
-    url = f"{BASE_URL}/search/2/search/{quote(query)}.json"
+    # safe="" escapes "/" too, so "1/2 Main St" or "../x" can't step out of the search path
+    url = f"{BASE_URL}/search/2/search/{quote(query, safe='')}.json"
     # Places, addresses and streets only: points of interest crowd out towns ("salt lake" brought up
     # a street in Huntington Park, CA) and make the search slower.
     params = {
@@ -131,14 +136,14 @@ def geocode(
         "idxSet": "Geo,Addr,PAD,Str",
     }
     payload = _request(url, params, client)
-    return [
-        Place(
-            label=r["address"]["freeformAddress"],
-            lat=r["position"]["lat"],
-            lon=r["position"]["lon"],
-        )
-        for r in payload.get("results", [])
-    ]
+    # One place can come back under two names ("salt lake" gave "Salt Lake City, UT" and "Salt
+    # Lake, UT" at the same point). The first is TomTom's better match, so it is the one kept.
+    places: dict[tuple[float, float], Place] = {}
+    for r in payload.get("results", []):
+        lat, lon = r["position"]["lat"], r["position"]["lon"]
+        same = (round(lat, SAME_PLACE_DECIMALS), round(lon, SAME_PLACE_DECIMALS))
+        places.setdefault(same, Place(label=r["address"]["freeformAddress"], lat=lat, lon=lon))
+    return list(places.values())
 
 
 def reverse_geocode(
@@ -221,7 +226,7 @@ def calculate_routes(
     avoid: list[Box] | None = None,
     max_alternatives: int = 2,
     id_prefix: str = "r",
-    timeout: float = REQUEST_TIMEOUT_S,
+    timeout: float = ROUTE_TIMEOUT_S,
     client: httpx.Client | None = None,
 ) -> list[RouteOption]:
     """TomTom's truck routes for the trip, fastest first. With `avoid`, none goes into those boxes."""
@@ -244,7 +249,10 @@ def calculate_routes(
     }
     body = {"avoidAreas": {"rectangles": [b.to_tomtom() for b in avoid]}} if avoid else None
     payload = _request(url, params, client, timeout, body)
-    routes = parse_routes(payload, departure, source="tomtom", id_prefix=id_prefix)
+    try:
+        routes = parse_routes(payload, departure, source="tomtom", id_prefix=id_prefix)
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        raise RoutingError(f"TomTom sent routes in an unexpected shape: {exc!r}") from exc
     if not routes:
         raise NoRouteError(NO_ROUTE_MESSAGE)
     return routes
@@ -388,7 +396,7 @@ def _fallback(
             origin, destination, departure, load_lb, api_key, avoid=avoid, max_alternatives=missing - 1,
             id_prefix=f"around{3 - missing}-", timeout=FALLBACK_TIMEOUT_S, client=client,
         )
-    except (RoutingError, KeyError, ValueError):
+    except RoutingError:
         return []  # e.g. no road round the boxes, or a reply we can't read
 
 
