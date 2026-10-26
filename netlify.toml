@@ -6,6 +6,8 @@
 [build.environment]
   # Vite 8 needs Node 20.19+ or 22.12+
   NODE_VERSION = "22"
+  # The API on Render. Vite writes it into the build, so it has to be set at build time.
+  VITE_API_BASE_URL = "https://truck-routing-api-w0d2.onrender.com"
 
 [[redirects]]
   from = "/*"
