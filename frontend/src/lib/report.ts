@@ -1,5 +1,6 @@
-import type { CheckpointWeather, JourneyReport, ReportStretch } from '../api/types'
-import { formatSky, type TimeFormatter } from './risk'
+import type { CheckpointWeather, JourneyReport, ReportStretch, Route } from '../api/types'
+import { LEVEL_LABEL, formatSky, type TimeFormatter } from './risk'
+import { placeName } from './trip'
 
 // What the sky is doing, in the groups the icons draw. From the WMO weather code Open-Meteo
 // reports; null for no code, and for the few codes outside these groups.
@@ -49,6 +50,14 @@ export function stretchCause(stretch: ReportStretch) {
   return `${what[0].toUpperCase()}${what.slice(1)} ${stretch.where}`
 }
 
+// "Moderate rain near Grenville, NM", for the plain-text report. "No Travel: snow near …"
+// rather than "No Travel snow".
+export function stretchHeadline(stretch: ReportStretch) {
+  const cause = stretchCause(stretch)
+  const lower = `${cause[0].toLowerCase()}${cause.slice(1)}`
+  return stretch.level === 'NO_TRAVEL' ? `No Travel: ${lower}` : `${LEVEL_LABEL[stretch.level]} ${lower}`
+}
+
 // "miles 525–550", or "mile 675" for a stretch of one checkpoint
 export function stretchMiles(stretch: ReportStretch) {
   const start = Math.round(stretch.start_mile)
@@ -79,4 +88,30 @@ export function reportTimes(report: JourneyReport, time: TimeFormatter) {
 // "Clear, 60°F · wind 5 mph": the sky and temperature when known, then the wind
 export function placeWeather(weather: CheckpointWeather) {
   return [formatSky(weather), formatWind(weather.wind_mph, weather.gust_mph)].filter(Boolean).join(' · ')
+}
+
+// The peaks worth naming for a stretch, in words: rain and snow when there was any, the wind
+// always, then the temperature range
+export function stretchPeaks(stretch: ReportStretch) {
+  return [
+    hasPrecip(stretch.max_rain_in_hr) ? `rain ${stretch.max_rain_in_hr.toFixed(2)} in/h` : '',
+    hasPrecip(stretch.max_snow_in_hr) ? `snow ${stretch.max_snow_in_hr.toFixed(2)} in/h` : '',
+    formatWind(stretch.max_wind_mph, stretch.max_gust_mph),
+    formatTempRange(stretch.min_temp_f, stretch.max_temp_f),
+  ].filter(Boolean)
+}
+
+// The journey report as plain text, for pasting into a message to the driver or dispatch
+export function reportText(route: Route, time: TimeFormatter) {
+  const { departure, stretches, arrival } = route.report
+  const times = reportTimes(route.report, time)
+  return [
+    `${route.label}: ${departure.place} to ${arrival.place}. Times in ${time.zone(departure.time)}.`,
+    `Leave ${placeName(departure.place)} ${times.departure} · ${placeWeather(departure.weather)}`,
+    ...stretches.map((s, i) =>
+      [stretchHeadline(s), `${stretchMiles(s)}, ${times.stretches[i]}`, stretchPeaks(s).join(', ')].join(' · '),
+    ),
+    ...(stretches.length ? [] : ['No weather above Low on this route.']),
+    `Arrive ${placeName(arrival.place)} ${times.arrival} · ${placeWeather(arrival.weather)}`,
+  ].join('\n')
 }

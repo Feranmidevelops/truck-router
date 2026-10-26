@@ -5,6 +5,7 @@ import {
   formatTempRange,
   hasPrecip,
   placeWeather,
+  reportText,
   reportTimes,
   stretchCause,
   stretchMiles,
@@ -15,6 +16,9 @@ import { Reading } from './AlongRoute'
 import { RainIcon, SnowIcon, WindIcon } from './icons'
 import { LevelBadge } from './Level'
 import './JourneyReport.css'
+
+// How long the copy button says "Copied"
+const COPY_NOTE_MS = 2000
 
 interface Props {
   route: Route
@@ -36,9 +40,11 @@ export const JourneyReport = memo(function JourneyReport({ route, timeZone, focu
   // adjusted while rendering rather than in an effect, so there's no extra render.
   const [picked, setPicked] = useState<number | null>(null)
   const [pickedOn, setPickedOn] = useState(route)
+  const [copy, setCopy] = useState<'idle' | 'copied' | 'failed'>('idle')
   if (route !== pickedOn) {
     setPickedOn(route)
     setPicked(null)
+    setCopy('idle')
   }
 
   useEffect(() => {
@@ -48,15 +54,40 @@ export const JourneyReport = memo(function JourneyReport({ route, timeZone, focu
   // Nothing stays ringed on the map once the report goes away
   useEffect(() => () => focusChannel?.set(null), [focusChannel])
 
+  // "Copied" shows for a moment, then the button reads as before
+  useEffect(() => {
+    if (copy === 'idle') return
+    const timer = setTimeout(() => setCopy('idle'), COPY_NOTE_MS)
+    return () => clearTimeout(timer)
+  }, [copy])
+
+  async function copyReport() {
+    try {
+      // No clipboard outside a secure context: the call throws and the button says so
+      await navigator.clipboard.writeText(reportText(route, time))
+      setCopy('copied')
+    } catch {
+      setCopy('failed')
+    }
+  }
+
   return (
     <section className="journey" aria-labelledby={titleId}>
       <div className="journey-head">
-        <h3 id={titleId} className="journey-title">
-          Journey report
-        </h3>
-        <p className="journey-meta">
-          {route.label}, times in {time.zone(departure.time)}.
-        </p>
+        <div>
+          <h3 id={titleId} className="journey-title">
+            Journey report
+          </h3>
+          <p className="journey-meta">
+            {route.label}, times in {time.zone(departure.time)}.
+          </p>
+        </div>
+        <button type="button" className="button button-outline journey-copy" onClick={copyReport}>
+          {copy === 'copied' ? 'Copied' : copy === 'failed' ? "Couldn't copy" : 'Copy report'}
+        </button>
+        <span className="visually-hidden" role="status">
+          {copy === 'copied' ? 'Report copied as text.' : copy === 'failed' ? "The report couldn't be copied." : ''}
+        </span>
       </div>
       <ol className="journey-list">
         <Stop verb="Leave" stop={departure} when={times.departure} />

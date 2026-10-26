@@ -172,3 +172,18 @@
   font-size: var(--text-xs);
   color: var(--muted);
 }
+
+.journey-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+/* A smaller pill than the page's buttons, beside the heading */
+.journey-copy {
+  flex: none;
+  min-height: 32px;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
