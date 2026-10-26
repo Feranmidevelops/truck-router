@@ -36,14 +36,15 @@ Backend (Python 3.11+):
 ```bash
 cd backend
 python -m venv .venv
-.venv\Scripts\activate          # Windows; on mac/linux: source .venv/bin/activate
+source .venv/Scripts/activate   # Windows Git Bash; cmd/PowerShell: .venv\Scripts\activate
+                                # mac/linux: source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env            # add TOMTOM_API_KEY, set USE_FIXTURES=false for live data
 python manage.py runserver
 pytest
 ```
 
-Frontend (Node 20+):
+Frontend (Node 20.19+ or 22.12+):
 
 ```bash
 cd frontend
@@ -60,7 +61,7 @@ any API keys.
 | --- | --- | --- |
 | `TOMTOM_API_KEY` | backend | Routing and geocoding |
 | `USE_FIXTURES` | backend | `true` serves canned data |
-| `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS` | backend | Django |
+| `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS` | backend | Django (debug is off unless `DJANGO_DEBUG=true`, as in `.env.example`) |
 | `CORS_ALLOWED_ORIGINS` | backend | Frontend origin(s), comma-separated |
 | `NUM_PROXIES` | backend | Proxies that append to `X-Forwarded-For` (0 locally, 3 on Render) |
 | `GEOCODE_COUNTRY_SET` | backend | Countries for place search (default `US`) |
@@ -76,9 +77,12 @@ any API keys.
 | `GET` | `/api/geocode?q=` | Place suggestions, each with its IANA time zone |
 | `GET` | `/api/health` | Health check |
 
-Types: `frontend/src/api/types.ts`. Errors come back as `{"detail": "..."}`: 400 for bad input,
-422 when TomTom has no truck route between the places, 429 when a client sends too many
-requests, and 502 with a "try again in a minute" message when TomTom or Open-Meteo fails.
+Types: `frontend/src/api/types.ts`. Bad input is a 400 with DRF's field errors,
+`{"field": ["message"]}` (a body that isn't JSON gets `{"detail": "..."}`). Every other error is
+`{"detail": "..."}`: 404 when a heatmap's plan has expired, 422 when TomTom has no truck route
+between the places, 429 with `Retry-After` when a client sends too many requests, 502 with a
+"try again in a minute" message when TomTom or Open-Meteo fails, and 503 when `TOMTOM_API_KEY`
+is not set.
 
 ## Decisions
 
@@ -188,6 +192,11 @@ so Route A is always the recommended one.
 
 - Open-Meteo's free tier allows 600 locations a minute. Coordinates are rounded to 0.1 degrees and
   de-duplicated before the request, so checkpoints on shared road cost one lookup.
+- **A plan asks for 340 locations at most.** Every location in a request counts against the 600,
+  and the heatmap that follows asks for up to 250. Seattle -> Miami at a 10-mile interval needs
+  about 880 at 0.1 degrees, which Open-Meteo refused, so a plan that needs more than 340 gets a
+  coarser grid (0.2, 0.25, then 0.5 degrees) until it fits, and each checkpoint reads the
+  nearest grid point. Dallas -> Denver stays at 0.1 degrees even every 10 miles.
 - Responses are cached for 30 minutes, and a rate-limited request is retried once before the app
   shows a clear "try again in a minute".
 
@@ -198,7 +207,8 @@ so Route A is always the recommended one.
   cell each stretch of road passes through is always kept, so the road never has a hole in it.
 - **What it shows.** The risk level (Low to No Travel) at each point for every hour from the
   departure, rounded down to the hour, to 48 hours later, using the same rules and load as the
-  checkpoints, so the shading and the dots agree.
+  checkpoints. It is sampled on its own 0.25 degree grid (coarser on long trips), not at the
+  checkpoints, so in patchy weather a checkpoint's dot can differ from the shading around it.
 - **Drawn as blurred circles in each point's exact level colour.** A density heatmap was tried
   first, but it blends neighbours by weight: a lone Severe cell came out faint green and Low
   showed nothing at all. Circles keep every point's colour honest and still read as a smooth
@@ -222,7 +232,7 @@ so Route A is always the recommended one.
 
 - **Route lines are simplified before they are sent.** TomTom returns about 10,000 points per
   route. The map gets a Douglas-Peucker copy that never strays more than 20 m from the real line
-  (about 900 points), which takes a Dallas -> Denver plan from ~700 kB to ~95 kB of JSON, ~18 kB
+  (about 900 points), which takes a Dallas -> Denver plan from ~700 kB to ~100 kB of JSON, ~24 kB
   gzipped. Checkpoints and ETAs are still worked out on the full line.
 
 ### Time zones
@@ -237,7 +247,7 @@ so Route A is always the recommended one.
 
 ## Tests
 
-`cd backend && pytest` runs about 400 tests in a few seconds, with no network access.
+`cd backend && pytest` runs about 510 tests in under 10 seconds, with no network access.
 
 - **Rules:** every wind, rain and snow boundary just below, at and above its edge, a grid of load
   rule edges, each level's score in the average, and every ranking key and reason.
@@ -270,8 +280,8 @@ so Route A is always the recommended one.
   heatmap shows the corridor in between, and a 10-mile interval narrows the gap.
 - **Gusts are shown but not scored**, because the brief's wind thresholds read as sustained wind.
 - **Forecast detail.** Open-Meteo blends weather models on grids of a few kilometres, and
-  lookups are rounded to 0.1 degrees (about 7 miles), so very local storms can be missed or
-  smeared.
+  lookups are rounded to 0.1 degrees (about 7 miles; up to 0.5 degrees on coast-to-coast trips),
+  so very local storms can be missed or smeared.
 - **Sometimes only two routes.** TomTom often returns fewer than three distinct truck routes,
   and when the route found round them is over 1.35x the fastest, the app shows two rather than a
   detour no driver would take. With live traffic the routes can change between runs.
@@ -281,8 +291,10 @@ so Route A is always the recommended one.
   in mph and inches.
 - **Free tiers.** TomTom allows 2,500 requests a day. A plan uses 1-3 routing requests plus up
   to 6 town lookups for its report (cached for 30 days), so that's somewhere between about 280
-  and 2,500 plans. Open-Meteo allows 600 locations a minute, and a free Render instance sleeps
-  when idle, so the first request after a quiet spell is slow.
+  and 2,500 plans. Place search uses TomTom too, one request per new search text (cached for a
+  day), so the real number of plans a day is somewhat lower. Open-Meteo allows 600 locations a
+  minute, and a free Render instance sleeps when idle, so the first request after a quiet spell
+  is slow.
 
 ## Credits
 

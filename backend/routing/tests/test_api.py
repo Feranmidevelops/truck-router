@@ -84,7 +84,7 @@ def test_plan_rejects_bad_input(api, overrides):
     assert api.post("/api/plan", plan_body(**overrides), format="json").status_code == 400
 
 
-@override_settings(USE_FIXTURES=False)
+@override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")
 def test_plan_reads_a_departure_without_offset_as_local_time_at_the_origin(api, monkeypatch):
     seen = {}
 
@@ -233,7 +233,17 @@ def test_heatmap_upstream_failure_is_a_friendly_502(api, monkeypatch, caplog):
 
 @override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="")
 def test_geocode_without_key_is_503(api):
-    assert api.get("/api/geocode?q=dallas").status_code == 503
+    res = api.get("/api/geocode?q=dallas")
+    assert res.status_code == 503
+    assert res.json() == {"detail": "TOMTOM_API_KEY is not set."}
+
+
+@override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="")
+def test_plan_without_key_is_503_and_asks_tomtom_nothing(api, monkeypatch):
+    monkeypatch.setattr(tomtom, "calculate_routes", raise_(AssertionError("TomTom was called")))
+    res = post_plan(api)
+    assert res.status_code == 503
+    assert res.json() == {"detail": "TOMTOM_API_KEY is not set."}
 
 
 def post_plan(api, **extra):
@@ -301,7 +311,7 @@ def test_each_ip_has_its_own_plan_limit(api):
     assert post_plan(api, REMOTE_ADDR="203.0.113.2").status_code == 200
 
 
-@override_settings(USE_FIXTURES=True)
+@override_settings(USE_FIXTURES=True, REST_FRAMEWORK={**settings.REST_FRAMEWORK, "NUM_PROXIES": 0})
 def test_without_a_proxy_forwarded_for_is_ignored(api):
     for i in range(10):
         post_plan(api, REMOTE_ADDR="203.0.113.1", HTTP_X_FORWARDED_FOR=f"1.2.3.{i}")

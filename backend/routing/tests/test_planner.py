@@ -244,3 +244,18 @@ def test_heatmap_grid_is_built_from_the_simplified_lines(faked, monkeypatch):
     monkeypatch.setattr(corridor, "build_grid", fake_grid)
     planner.build_heatmap(data["plan_id"])
     assert seen == [geometry.simplify(r.points, planner.SIMPLIFY_TOLERANCE_M) for r in faked]
+
+
+def test_a_plan_and_its_heatmap_fit_open_meteos_minute_together(faked, monkeypatch):
+    asked = []
+    fetch = weather.fetch_hourly
+
+    def fetch_hourly(positions, start, end, **kwargs):
+        asked.append(kwargs.get("max_cells"))
+        return fetch(positions, start, end, **kwargs)
+
+    monkeypatch.setattr(weather, "fetch_hourly", fetch_hourly)
+    planner.build_heatmap(plan()["plan_id"])
+    # The heatmap's grid is capped at 250 points by corridor.build_grid itself
+    assert asked == [planner.PLAN_WEATHER_CELLS, None]
+    assert planner.PLAN_WEATHER_CELLS + 250 <= 600

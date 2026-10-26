@@ -26,7 +26,6 @@ DALLAS = {"label": "Dallas, TX", "lat": 32.7767, "lon": -96.797}
 DENVER = {"label": "Denver, CO", "lat": 39.7392, "lon": -104.9903}
 LOAD_LB = 42_000
 NEARBY_DEG = (-0.1, 0.0, 0.1)  # the weather client may round coordinates before asking
-WAITING_ON = "weather.sample_at, tomtom.ensure_three_routes and corridor.build_grid"
 
 
 @pytest.fixture
@@ -39,11 +38,6 @@ def upstream(monkeypatch):
     fake = FakeUpstream()
     install_fake_http(monkeypatch, fake)
     return fake
-
-
-def skip_until_implemented(res):
-    if res.status_code == 501:
-        pytest.skip(f"{res.json()['detail']}. Runs once {WAITING_ON} are implemented.")
 
 
 def post_plan(api, departure: str):
@@ -88,7 +82,6 @@ def tomorrow_in_dallas() -> datetime:
 def test_dallas_to_denver_plan_and_heatmap(api, upstream):
     leave = tomorrow_in_dallas()
     res = post_plan(api, leave.strftime("%Y-%m-%dT%H:%M"))  # local time, no offset
-    skip_until_implemented(res)
     assert res.status_code == 200, res.json()
     plan = res.json()
 
@@ -179,7 +172,6 @@ def test_dallas_to_denver_plan_and_heatmap(api, upstream):
     assert keys == sorted(keys)
 
     res = api.get(f"/api/heatmap?plan_id={plan['plan_id']}")
-    skip_until_implemented(res)
     assert res.status_code == 200, res.json()
     heatmap = res.json()
     assert heatmap["plan_id"] == plan["plan_id"]

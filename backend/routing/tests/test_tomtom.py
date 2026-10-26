@@ -63,6 +63,44 @@ def test_place_search_leaves_out_points_of_interest():
     assert seen[0].url.params["countrySet"] == "US"
 
 
+def search_result(label: str, lat: float, lon: float) -> dict:
+    return {"address": {"freeformAddress": label}, "position": {"lat": lat, "lon": lon}}
+
+
+def test_place_search_lists_each_place_once_under_its_first_name():
+    results = [
+        search_result("Salt Lake City, UT", 40.758478, -111.888142),
+        search_result("South Salt Lake, UT", 40.71884, -111.88827),
+        search_result("Salt Lake City, UT 84101", 40.75848, -111.88814),  # within a few metres
+        search_result("Salt Lake, UT", 40.758478, -111.888142),
+    ]
+    client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, json={"results": results})))
+    places = tomtom.geocode("salt lake", "test-key", client=client)
+    assert places == [
+        tomtom.Place("Salt Lake City, UT", 40.758478, -111.888142),
+        tomtom.Place("South Salt Lake, UT", 40.71884, -111.88827),
+    ]
+
+
+@pytest.mark.parametrize(
+    "query, path",
+    [
+        ("a/b", "/search/2/search/a%2Fb.json"),
+        ("../x", "/search/2/search/..%2Fx.json"),
+        ("123 1/2 Main St", "/search/2/search/123%201%2F2%20Main%20St.json"),
+    ],
+)
+def test_place_search_keeps_the_query_inside_the_search_path(query, path):
+    seen: list[httpx.Request] = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, json={"results": []})
+
+    tomtom.geocode(query, "test-key", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    assert seen[0].url.raw_path.decode().split("?")[0] == path
+
+
 # A live reverse geocode with entityType=Municipality in open country in New Mexico, trimmed
 CAPULIN = {
     "summary": {"queryTime": 11, "numResults": 1},
@@ -768,8 +806,9 @@ BAD_TIME = {"lengthInMeters": 1000, "travelTimeInSeconds": 60, "departureTime": 
         httpx.Response(200, text="<html>Bad gateway</html>"),
         httpx.Response(200, json={"routes": [{"legs": []}]}),  # no summary
         httpx.Response(200, json={"routes": [{"summary": BAD_TIME, "legs": []}]}),
+        httpx.Response(200, json={"routes": [None]}),
     ],
-    ids=["no-route", "same-road", "too-slow", "doubles-back", "not-json", "no-summary", "bad-time"],
+    ids=["no-route", "same-road", "too-slow", "doubles-back", "not-json", "no-summary", "bad-time", "null-route"],
 )
 def test_the_top_up_stops_at_a_request_that_adds_no_route(reply):
     fake = FakeTomTom(lambda boxes, alternatives: reply)
@@ -813,6 +852,24 @@ def test_a_reply_that_is_not_json_is_a_routing_error():
     client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, text="<html>")))
     with pytest.raises(tomtom.RoutingError, match="not JSON"):
         tomtom.calculate_routes(WEST, EAST, T0, 20_000, "test-key", client=client)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"routes": [{"legs": []}]},
+        {"routes": [{"summary": BAD_TIME, "legs": []}]},
+        {"routes": [{"summary": {"lengthInMeters": "far", "travelTimeInSeconds": 60}}]},
+        {"routes": [None]},
+        [{"routes": []}],
+    ],
+    ids=["no-summary", "bad-time", "bad-length", "null-route", "list"],
+)
+def test_a_200_reply_in_an_unexpected_shape_is_a_routing_error(body):
+    client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, json=body)))
+    with pytest.raises(tomtom.RoutingError, match="unexpected shape") as exc_info:
+        tomtom.calculate_routes(WEST, EAST, T0, 20_000, "test-key", client=client)
+    assert not isinstance(exc_info.value, tomtom.NoRouteError)
 
 
 @pytest.mark.parametrize("body", [{"routes": []}, {}])
@@ -894,9 +951,21 @@ def test_a_fallback_gets_less_time_to_answer_than_the_main_request():
     tomtom.calculate_routes(WEST, EAST, T0, 20_000, "test-key", client=client)
     tomtom.ensure_three_routes([drive("r0", FASTEST)], WEST, EAST, T0, 20_000, "test-key", client=client)
     main, *fallbacks = timeouts
-    assert main == tomtom.REQUEST_TIMEOUT_S
-    assert fallbacks and set(fallbacks) == {tomtom.FALLBACK_TIMEOUT_S}
-    assert tomtom.FALLBACK_TIMEOUT_S < tomtom.REQUEST_TIMEOUT_S
+    assert main == tomtom.ROUTE_TIMEOUT_S == 35
+    assert fallbacks and set(fallbacks) == {tomtom.FALLBACK_TIMEOUT_S} == {10}
+    # The frontend gives up on a plan after 45 s
+    assert tomtom.FALLBACK_TIMEOUT_S < tomtom.ROUTE_TIMEOUT_S < 45
+
+
+def test_place_search_keeps_the_shorter_request_timeout():
+    timeouts = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        timeouts.append(request.extensions["timeout"]["read"])
+        return httpx.Response(200, json={"results": []})
+
+    tomtom.geocode("denver", "test-key", client=httpx.Client(transport=httpx.MockTransport(respond)))
+    assert timeouts == [tomtom.REQUEST_TIMEOUT_S] == [20]
 
 
 # A real TomTom truck response for Dallas -> Denver with two alternatives, trimmed to every

@@ -6,7 +6,6 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.cache import cache
-from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -20,6 +19,7 @@ PLACES_CACHE_S = 24 * 60 * 60  # place names and their positions hardly ever cha
 ROUTES_DOWN = "Couldn't get routes from TomTom right now. Try again in a minute."
 SEARCH_DOWN = "Couldn't search for places right now. Try again in a minute."
 WEATHER_DOWN = "Couldn't get the weather forecast right now. Try again in a minute."
+NO_KEY = "TOMTOM_API_KEY is not set."
 
 log = logging.getLogger(__name__)
 
@@ -27,10 +27,6 @@ log = logging.getLogger(__name__)
 @lru_cache(maxsize=None)
 def load_fixture(name: str):
     return json.loads((FIXTURES / name).read_text())
-
-
-def not_ready(exc: NotImplementedError) -> Response:
-    return Response({"detail": f"Not implemented yet: {exc}"}, status=status.HTTP_501_NOT_IMPLEMENTED)
 
 
 def upstream_failed(service: str, exc: Exception, message: str) -> Response:
@@ -80,7 +76,7 @@ class GeocodeView(APIView):
             places = [p for p in load_fixture("places.json") if q in p["label"].lower()]
             return Response({"results": places[:5]})
         if not settings.TOMTOM_API_KEY:
-            return Response({"detail": "TOMTOM_API_KEY is not set."}, status=503)
+            return Response({"detail": NO_KEY}, status=503)
         # Typing "salt", "salt l", "salt la"... asks again for every prefix, and other drivers type
         # the same towns, so answers are cached and a repeat costs no TomTom request.
         normalized = " ".join(query.lower().split())
@@ -105,10 +101,10 @@ class PlanView(APIView):
         serializer.is_valid(raise_exception=True)
         if settings.USE_FIXTURES:
             return Response(load_fixture("plan.json"))
+        if not settings.TOMTOM_API_KEY:
+            return Response({"detail": NO_KEY}, status=503)
         try:
             plan = planner.build_plan(**serializer.validated_data)
-        except NotImplementedError as exc:
-            return not_ready(exc)
         except planner.NoRouteFound as exc:
             data = serializer.validated_data
             log.info("No route: %s -> %s", data["origin"]["label"], data["destination"]["label"])
@@ -131,8 +127,6 @@ class HeatmapView(APIView):
             data = planner.build_heatmap(plan_id)
         except planner.PlanNotFound:
             return Response({"detail": "Plan expired or not found. Plan the trip again."}, status=404)
-        except NotImplementedError as exc:
-            return not_ready(exc)
         except weather.WeatherError as exc:
             return upstream_failed("Open-Meteo heatmap forecast", exc, WEATHER_DOWN)
         return Response(data)
