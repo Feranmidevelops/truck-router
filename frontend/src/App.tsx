@@ -61,7 +61,8 @@ export default function App() {
       loadHeatmap(result.plan_id)
     } catch (e) {
       if (!isAbortError(e)) {
-        const retry = !(e instanceof ApiError) || e.status === 0 || e.status === 429 || e.status >= 500
+        const retry =
+          !(e instanceof ApiError) || (e.retry ?? (e.status === 0 || e.status === 429 || e.status >= 500))
         setError({ message: e instanceof Error ? e.message : String(e), retry })
       }
     } finally {
