@@ -85,14 +85,14 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
   const heatData = heatmap.status === 'ready' ? heatmap.data : null
   const stale = loading && plan !== null
 
-  // Map weather: live satellite while exploring; a plan's route risk once it lands. Never both:
-  // radar green is light rain, risk green is Low.
-  const planId = plan?.plan_id ?? null
-  const [mapWeather, setMapWeather] = useState<MapWeather>(planId ? 'off' : 'satellite')
-  const [weatherFor, setWeatherFor] = useState(planId)
-  if (weatherFor !== planId) {
-    setWeatherFor(planId)
-    setMapWeather(planId ? 'off' : 'satellite')
+  // Map weather: live satellite while exploring; each new plan opens on its route risk. Never
+  // both: radar green is light rain, risk green is Low. Keyed on the plan itself, not its id,
+  // as every sample-data plan has the same id.
+  const [mapWeather, setMapWeather] = useState<MapWeather>(plan ? 'off' : 'satellite')
+  const [weatherFor, setWeatherFor] = useState(plan)
+  if (weatherFor !== plan) {
+    setWeatherFor(plan)
+    setMapWeather(plan ? 'off' : 'satellite')
   }
   const riskShown = mapWeather === 'off'
   const [liveRetry, setLiveRetry] = useState(0)
