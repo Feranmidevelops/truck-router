@@ -85,9 +85,12 @@ export function reportTimes(report: JourneyReport, time: TimeFormatter) {
   }
 }
 
-// "Clear, 60°F · wind 5 mph": the sky and temperature when known, then the wind
+// "Clear, 60°F · wind 5 mph": the sky and temperature when known, then the wind.
+// "Wind 5 mph" when neither is known.
 export function placeWeather(weather: CheckpointWeather) {
-  return [formatSky(weather), formatWind(weather.wind_mph, weather.gust_mph)].filter(Boolean).join(' · ')
+  const sky = formatSky(weather)
+  const wind = formatWind(weather.wind_mph, weather.gust_mph)
+  return sky ? `${sky} · ${wind}` : `${wind[0].toUpperCase()}${wind.slice(1)}`
 }
 
 // The peaks worth naming for a stretch, in words: rain and snow when there was any, the wind
