@@ -1,5 +1,16 @@
+import httpx
 import pytest
 from django.core.cache import cache
+
+
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch):
+    # A test that forgets to fake TomTom would otherwise call it with the real key from .env.
+    # Fakes answer through httpx.MockTransport, which never gets here.
+    def refuse(transport, request):
+        raise RuntimeError(f"A test tried to reach {request.url.host} for real")
+
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", refuse)
 
 
 @pytest.fixture(autouse=True)
