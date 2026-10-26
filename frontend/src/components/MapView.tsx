@@ -303,18 +303,22 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
     const bounds = new LngLatBounds()
     if (plan) plan.routes.forEach((r) => r.geometry.forEach((c) => bounds.extend(c)))
     else CONTIGUOUS_US.forEach((c) => bounds.extend(c))
-    const fit = (duration: number) =>
+    // Remember the size each fit was made for: if the map was still settling (a lazy load, a
+    // layout shift), the next size report differs and the fit is redone at the real size.
+    let fittedFor = ''
+    const sizeKey = () => `${map.getContainer().clientWidth}x${map.getContainer().clientHeight}`
+    const fit = (duration: number) => {
+      fittedFor = sizeKey()
       map.fitBounds(bounds, { padding: fitPadding(map, [panelRef.current, coverRef?.current]), duration })
+    }
     fit(plan ? 600 : 0)
 
     let timer: ReturnType<typeof setTimeout> | undefined
-    let first = true // the observer reports the current size straight away; that's not a resize
     const observer = new ResizeObserver(() => {
-      if (first) first = false
-      else {
-        clearTimeout(timer)
-        timer = setTimeout(() => fit(0), REFIT_DELAY_MS)
-      }
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        if (sizeKey() !== fittedFor) fit(0)
+      }, REFIT_DELAY_MS)
     })
     observer.observe(map.getContainer())
     return () => {
