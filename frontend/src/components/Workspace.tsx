@@ -32,6 +32,14 @@ export function Workspace({ plan, loading, error, onRetry, selectedRouteId, onSe
   const [hoverChannel] = useState(() => createChannel<string | null>(null))
   // The stretch picked in the journey report, for the map to ring and frame
   const [focusChannel] = useState(() => createChannel<CheckpointRun | null>(null))
+  // On a phone the sheet covers the map, so picking a stretch drops it to show the map
+  const [stretchesPicked, setStretchesPicked] = useState(0)
+  useEffect(() => {
+    if (!narrow) return
+    return focusChannel.subscribe((run) => {
+      if (run) setStretchesPicked((n) => n + 1)
+    })
+  }, [narrow, focusChannel])
 
   const results = (
     <PlanResults
@@ -95,7 +103,7 @@ export function Workspace({ plan, loading, error, onRetry, selectedRouteId, onSe
           <div ref={coverRef} className="sheet-dock" aria-hidden />
           <BottomSheet
             label="route details"
-            resetKey={plan?.plan_id}
+            resetKey={`${plan?.plan_id}:${stretchesPicked}`}
             peek={
               <PlanPeek
                 plan={plan}
