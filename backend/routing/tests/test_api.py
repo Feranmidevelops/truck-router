@@ -281,12 +281,25 @@ def test_forecasts_with_a_bad_id_or_list_are_a_400(api, monkeypatch, body):
 
 
 @override_settings(USE_FIXTURES=False)
-def test_more_forecast_data_than_a_plan_needs_is_a_413(api, monkeypatch):
+@pytest.mark.parametrize("hours", [150_000, 250_000], ids=["3 MB", "5 MB"])
+def test_more_forecast_data_than_a_plan_needs_is_a_413(api, monkeypatch, caplog, hours):
+    # 3 MB is over Django's own 2.5 MB limit, which would answer with an HTML 400 and log an error
     monkeypatch.setattr(planner, "finish_plan", raise_(AssertionError("the planner was called")))
-    huge = [{"hourly": {"time": ["2026-10-24T12:00"] * 250_000}}]
+    huge = [{"hourly": {"time": ["2026-10-24T12:00"] * hours}}]
     res = post_forecasts(api, forecasts=huge)
     assert res.status_code == 413
     assert res.json() == {"detail": "That's more forecast data than a plan needs."}
+    assert not [r for r in caplog.records if r.levelname == "ERROR"]
+
+
+@override_settings(USE_FIXTURES=False)
+def test_a_long_list_of_forecasts_is_refused_before_any_is_looked_at(api, monkeypatch):
+    from rest_framework import serializers
+
+    monkeypatch.setattr(serializers.ListField, "run_child_validation", raise_(AssertionError("items checked")))
+    res = post_forecasts(api, forecasts=[[]] * 100_000)
+    assert res.status_code == 400
+    assert list(res.json()) == ["forecasts"]
 
 
 @override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="")

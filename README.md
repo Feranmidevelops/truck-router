@@ -86,7 +86,7 @@ Types: `frontend/src/api/types.ts`. Bad input is a 400 with DRF's field errors,
 `{"field": ["message"]}` (a body that isn't JSON gets `{"detail": "..."}`). Every other error is
 `{"detail": "..."}`: 400 when the forecasts sent back aren't the ones the plan asked for, 404 when
 the plan has expired (15 minutes between a plan's two steps, an hour for its heatmap), 413 when
-the forecasts are over 4 MB, 422 when TomTom has no truck route between the places, 429 with
+the forecasts are over 2.5 MB, 422 when TomTom has no truck route between the places, 429 with
 `Retry-After` when a client sends too many requests, 502 with a "try again in a minute" message
 when TomTom fails, and 503 when `TOMTOM_API_KEY` is not set.
 
@@ -214,7 +214,8 @@ so Route A is always the recommended one.
 - The browser tries a failed request once more after 2 seconds (network error, timeout, server
   error, per-minute limit). For the hourly or daily limit it says so straight away instead.
 - What goes back up: about 100 kB of forecasts for Dallas -> Denver and about 500 kB for its
-  heatmap. The backend refuses anything over 4 MB.
+  heatmap, and about 0.85 MB for Seattle -> Miami every 10 miles. The backend refuses anything
+  over 2.5 MB (Django's own upload limit), with a 413.
 
 ### Heatmap
 
