@@ -62,6 +62,7 @@ PLACE_TIMEOUT_S = 3
 MAX_PLACE_LOOKUPS = 6  # reverse geocodes per plan, at most; stretches past that say "at mile N"
 PLACE_DECIMALS = 1  # 0.1 deg, about 7 miles: close enough to say "near" a town
 PLACE_CACHE_S = 30 * 24 * 60 * 60  # towns don't move
+SAME_PLACE_DECIMALS = 4  # search results within about 10 m of each other are one place
 
 OVERLAP_STEP_M = 5 * METERS_PER_MILE  # sample spacing along the candidate route
 OVERLAP_NEAR_M = 0.5 * METERS_PER_MILE  # a sample this close to the other route counts as shared road
@@ -135,14 +136,14 @@ def geocode(
         "idxSet": "Geo,Addr,PAD,Str",
     }
     payload = _request(url, params, client)
-    return [
-        Place(
-            label=r["address"]["freeformAddress"],
-            lat=r["position"]["lat"],
-            lon=r["position"]["lon"],
-        )
-        for r in payload.get("results", [])
-    ]
+    # One place can come back under two names ("salt lake" gave "Salt Lake City, UT" and "Salt
+    # Lake, UT" at the same point). The first is TomTom's better match, so it is the one kept.
+    places: dict[tuple[float, float], Place] = {}
+    for r in payload.get("results", []):
+        lat, lon = r["position"]["lat"], r["position"]["lon"]
+        same = (round(lat, SAME_PLACE_DECIMALS), round(lon, SAME_PLACE_DECIMALS))
+        places.setdefault(same, Place(label=r["address"]["freeformAddress"], lat=lat, lon=lon))
+    return list(places.values())
 
 
 def reverse_geocode(

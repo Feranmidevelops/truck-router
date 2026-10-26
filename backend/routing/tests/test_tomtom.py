@@ -63,6 +63,25 @@ def test_place_search_leaves_out_points_of_interest():
     assert seen[0].url.params["countrySet"] == "US"
 
 
+def search_result(label: str, lat: float, lon: float) -> dict:
+    return {"address": {"freeformAddress": label}, "position": {"lat": lat, "lon": lon}}
+
+
+def test_place_search_lists_each_place_once_under_its_first_name():
+    results = [
+        search_result("Salt Lake City, UT", 40.758478, -111.888142),
+        search_result("South Salt Lake, UT", 40.71884, -111.88827),
+        search_result("Salt Lake City, UT 84101", 40.75848, -111.88814),  # within a few metres
+        search_result("Salt Lake, UT", 40.758478, -111.888142),
+    ]
+    client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, json={"results": results})))
+    places = tomtom.geocode("salt lake", "test-key", client=client)
+    assert places == [
+        tomtom.Place("Salt Lake City, UT", 40.758478, -111.888142),
+        tomtom.Place("South Salt Lake, UT", 40.71884, -111.88827),
+    ]
+
+
 @pytest.mark.parametrize(
     "query, path",
     [
