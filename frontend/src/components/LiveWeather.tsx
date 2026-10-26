@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { LIVE_LAYERS, type LiveLayer, type MapWeather } from '../lib/liveWeather'
 import type { LiveStatus } from './liveWeatherLayer'
 import './LiveWeather.css'
@@ -51,6 +51,7 @@ export function LiveKey({ layer, status, timeZone, hasPlan, onRetry }: KeyProps)
   const now = useClock(observed !== null, observed)
   const ageMs = observed === null ? 0 : Math.max(0, now - observed)
   const stale = ageMs > staleMs
+  const badgeRef = useRef<HTMLParagraphElement>(null)
 
   let headline
   if (status.state === 'loading') headline = `Loading live ${name}…`
@@ -65,7 +66,8 @@ export function LiveKey({ layer, status, timeZone, hasPlan, onRetry }: KeyProps)
 
   return (
     <div className={`live-card${stale ? ' stale' : ''}`}>
-      <p className="live-badge">
+      {/* Takes the focus from Try again, which goes as soon as it's pressed */}
+      <p ref={badgeRef} className="live-badge" tabIndex={-1}>
         {/* Announced when the layer loads, fails or falls behind, not each time its age ticks up */}
         <span role="status">{headline}</span>
         {/* The time and its age wrap to a second line together, never apart */}
@@ -84,7 +86,14 @@ export function LiveKey({ layer, status, timeZone, hasPlan, onRetry }: KeyProps)
         )}
       </p>
       {failed && (
-        <button type="button" className="live-retry" onClick={onRetry}>
+        <button
+          type="button"
+          className="live-retry"
+          onClick={() => {
+            badgeRef.current?.focus()
+            onRetry()
+          }}
+        >
           Try again
         </button>
       )}
