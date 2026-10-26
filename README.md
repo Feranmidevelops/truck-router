@@ -208,6 +208,33 @@ so Route A is always the recommended one.
   (`setPaintProperty`): no network, no re-sent data. Measured at about 3 ms per tick and a steady
   60 fps while dragging.
 
+### Live weather layer
+
+- **A "Map weather" switch on the map: Off, Radar now, Satellite now.** With a plan on the map,
+  Off reads "Route risk". Satellite is NASA GIBS's GOES-East infrared image (band 13), coloured
+  by cloud-top temperature. Radar is NOAA nowCOAST's NWS base reflectivity mosaic (MRMS) for the
+  lower 48. Neither needs a key and both allow requests from the browser, so there's no proxy.
+- **Labelled "now".** They show the weather as it is; the route risk is the forecast for when
+  the truck reaches each stretch. The badge says when the image was observed ("LIVE RADAR ·
+  observed 2:31 PM (8 min ago)"), on the plan's clock once there is one, and turns to "delayed"
+  after 20 minutes for radar or 45 for the satellite (GIBS runs about 25 minutes behind).
+- **Never shown with the risk shading.** Radar green is light rain; risk green is Low. Picking a
+  live layer hides the risk shading and the forecast panel, and its key takes the panel's place;
+  "Route risk" brings them back. Routes and checkpoint dots stay on top either way, and the live
+  layers sit under the basemap's labels. A new plan opens on its route risk.
+- **Explore before planning.** With no plan the map opens on the satellite, and "See the weather
+  map" in the hero goes straight to it. Nothing loads until the map is first on screen.
+- **Kept current.** The radar's newest time comes from its WMS capabilities every 5 minutes and
+  the satellite's from GIBS's list of image times every 10, only while the tab is visible. Tiles
+  are swapped only when the time changes. The radar is always asked for a specific time, so no
+  cache along the way can hand back an old frame.
+- **Failures.** If the radar's time can't be read, or three tiles of one image fail, the layer is
+  removed and the badge says "Live radar unavailable" with Try again. A failed refresh keeps the
+  last image, and its badge ages into "delayed".
+- **No forecast layer.** The free whole-map forecast (NWS NDFD) would need a server proxy, and
+  its fields don't line up with the risk bands. The forecast stays in the route risk and its
+  48-hour shading.
+
 ### Rate limits
 
 - Each visitor gets 10 plans, 120 place searches and 30 heatmaps a minute; a limited request gets
@@ -288,5 +315,10 @@ so Route A is always the recommended one.
 - Hero photo by [Mason Gemelke](https://unsplash.com/@blueflame567) on
   [Unsplash](https://unsplash.com/photos/a-semi-truck-drives-along-a-scenic-highway-near-mountains-g_FizakXz50),
   used under the [Unsplash License](https://unsplash.com/license). Cropped and saved as WebP.
+- Satellite imagery: we acknowledge the use of imagery provided by services from NASA's
+  [Global Imagery Browse Services (GIBS)](https://www.earthdata.nasa.gov/gibs), part of NASA's
+  Earth Science Data and Information System (ESDIS). GOES-East ABI band 13 from NOAA.
+- Radar: [NOAA nowCOAST](https://nowcoast.noaa.gov/), NWS Multi-Radar/Multi-Sensor (MRMS) base
+  reflectivity mosaic. US government data, in the public domain.
 - Typeface: [Archivo](https://github.com/Omnibus-Type/Archivo) by Omnibus-Type, under the SIL Open
   Font License 1.1, self-hosted from Fontsource.
