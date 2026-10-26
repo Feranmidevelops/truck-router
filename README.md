@@ -211,8 +211,12 @@ so Route A is always the recommended one.
   about 880 at 0.1 degrees, which Open-Meteo refused, so a plan that needs more than 340 gets a
   coarser grid (0.2, 0.25, then 0.5 degrees) until it fits, and each checkpoint reads the
   nearest grid point. Dallas -> Denver stays at 0.1 degrees even every 10 miles.
-- The browser tries a failed request once more after 2 seconds (network error, timeout, server
-  error, per-minute limit). For the hourly or daily limit it says so straight away instead.
+- **In the browser:** at most 4 Open-Meteo requests at a time (it refuses more than about 5 at
+  once from one address), and each reply is kept for 30 minutes by its URL, so planning the same
+  trip again with another load, say, costs no new locations. A failed request is tried once more
+  after 2 seconds (network error, timeout, server error, too many at once). Open-Meteo's
+  per-minute, hourly and daily limits won't clear that fast, so for those it says so straight
+  away. A plan gives up after 2 minutes in all and a heatmap after 1.
 - What goes back up: about 100 kB of forecasts for Dallas -> Denver and about 500 kB for its
   heatmap, and about 0.85 MB for Seattle -> Miami every 10 miles. The backend refuses anything
   over 2.5 MB (Django's own upload limit), with a 413.
