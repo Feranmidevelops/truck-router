@@ -98,7 +98,7 @@ export interface Route {
   id: string // "r0", "r1", "r2": unique within a plan
   label: string // "Route A" is always the recommended route, then B, C in rank order
   rank: number
-  source: 'tomtom' | 'via-fallback'
+  source: 'tomtom' // every route, the ones found round avoided areas too, is TomTom's
   distance_miles: number
   duration_s: number
   departure_time: string
