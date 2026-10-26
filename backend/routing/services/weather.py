@@ -27,6 +27,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import logging
 import time
+from urllib.parse import urlencode
 
 import httpx
 
@@ -76,6 +77,75 @@ class HourlySeries:
     snow_in_hr: list[float]
     temp_f: list[float | None]  # None where Open-Meteo has no value: 0 °F is a real temperature
     weather_code: list[int | None]  # WMO code
+
+
+@dataclass
+class ForecastRequests:
+    """The Open-Meteo requests that cover some positions, and how to read the replies back."""
+
+    positions: list[LatLon]  # as the caller passed them
+    cells: list[LatLon]  # each position's grid point, in the same order
+    chunks: list[list[LatLon]]  # the distinct grid points, sorted, CHUNK_SIZE to a request
+    start: datetime  # first and last hour asked for, both included, UTC
+    end: datetime
+
+    def urls(self) -> list[str]:
+        return [forecast_url(chunk, self.start, self.end) for chunk in self.chunks]
+
+    @property
+    def hours(self) -> int:
+        return int((self.end - self.start) / timedelta(hours=1)) + 1
+
+
+def forecast_requests(
+    positions: list[LatLon], start: datetime, end: datetime, *, max_cells: int | None = None
+) -> ForecastRequests:
+    """What to ask Open-Meteo for to cover each position hourly from floor(start) to ceil(end).
+
+    Positions are snapped to a 0.1 degree grid and de-duplicated, so nearby checkpoints cost one
+    location. With `max_cells`, at most that many locations are asked for (see snap_cells). The
+    grid points are sorted before chunking, so the same points in any order make the same URLs.
+    """
+    cells = snap_cells(positions, max_cells) if positions else []
+    unique = sorted(set(cells), key=lambda c: (c.lat, c.lon))
+    chunks = [unique[i : i + CHUNK_SIZE] for i in range(0, len(unique), CHUNK_SIZE)]
+    return ForecastRequests(list(positions), cells, chunks, floor_hour(start), ceil_hour(end))
+
+
+def forecast_url(chunk: list[LatLon], start: datetime, end: datetime) -> str:
+    return f"{BASE_URL}?{urlencode(_params(chunk, start, end), safe=',:')}"
+
+
+def read_forecasts(requests: ForecastRequests, replies: list) -> list[HourlySeries]:
+    """Each position's series from Open-Meteo's replies to requests.urls(), in the same order.
+
+    The replies come from the browser, so anything that isn't the forecast that was asked for
+    (another number of replies or locations, other hours, missing values) is a WeatherError.
+    """
+    if not isinstance(replies, list) or len(replies) != len(requests.chunks):
+        count = len(replies) if isinstance(replies, list) else "no list of"
+        raise WeatherError(f"Expected {len(requests.chunks)} forecast replies, got {count}")
+    by_cell = {}
+    for chunk, reply in zip(requests.chunks, replies):
+        items = reply if isinstance(reply, list) else [reply]
+        if len(items) != len(chunk):
+            raise WeatherError(f"A forecast reply has {len(items)} locations for {len(chunk)} requested")
+        for cell, item in zip(chunk, items):
+            try:
+                series = parse_location(item, cell)
+            except (KeyError, TypeError, ValueError, AttributeError) as exc:
+                raise WeatherError(f"A forecast is in an unexpected shape: {exc!r}") from exc
+            _check_hours(series, requests)
+            by_cell[cell] = series
+    return [replace(by_cell[cell], position=p) for cell, p in zip(requests.cells, requests.positions)]
+
+
+def _check_hours(series: HourlySeries, requests: ForecastRequests) -> None:
+    values = (series.wind_mph, series.gust_mph, series.rain_in_hr, series.snow_in_hr, series.temp_f)
+    if not series.times or series.times[0] != requests.start or len(series.times) != requests.hours:
+        raise WeatherError("A forecast covers other hours than the ones asked for")
+    if any(len(v) != requests.hours for v in (*values, series.weather_code)):
+        raise WeatherError("A forecast is missing values for some hours")
 
 
 def floor_hour(dt: datetime) -> datetime:
@@ -160,10 +230,8 @@ def _to_grid(value: float, step: float) -> float:
     return round(round(value / step) * step, GRID_DECIMALS)
 
 
-def _fetch_chunk(
-    client: httpx.Client, chunk: list[LatLon], start: datetime, end: datetime, cache: Cache | None
-) -> list[HourlySeries]:
-    params = {
+def _params(chunk: list[LatLon], start: datetime, end: datetime) -> dict[str, str]:
+    return {
         "latitude": ",".join(f"{p.lat:.4f}" for p in chunk),
         "longitude": ",".join(f"{p.lon:.4f}" for p in chunk),
         "hourly": ",".join(HOURLY_VARS),
@@ -174,6 +242,12 @@ def _fetch_chunk(
         "start_hour": start.strftime("%Y-%m-%dT%H:%M"),
         "end_hour": end.strftime("%Y-%m-%dT%H:%M"),
     }
+
+
+def _fetch_chunk(
+    client: httpx.Client, chunk: list[LatLon], start: datetime, end: datetime, cache: Cache | None
+) -> list[HourlySeries]:
+    params = _params(chunk, start, end)
     key = "wx:" + hashlib.sha1(repr(sorted(params.items())).encode()).hexdigest()
     cached = cache.get(key) if cache is not None else None
     payload = cached if cached is not None else _get_json(client, params)

@@ -368,6 +368,119 @@ def test_unknown_unit_is_an_error():
         weather.fetch_hourly([LatLon(39.7, -105.0)], T0, T0, client=client)
 
 
+def browser_fetch(positions, start, end, client, max_cells=None):
+    """What the frontend does: fetch each URL the server lists, then hand the replies back."""
+    requests = weather.forecast_requests(positions, start, end, max_cells=max_cells)
+    replies = [client.get(url).json() for url in requests.urls()]
+    return weather.read_forecasts(requests, replies)
+
+
+def url_params(url: str) -> dict[str, str]:
+    parsed = httpx.URL(url)
+    assert (parsed.scheme, parsed.host, parsed.path) == ("https", "api.open-meteo.com", "/v1/forecast")
+    return dict(parsed.params)
+
+
+def test_forecast_urls_ask_for_each_grid_point_once_sorted_and_in_chunks():
+    n = weather.CHUNK_SIZE + 1
+    # Backwards, with a second position in the first one's cell
+    positions = [LatLon(30 + i * 0.1, -97) for i in reversed(range(n))] + [LatLon(30.03, -97.02)]
+    requests = weather.forecast_requests(positions, T0 + timedelta(minutes=20), T0 + timedelta(hours=2, minutes=5))
+    first, second = (url_params(url) for url in requests.urls())
+    lats = [float(v) for p in (first, second) for v in p["latitude"].split(",")]
+    assert lats == sorted(lats) and len(lats) == n
+    assert len(first["latitude"].split(",")) == weather.CHUNK_SIZE
+    assert first["hourly"].split(",") == list(weather.HOURLY_VARS)
+    assert len(weather.HOURLY_VARS) <= 10  # more than 10 variables would count as a second call
+    assert (first["wind_speed_unit"], first["precipitation_unit"]) == ("mph", "inch")
+    assert (first["temperature_unit"], first["timezone"]) == ("fahrenheit", "GMT")
+    # From the hour the trip starts in to the hour after it ends, both included
+    assert (first["start_hour"], first["end_hour"]) == ("2026-10-24T12:00", "2026-10-24T15:00")
+    assert requests.hours == 4
+    assert requests.cells[-1] == requests.cells[n - 1] == LatLon(30.0, -97.0)
+
+
+def test_the_same_cells_in_any_order_make_the_same_urls():
+    a = [LatLon(39.74, -104.99), LatLon(32.78, -96.80)]
+    b = [LatLon(32.81, -96.77), LatLon(39.66, -105.04)]  # the same two cells, the other way round
+    assert weather.forecast_requests(a, T0, T0).urls() == weather.forecast_requests(b, T0, T0).urls()
+
+
+def test_no_positions_need_no_requests():
+    requests = weather.forecast_requests([], T0, T0)
+    assert requests.urls() == []
+    assert weather.read_forecasts(requests, []) == []
+
+
+def test_replies_are_read_back_to_every_position_across_chunks():
+    calls: list = []
+    n = 2 * weather.CHUNK_SIZE + 20
+    cells = [LatLon(round(30 + i * 0.1, 1), -97.0) for i in range(n)]
+    positions = cells + [LatLon(c.lat + 0.03, c.lon - 0.02) for c in reversed(cells)]
+    series = browser_fetch(positions, T0, T0, echo_client(calls))
+    assert len(calls) == 3
+    assert [s.position for s in series] == positions
+    for p, s in zip(positions, series):
+        assert echoed_cell(s) == pytest.approx((round(p.lat, 1), round(p.lon, 1)))
+
+
+def test_a_coast_to_coast_plan_lists_no_more_cells_than_allowed():
+    requests = weather.forecast_requests(COAST_TO_COAST, T0, T0, max_cells=340)
+    asked = [
+        (lat, lon)
+        for url in requests.urls()
+        for lat, lon in zip(url_params(url)["latitude"].split(","), url_params(url)["longitude"].split(","))
+    ]
+    assert len(asked) == len(set(asked)) <= 340
+
+
+def one_reply(**hourly_changes):
+    payload = location_payload()
+    payload["hourly"].update(hourly_changes)
+    return payload
+
+
+@pytest.mark.parametrize(
+    "replies, message",
+    [
+        ([], "Expected 1 forecast replies, got 0"),
+        ([location_payload(), location_payload()], "Expected 1 forecast replies, got 2"),
+        ({"0": location_payload()}, "Expected 1 forecast replies, got no list of"),
+        ([[location_payload(), location_payload()]], "2 locations for 1 requested"),
+        ([None], "unexpected shape"),
+        (["<html>Bad gateway</html>"], "unexpected shape"),
+        ([{"latitude": 39.7, "longitude": -105.0}], "unexpected shape"),
+        ([{"hourly": [1, 2, 3]}], "unexpected shape"),
+        ([one_reply(wind_speed_10m=["calm", "breezy", "windy"])], "unexpected shape"),
+        ([location_payload(snow_unit="furlongs")], "Unexpected unit 'furlongs'"),
+        ([location_payload(hours=2)], "other hours"),
+        ([one_reply(time=["2026-10-24T13:00", "2026-10-24T14:00", "2026-10-24T15:00"])], "other hours"),
+        ([one_reply(wind_speed_10m=[10.0, 20.0])], "missing values"),
+        ([one_reply(weather_code=[2, 61])], "missing values"),
+    ],
+    ids=[
+        "none",
+        "too many",
+        "not a list",
+        "too many locations",
+        "null",
+        "text",
+        "no hourly data",
+        "hourly not an object",
+        "words for numbers",
+        "unknown unit",
+        "too few hours",
+        "an hour late",
+        "short wind",
+        "short weather code",
+    ],
+)
+def test_replies_that_are_not_the_forecast_asked_for_are_a_weather_error(replies, message):
+    requests = weather.forecast_requests([LatLon(39.7, -105.0)], T0, T0 + timedelta(hours=2))
+    with pytest.raises(weather.WeatherError, match=message):
+        weather.read_forecasts(requests, replies)
+
+
 def test_sample_at_uses_nearest_hour_for_wind_and_next_hour_for_precip():
     s = weather.parse_location(location_payload(), LatLon(32.78, -96.80))
     w = weather.sample_at(s, T0 + timedelta(minutes=20))
