@@ -25,8 +25,8 @@
   opacity: var(--map-ui-stale-opacity);
 }
 
-/* The map weather switch, its badge and any map error, one under the other. Clear of the
-   results panel on the left and the zoom buttons on the right. */
+/* The map weather switch and any map error, one under the other. Clear of the results panel
+   on the left and the zoom buttons on the right. */
 .map-stack {
   position: absolute;
   z-index: 2;
@@ -72,12 +72,34 @@
   display: none;
 }
 
-/* The forecast panel takes the top of the map on narrow screens, the results sheet the bottom,
-   so the stack sits just above the sheet, in easy reach of a thumb */
+/* A live layer's key sits where the forecast panel does, which it replaces: along the bottom
+   (above the map credits) on wide screens */
+.live-key {
+  position: absolute;
+  z-index: 2;
+  left: var(--map-left-inset, var(--map-ui-inset));
+  bottom: calc(var(--map-ui-inset) + 18px);
+  max-width: calc(100% - var(--map-left-inset, var(--map-ui-inset)) - var(--map-ui-inset));
+}
+
+/* Narrow screens: the forecast panel, and so the live key, take the top of the map and the
+   results sheet the bottom. The switch sits just above the sheet, in easy reach of a thumb. */
 @media (max-width: 899px) {
   .map-stack {
     top: auto;
     right: var(--map-ui-inset);
     bottom: calc(var(--sheet-peek) + var(--map-ui-inset));
+  }
+
+  .live-key {
+    top: var(--map-ui-inset);
+    right: calc(var(--map-ui-inset) + 40px);
+    bottom: auto;
+    left: var(--map-ui-inset);
+    max-width: none;
+  }
+
+  .live-key .live-card {
+    width: auto;
   }
 }

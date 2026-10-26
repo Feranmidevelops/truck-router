@@ -21,7 +21,7 @@ import { levelColorExpression } from '../lib/risk'
 import { checkpointPopup } from './CheckpointPopup'
 import { HeatmapSlider, type HeatmapState } from './HeatmapSlider'
 import { HEAT_LAYER, addHeatmapLayer, setHeatmapData, showHeatmapHour } from './heatmapLayer'
-import { LiveWeather } from './LiveWeather'
+import { LiveKey, WeatherSwitch } from './LiveWeather'
 import { isLiveWeatherSource, useLiveWeather } from './liveWeatherLayer'
 
 // OpenFreeMap is free and needs no key. Override with VITE_MAP_STYLE_URL if it's ever down.
@@ -358,14 +358,7 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
     <div className={stale ? 'map-wrap stale' : 'map-wrap'}>
       <div ref={containerRef} className="map" />
       <div ref={stackRef} className="map-stack">
-        <LiveWeather
-          choice={mapWeather}
-          onChoose={chooseWeather}
-          hasPlan={plan !== null}
-          status={liveStatus}
-          timeZone={plan?.input.timezone}
-          onRetry={retryLive}
-        />
+        <WeatherSwitch choice={mapWeather} onChoose={chooseWeather} hasPlan={plan !== null} />
         {mapError && (
           <div className="map-notice" role="status">
             <span>{mapError}</span>
@@ -382,6 +375,18 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
           </div>
         )}
       </div>
+      {/* A live layer's key takes the forecast panel's place, so it covers nothing new */}
+      {mapWeather !== 'off' && liveStatus && (
+        <div className="live-key">
+          <LiveKey
+            layer={mapWeather}
+            status={liveStatus}
+            timeZone={plan?.input.timezone}
+            hasPlan={plan !== null}
+            onRetry={retryLive}
+          />
+        </div>
+      )}
       {/* Hidden, not removed, under a live layer, so the chosen forecast hour survives */}
       <div className="heat-holder" hidden={!riskShown}>
         <HeatmapSlider

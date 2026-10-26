@@ -3,20 +3,17 @@ import { LIVE_LAYERS, type LiveLayer, type MapWeather } from '../lib/liveWeather
 import type { LiveStatus } from './liveWeatherLayer'
 import './LiveWeather.css'
 
-interface Props {
+const MINUTE = 60_000
+
+interface SwitchProps {
   choice: MapWeather
   onChoose: (choice: MapWeather) => void
   hasPlan: boolean // with a plan, turning the live weather off brings back the route risk
-  status: LiveStatus | null
-  timeZone?: string // the plan's zone; without a plan, the viewer's own
-  onRetry: () => void
 }
 
-const MINUTE = 60_000
-
-// The map's weather switch, and for a live layer its badge (what it is and when it was
-// observed) and a key to its colours.
-export function LiveWeather({ choice, onChoose, hasPlan, status, timeZone, onRetry }: Props) {
+// What the map shows for weather: nothing, the radar or the satellite now, or with a plan,
+// the route risk. One at a time.
+export function WeatherSwitch({ choice, onChoose, hasPlan }: SwitchProps) {
   const labelId = useId()
   const options: Array<{ value: MapWeather; label: string }> = [
     { value: 'off', label: hasPlan ? 'Route risk' : 'Off' },
@@ -24,33 +21,29 @@ export function LiveWeather({ choice, onChoose, hasPlan, status, timeZone, onRet
     { value: 'satellite', label: 'Satellite now' },
   ]
   return (
-    <div className="live-weather">
-      <div className="live-switch" role="group" aria-labelledby={labelId}>
-        <span id={labelId} className="live-switch-label">
-          Map weather
-        </span>
-        {options.map((o) => (
-          <button key={o.value} type="button" aria-pressed={choice === o.value} onClick={() => onChoose(o.value)}>
-            {o.label}
-          </button>
-        ))}
-      </div>
-      {choice !== 'off' && status && (
-        <LiveCard layer={choice} status={status} timeZone={timeZone} hasPlan={hasPlan} onRetry={onRetry} />
-      )}
+    <div className="live-switch" role="group" aria-labelledby={labelId}>
+      <span id={labelId} className="live-switch-label">
+        Map weather
+      </span>
+      {options.map((o) => (
+        <button key={o.value} type="button" aria-pressed={choice === o.value} onClick={() => onChoose(o.value)}>
+          {o.label}
+        </button>
+      ))}
     </div>
   )
 }
 
-interface CardProps {
+interface KeyProps {
   layer: LiveLayer
   status: LiveStatus
-  timeZone?: string
+  timeZone?: string // the plan's zone; without a plan, the viewer's own
   hasPlan: boolean
   onRetry: () => void
 }
 
-function LiveCard({ layer, status, timeZone, hasPlan, onRetry }: CardProps) {
+// A live layer's badge (what it is and when it was observed) and a key to its colours
+export function LiveKey({ layer, status, timeZone, hasPlan, onRetry }: KeyProps) {
   const live = status.state === 'live'
   const { name, staleMs } = LIVE_LAYERS[layer]
   const observed = live && status.observed ? Date.parse(status.observed) : null

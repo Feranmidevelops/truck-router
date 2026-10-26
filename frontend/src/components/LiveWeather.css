@@ -1,4 +1,5 @@
-.live-weather {
+.live-switch,
+.live-card {
   --live-bg: var(--surface);
   --live-ink: var(--ink);
   --live-muted: var(--muted);
@@ -39,18 +40,9 @@
     #8c0d87 100%
   );
 
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--live-gap);
   max-width: 100%;
   font-size: var(--live-font);
   color: var(--live-ink);
-  pointer-events: none;
-}
-
-.live-weather > * {
-  pointer-events: auto;
 }
 
 /* One white pill with the chosen option in black, like the page's buttons */
@@ -103,7 +95,6 @@
   flex-direction: column;
   gap: var(--live-gap);
   width: var(--live-card-width);
-  max-width: 100%;
   padding: var(--space-2) var(--space-3) var(--space-3);
   background: var(--live-bg);
   border-radius: var(--radius);
@@ -233,7 +224,8 @@
 
 /* Phones: the label goes (it still names the group), so the three options fit on one line */
 @media (max-width: 899px) {
-  .live-weather {
+  .live-switch,
+  .live-card {
     --live-font: var(--text-xs);
   }
 
