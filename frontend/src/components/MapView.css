@@ -11,6 +11,8 @@
   --map-ui-warn-border: var(--ink);
   --map-ui-stale-opacity: var(--stale-opacity);
   --map-ui-fade: var(--duration);
+  /* The map credits' row along the bottom (24 px, 10 px up), which the panels clear */
+  --map-credits-clear: 26px;
 }
 
 /* While a new plan loads, the old one's routes, shading and forecast panel fade like the
@@ -72,13 +74,13 @@
   display: none;
 }
 
-/* A live layer's key sits where the forecast panel does, which it replaces: along the bottom
-   (above the map credits) on wide screens */
+/* A live layer's key sits where the forecast panel does, which it replaces: along the bottom,
+   above the map credits, on wide screens */
 .live-key {
   position: absolute;
   z-index: 2;
   left: var(--map-left-inset, var(--map-ui-inset));
-  bottom: calc(var(--map-ui-inset) + 18px);
+  bottom: calc(var(--map-ui-inset) + var(--map-credits-clear));
   max-width: calc(100% - var(--map-left-inset, var(--map-ui-inset)) - var(--map-ui-inset));
 }
 

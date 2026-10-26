@@ -227,7 +227,7 @@
     top: auto;
     right: auto;
     left: var(--map-left-inset, var(--heat-inset));
-    bottom: calc(var(--heat-inset) + 18px);
+    bottom: calc(var(--heat-inset) + var(--map-credits-clear));
     width: min(var(--heat-bar-width), calc(100% - var(--map-left-inset, var(--heat-inset)) - var(--heat-inset)));
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
