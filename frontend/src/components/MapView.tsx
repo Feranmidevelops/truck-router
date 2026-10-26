@@ -359,11 +359,14 @@ const FIT_MARGIN = 40 // px between the routes and the map's edge, or a panel's
 const MIN_FIT_PX = 120 // the routes always get at least this much width and height
 
 // Padding that keeps the routes clear of the panels floating over the map. Each panel counts
-// against one edge: a tall one against the left or right, a wide one against the top or
-// bottom, whichever side it reaches in from the least.
+// against the one edge that costs the map the smallest share of its width or height: the
+// results panel against the left, the forecast timeline against the bottom, and a short, wide
+// card in a corner against the side rather than eating the height.
 function fitPadding(map: MapLibreMap, covers: Array<HTMLElement | null | undefined>) {
   const box = map.getContainer().getBoundingClientRect()
-  const pad: Record<Edge, number> = { top: FIT_MARGIN, right: FIT_MARGIN, bottom: FIT_MARGIN, left: FIT_MARGIN }
+  // A phone-width map can't spare 40 px a side
+  const margin = Math.min(FIT_MARGIN, box.width * 0.04)
+  const pad: Record<Edge, number> = { top: margin, right: margin, bottom: margin, left: margin }
   for (const el of covers) {
     const r = el?.getBoundingClientRect()
     if (!r || !r.width || !r.height) continue
@@ -373,9 +376,9 @@ function fitPadding(map: MapLibreMap, covers: Array<HTMLElement | null | undefin
       left: r.right - box.left,
       right: box.right - r.left,
     }
-    const [a, b]: Edge[] = r.height > r.width ? ['left', 'right'] : ['top', 'bottom']
-    const edge = reach[a] <= reach[b] ? a : b
-    pad[edge] = Math.max(pad[edge], reach[edge] + FIT_MARGIN)
+    const share = (edge: Edge) => reach[edge] / (edge === 'left' || edge === 'right' ? box.width : box.height)
+    const edge = (['left', 'right', 'top', 'bottom'] as Edge[]).reduce((best, e) => (share(e) < share(best) ? e : best))
+    pad[edge] = Math.max(pad[edge], reach[edge] + margin)
   }
   // On a small map the panels can leave no room at all; fitBounds would refuse to fit
   shrinkToFit(pad, 'left', 'right', box.width)
