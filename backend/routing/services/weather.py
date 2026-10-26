@@ -27,6 +27,7 @@ from bisect import bisect_left
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 import logging
+import math
 from urllib.parse import urlencode
 
 from .types import LatLon, WeatherSample
@@ -140,6 +141,9 @@ def _check_hours(series: HourlySeries, requests: ForecastRequests) -> None:
         raise WeatherError("A forecast covers other hours than the ones asked for")
     if any(len(v) != requests.hours for v in (*values, series.weather_code)):
         raise WeatherError("A forecast is missing values for some hours")
+    # e.g. 1e308 m/s turns into infinite mph, which can't be sent back as JSON
+    if not all(math.isfinite(x) for v in values for x in v if x is not None):
+        raise WeatherError("A forecast has a value that isn't a finite number")
 
 
 def floor_hour(dt: datetime) -> datetime:

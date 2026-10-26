@@ -310,6 +310,11 @@ def one_reply(**hourly_changes):
     return payload
 
 
+def metres_per_second(payload):
+    payload["hourly_units"]["wind_speed_10m"] = "m/s"
+    return payload
+
+
 @pytest.mark.parametrize(
     "replies, message",
     [
@@ -327,6 +332,7 @@ def one_reply(**hourly_changes):
         ([one_reply(time=["2026-10-24T13:00", "2026-10-24T14:00", "2026-10-24T15:00"])], "other hours"),
         ([one_reply(wind_speed_10m=[10.0, 20.0])], "missing values"),
         ([one_reply(weather_code=[2, 61])], "missing values"),
+        ([metres_per_second(one_reply(wind_speed_10m=[10.0, 1e308, 30.0]))], "finite"),
     ],
     ids=[
         "none",
@@ -343,6 +349,7 @@ def one_reply(**hourly_changes):
         "an hour late",
         "short wind",
         "short weather code",
+        "too big to be a number in mph",
     ],
 )
 def test_replies_that_are_not_the_forecast_asked_for_are_a_weather_error(replies, message):
