@@ -62,7 +62,7 @@ any API keys.
 | `USE_FIXTURES` | backend | `true` serves canned data |
 | `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS` | backend | Django |
 | `CORS_ALLOWED_ORIGINS` | backend | Frontend origin(s), comma-separated |
-| `NUM_PROXIES` | backend | Proxies that append to `X-Forwarded-For` (0 locally, 2 on Render) |
+| `NUM_PROXIES` | backend | Proxies that append to `X-Forwarded-For` (0 locally, 3 on Render) |
 | `GEOCODE_COUNTRY_SET` | backend | Countries for place search (default `US`) |
 | `VITE_API_BASE_URL` | frontend | Backend URL in production (empty in dev) |
 | `VITE_MAP_STYLE_URL` | frontend | Optional map style override |
@@ -212,10 +212,11 @@ so Route A is always the recommended one.
 
 - Each visitor gets 10 plans, 120 place searches and 30 heatmaps a minute; a limited request gets
   a 429 with `Retry-After`. Health checks are never limited.
-- On Render, Cloudflare sits in front of Render's own proxy and both append to
-  `X-Forwarded-For`, so the visitor's address is the second entry from the end
-  (`NUM_PROXIES=2`). The last entry would be a Cloudflare server shared by strangers; the first
-  is whatever the client chose to send.
+- On Render a request arrives with `X-Forwarded-For` reading "anything the client sent, the
+  visitor, a Cloudflare edge, Render's load balancer" (checked on a live request), so the
+  visitor's address is the third entry from the end (`NUM_PROXIES=3`). The two after it change
+  between requests and are shared by strangers; the ones before it are whatever the client chose
+  to send.
 
 ### Response size
 
