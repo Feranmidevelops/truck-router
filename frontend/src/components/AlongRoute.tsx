@@ -123,7 +123,7 @@ interface ReadingProps {
 }
 
 // One weather value. The ones that set the checkpoint's level are bold and underlined in it.
-function Reading({ icon, label, level, driver, children }: ReadingProps) {
+export function Reading({ icon, label, level, driver, children }: ReadingProps) {
   return (
     <span
       className={driver ? 'reading driver' : 'reading'}

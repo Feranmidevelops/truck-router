@@ -1,0 +1,142 @@
+.journey {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
+
+.journey-title {
+  font-size: var(--text-lg);
+  font-stretch: var(--stretch-wide);
+  letter-spacing: -0.01em;
+}
+
+.journey-meta {
+  margin: 2px 0 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+/* A rail down the left with a node for every line: rings for the two stops, dots in the
+   level's colour for the stretches between them */
+.journey-list {
+  --rail-x: 7px; /* the rail's centre, from the list's left edge */
+  --node: 14px;
+  --gap: var(--space-3);
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  margin: 0;
+  padding: 0 0 0 var(--space-6);
+  list-style: none;
+}
+
+.journey-item {
+  --node-top: 3px; /* level with the first line of text */
+
+  position: relative;
+}
+
+.journey-item p {
+  margin: 0;
+}
+
+.journey-item::before,
+.journey-item::after {
+  content: '';
+  position: absolute;
+}
+
+.journey-item::before {
+  top: var(--node-top);
+  left: calc(var(--rail-x) - var(--space-6) - var(--node) / 2);
+  width: var(--node);
+  height: var(--node);
+  border-radius: 50%;
+}
+
+/* The rail, from this node down into the next item, where that item's node covers its end */
+.journey-item::after {
+  top: calc(var(--node-top) + var(--node) / 2);
+  bottom: calc(-1 * var(--gap) - var(--node));
+  left: calc(var(--rail-x) - var(--space-6) - 1px);
+  width: 2px;
+  background: var(--line-strong);
+  z-index: -1;
+}
+
+.journey-item:last-child::after {
+  display: none;
+}
+
+.journey-stop::before {
+  border: 3px solid var(--ink);
+  background: var(--surface);
+}
+
+.journey-stretch,
+.journey-calm {
+  --node-top: 16px;
+}
+
+.journey-calm {
+  --node-top: 3px;
+
+  font-size: var(--text-md);
+}
+
+.journey-stretch::before,
+.journey-calm::before {
+  border: 2px solid var(--surface);
+  background: var(--level);
+}
+
+.journey-line {
+  font-size: var(--text-base);
+}
+
+.journey-time {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.journey-weather {
+  font-size: var(--text-sm);
+}
+
+.stretch {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.stretch-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.stretch-cause {
+  font-weight: var(--weight-semibold);
+}
+
+.stretch-when {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.stretch-peaks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+}

@@ -1,6 +1,7 @@
 import type { Plan } from '../api/types'
 import type { Channel } from '../lib/channel'
 import { AlongRoute } from './AlongRoute'
+import { JourneyReport } from './JourneyReport'
 import { PlaceWeather } from './PlaceWeather'
 import { RiskBar, RouteFigures, RouteList } from './RouteList'
 
@@ -16,8 +17,8 @@ interface Props {
 }
 
 // The results panel (the bottom sheet on phones): loading and error states, the weather at
-// each end, route cards, checkpoints. Each part is a section with its own heading, so more
-// can slot in.
+// each end, route cards, the journey report, checkpoints. Each part is a section with its own
+// heading, so more can slot in.
 export function PlanResults({
   plan,
   loading,
@@ -45,6 +46,7 @@ export function PlanResults({
         <div className={loading ? 'results-body stale' : 'results-body'} inert={loading}>
           {selectedRoute && <PlaceWeather route={selectedRoute} timeZone={plan.input.timezone} />}
           <RouteList plan={plan} selectedRouteId={selectedRouteId} onSelect={onSelect} />
+          {selectedRoute && <JourneyReport route={selectedRoute} timeZone={plan.input.timezone} />}
           {selectedRoute && (
             <AlongRoute
               route={selectedRoute}
