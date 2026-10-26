@@ -229,10 +229,11 @@ so Route A is always the recommended one.
   from its WMS capabilities and the satellite's from GIBS's list of image times. Tiles are
   swapped only when the time changes. The radar is always asked for a specific time, so no
   cache along the way can hand back an old frame.
-- **Only complete satellite images.** GIBS lists a new image about 25 minutes after it's taken,
-  but its tiles keep arriving for several minutes more and 404 until then, which the map would
-  draw as holes. So the app uses the newest listed image that's at least 30 minutes old, and the
-  badge shows that image's time.
+- **No holes in the satellite.** GIBS lists a new image 20 to 30 minutes after it's taken, but
+  its tiles keep arriving for several minutes more and 404 until then, which the map would draw
+  as holes. So the app uses the newest listed image that's at least 30 minutes old, and the
+  badge shows that image's time. Any tile of it still missing is filled with the same tile from
+  the image 10 minutes earlier, through a MapLibre custom protocol.
 - **Failures.** If the radar's time can't be read, or three tiles of one image fail, the layer is
   removed and the badge says "Live radar unavailable" with Try again. A failed refresh keeps the
   last image, and its badge ages into "delayed".

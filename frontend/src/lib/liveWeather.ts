@@ -36,18 +36,42 @@ const GIBS = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best'
 const GIBS_LAYER = 'GOES-East_ABI_Band13_Clean_Infrared'
 const GIBS_MATRIX = 'GoogleMapsCompatible_Level6' // zoom 0 to 6; the map stretches it beyond
 
+// GIBS lists an image's time 20 to 30 minutes after it was taken, but its tiles keep arriving
+// for several minutes more and 404 until then, which the map draws as holes. So the image used
+// is the newest one at least this old, and any tile of it still missing is filled from the
+// image before (see loadSatelliteTile).
+const SATELLITE_SETTLE_MS = 30 * MINUTE
+const SATELLITE_STEP_MS = 10 * MINUTE // GOES-East makes an image every 10 minutes
+
+// The map loads the tiles of a known time through this protocol, so missing ones get filled
+export const SATELLITE_PROTOCOL = 'gibs-filled'
+
 // time null asks GIBS for its latest image without knowing when that was.
 // WMTS puts the row before the column, so it's {y}/{x}.
 export function satelliteTiles(time: string | null) {
-  return `${GIBS}/${GIBS_LAYER}/default/${time ?? 'default'}/${GIBS_MATRIX}/{z}/{y}/{x}.png`
+  const url = `${GIBS}/${GIBS_LAYER}/default/${time ?? 'default'}/${GIBS_MATRIX}/{z}/{y}/{x}.png`
+  return time === null ? url : `${SATELLITE_PROTOCOL}://${url}`
 }
 
-// GIBS lists an image's time about 25 minutes after it was taken, but its tiles keep arriving
-// for several minutes more and 404 until then, which the map draws as holes. So the image used
-// is the newest one at least this old, by which time all its tiles are there.
-const SATELLITE_SETTLE_MS = 30 * MINUTE
+// One tile, or if that's missing, the same tile from the image 10 minutes earlier
+export async function loadSatelliteTile({ url }: { url: string }, controller: AbortController) {
+  const tile = url.slice(`${SATELLITE_PROTOCOL}://`.length)
+  const { signal } = controller
+  let res = await fetch(tile, { signal })
+  if (res.status === 404) res = await fetch(earlierTile(tile), { signal })
+  // With a 404 status the map leaves the tile empty instead of reporting an error
+  if (!res.ok) throw Object.assign(new Error(`${res.status} from GIBS`), { status: res.status })
+  return { data: await res.arrayBuffer() }
+}
 
-// The newest complete image's time
+function earlierTile(tile: string) {
+  return tile.replace(
+    /\/default\/([^/]+)\//,
+    (_, time: string) => `/default/${isoSeconds(new Date(Date.parse(time) - SATELLITE_STEP_MS))}/`,
+  )
+}
+
+// The time of the image to show: the newest that has had time to arrive in full
 export async function latestSatelliteTime(signal: AbortSignal) {
   const end = new Date()
   const start = new Date(end.getTime() - 6 * 60 * MINUTE)

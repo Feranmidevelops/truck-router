@@ -1,14 +1,24 @@
 import { useEffect, useState, type RefObject } from 'react'
-import type { Map as MapLibreMap, RasterLayerSpecification, RasterSourceSpecification, RasterTileSource } from 'maplibre-gl'
+import {
+  addProtocol,
+  type Map as MapLibreMap,
+  type RasterLayerSpecification,
+  type RasterSourceSpecification,
+  type RasterTileSource,
+} from 'maplibre-gl'
 import {
   LIVE_LAYERS,
   RADAR_BOUNDS,
+  SATELLITE_PROTOCOL,
   latestRadarTime,
   latestSatelliteTime,
+  loadSatelliteTile,
   radarTiles,
   satelliteTiles,
   type LiveLayer,
 } from '../lib/liveWeather'
+
+addProtocol(SATELLITE_PROTOCOL, loadSatelliteTile)
 
 export type LiveStatus =
   | { state: 'loading' }
