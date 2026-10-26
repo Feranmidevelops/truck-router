@@ -47,6 +47,7 @@ export function isLiveWeatherSource(id: unknown) {
 
 // Shows one live layer, or none, and keeps it current: a newer image is looked for every
 // few minutes while the tab is visible, and the tiles are swapped only when there is one.
+// A layer picked again shows its last image straight away while a newer one is looked for.
 // active: the map has loaded and been on screen. retry: bump it to try again after a failure.
 export function useLiveWeather(
   mapRef: RefObject<MapLibreMap | null>,
@@ -54,7 +55,7 @@ export function useLiveWeather(
   layer: LiveLayer | null,
   retry: number,
 ): LiveStatus | null {
-  const [report, setReport] = useState<{ layer: LiveLayer; retry: number; status: LiveStatus } | null>(null)
+  const [reports, setReports] = useState<Partial<Record<LiveLayer, LiveStatus>>>({})
 
   useEffect(() => {
     const map = mapRef.current
@@ -62,11 +63,12 @@ export function useLiveWeather(
     for (const other of ALL) if (other !== layer) hideLayer(map, other)
     if (!layer) return
 
-    const set = (status: LiveStatus) => setReport({ layer, retry, status })
+    const set = (status: LiveStatus) => setReports((r) => ({ ...r, [layer]: status }))
     let ctrl = new AbortController()
     let checkedAt = 0
-    let shown = false
     let errors = 0
+    let shown = map.getLayer(LAYER_ID[layer]) !== undefined
+    if (shown) map.setLayoutProperty(LAYER_ID[layer], 'visibility', 'visible')
 
     const fail = () => {
       clearInterval(timer)
@@ -117,13 +119,14 @@ export function useLiveWeather(
       ctrl.abort()
       errorSub.unsubscribe()
       document.removeEventListener('visibilitychange', checkIfDue)
-      setReport(null)
+      // A failure is tried again whenever the layer is picked, so it isn't kept
+      setReports((r) => (r[layer]?.state === 'unavailable' ? { ...r, [layer]: undefined } : r))
       // The layer itself is hidden by the next run: on unmount the map is already gone
     }
   }, [mapRef, active, layer, retry])
 
   if (!layer || !active) return null
-  return report?.layer === layer && report.retry === retry ? report.status : { state: 'loading' }
+  return reports[layer] ?? { state: 'loading' }
 }
 
 // Adds the layer the first time, under the basemap's labels and the routes. Returns true when
