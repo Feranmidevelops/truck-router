@@ -26,6 +26,12 @@ const STYLE_URL = import.meta.env.VITE_MAP_STYLE_URL || 'https://tiles.openfreem
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] }
 // After a resize, wait this long for it to settle before fitting the routes again
 const REFIT_DELAY_MS = 150
+// The lower 48 states: what the map shows before there's a trip, so the US fills the screen
+// instead of a corner of North America
+const CONTIGUOUS_US: [[number, number], [number, number]] = [
+  [-124.8, 24.4],
+  [-66.9, 49.4],
+]
 // Black and greys like the rest of the page, so the risk colours on the dots stand out
 const ROUTE_COLOR = '#8b8d94'
 const SELECTED_ROUTE_COLOR = '#111113'
@@ -289,16 +295,17 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
   }, [])
   const toggleHeat = useCallback(() => setShowHeat((v) => !v), [])
 
-  // Fit the routes into the part of the map nothing floats over, and again whenever the map
-  // changes size (a window resize, a phone turned sideways)
+  // Fit the routes (or the lower 48 before any trip) into the part of the map nothing floats
+  // over, and again whenever the map changes size (a window resize, a phone turned sideways)
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !ready || !plan) return
+    if (!map || !ready) return
     const bounds = new LngLatBounds()
-    plan.routes.forEach((r) => r.geometry.forEach((c) => bounds.extend(c)))
+    if (plan) plan.routes.forEach((r) => r.geometry.forEach((c) => bounds.extend(c)))
+    else CONTIGUOUS_US.forEach((c) => bounds.extend(c))
     const fit = (duration: number) =>
       map.fitBounds(bounds, { padding: fitPadding(map, [panelRef.current, coverRef?.current]), duration })
-    fit(600)
+    fit(plan ? 600 : 0)
 
     let timer: ReturnType<typeof setTimeout> | undefined
     let first = true // the observer reports the current size straight away; that's not a resize
@@ -352,11 +359,14 @@ const FIT_MARGIN = 40 // px between the routes and the map's edge, or a panel's
 const MIN_FIT_PX = 120 // the routes always get at least this much width and height
 
 // Padding that keeps the routes clear of the panels floating over the map. Each panel counts
-// against one edge: a tall one against the left or right, a wide one against the top or
-// bottom, whichever side it reaches in from the least.
+// against the one edge that costs the map the smallest share of its width or height: the
+// results panel against the left, the forecast timeline against the bottom, and a short, wide
+// card in a corner against the side rather than eating the height.
 function fitPadding(map: MapLibreMap, covers: Array<HTMLElement | null | undefined>) {
   const box = map.getContainer().getBoundingClientRect()
-  const pad: Record<Edge, number> = { top: FIT_MARGIN, right: FIT_MARGIN, bottom: FIT_MARGIN, left: FIT_MARGIN }
+  // A phone-width map can't spare 40 px a side
+  const margin = Math.min(FIT_MARGIN, box.width * 0.04)
+  const pad: Record<Edge, number> = { top: margin, right: margin, bottom: margin, left: margin }
   for (const el of covers) {
     const r = el?.getBoundingClientRect()
     if (!r || !r.width || !r.height) continue
@@ -366,9 +376,9 @@ function fitPadding(map: MapLibreMap, covers: Array<HTMLElement | null | undefin
       left: r.right - box.left,
       right: box.right - r.left,
     }
-    const [a, b]: Edge[] = r.height > r.width ? ['left', 'right'] : ['top', 'bottom']
-    const edge = reach[a] <= reach[b] ? a : b
-    pad[edge] = Math.max(pad[edge], reach[edge] + FIT_MARGIN)
+    const share = (edge: Edge) => reach[edge] / (edge === 'left' || edge === 'right' ? box.width : box.height)
+    const edge = (['left', 'right', 'top', 'bottom'] as Edge[]).reduce((best, e) => (share(e) < share(best) ? e : best))
+    pad[edge] = Math.max(pad[edge], reach[edge] + margin)
   }
   // On a small map the panels can leave no room at all; fitBounds would refuse to fit
   shrinkToFit(pad, 'left', 'right', box.width)
