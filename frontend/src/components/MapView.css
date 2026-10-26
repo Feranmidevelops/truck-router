@@ -25,12 +25,27 @@
   opacity: var(--map-ui-stale-opacity);
 }
 
-.map-notice {
+/* The map weather switch, its badge and any map error, one under the other. Clear of the
+   results panel on the left and the zoom buttons on the right. */
+.map-stack {
   position: absolute;
   z-index: 2;
   top: var(--map-ui-inset);
   left: var(--map-left-inset, var(--map-ui-inset));
-  max-width: min(360px, calc(100% - 4 * var(--map-ui-inset) - 30px));
+  right: calc(var(--map-ui-inset) + 40px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--map-ui-gap);
+  pointer-events: none; /* the map still pans between and beside them */
+}
+
+.map-stack > * {
+  pointer-events: auto;
+}
+
+.map-notice {
+  max-width: min(360px, 100%);
   display: flex;
   align-items: flex-start;
   gap: var(--map-ui-gap);
@@ -53,10 +68,16 @@
   cursor: pointer;
 }
 
-/* The weather panel takes the top of the map on narrow screens, the results sheet the bottom */
+.heat-holder[hidden] {
+  display: none;
+}
+
+/* The forecast panel takes the top of the map on narrow screens, the results sheet the bottom,
+   so the stack sits just above the sheet, in easy reach of a thumb */
 @media (max-width: 899px) {
-  .map-notice {
+  .map-stack {
     top: auto;
+    right: var(--map-ui-inset);
     bottom: calc(var(--sheet-peek) + var(--map-ui-inset));
   }
 }

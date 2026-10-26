@@ -16,10 +16,13 @@ import type { FeatureCollection, LineString, Point } from 'geojson'
 import type { Plan } from '../api/types'
 import { checkpointKey, type Channel } from '../lib/channel'
 import { NARROW_SCREEN } from '../lib/layout'
+import type { MapWeather } from '../lib/liveWeather'
 import { levelColorExpression } from '../lib/risk'
 import { checkpointPopup } from './CheckpointPopup'
 import { HeatmapSlider, type HeatmapState } from './HeatmapSlider'
 import { HEAT_LAYER, addHeatmapLayer, setHeatmapData, showHeatmapHour } from './heatmapLayer'
+import { LiveWeather } from './LiveWeather'
+import { isLiveWeatherSource, useLiveWeather } from './liveWeatherLayer'
 
 // OpenFreeMap is free and needs no key. Override with VITE_MAP_STYLE_URL if it's ever down.
 const STYLE_URL = import.meta.env.VITE_MAP_STYLE_URL || 'https://tiles.openfreemap.org/styles/liberty'
@@ -67,12 +70,28 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
   const loadingRef = useRef(loading)
   const popupRef = useRef<Popup | null>(null)
   const panelRef = useRef<HTMLElement>(null)
+  const stackRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
   const [mapError, setMapError] = useState<string | null>(null)
   const errorDismissed = useRef(false)
   const [showHeat, setShowHeat] = useState(true)
   const heatData = heatmap.status === 'ready' ? heatmap.data : null
   const stale = loading && plan !== null
+
+  // Map weather: live satellite while exploring; a plan's route risk once it lands. Never both:
+  // radar green is light rain, risk green is Low.
+  const planId = plan?.plan_id ?? null
+  const [mapWeather, setMapWeather] = useState<MapWeather>(planId ? 'off' : 'satellite')
+  const [weatherFor, setWeatherFor] = useState(planId)
+  if (weatherFor !== planId) {
+    setWeatherFor(planId)
+    setMapWeather(planId ? 'off' : 'satellite')
+  }
+  const riskShown = mapWeather === 'off'
+  const [liveRetry, setLiveRetry] = useState(0)
+  // The live images load once the map is first on screen, not while it waits below the hero
+  const [seen, setSeen] = useState(false)
+  const liveStatus = useLiveWeather(mapRef, ready && seen, riskShown ? null : mapWeather, liveRetry)
 
   useEffect(() => {
     onSelectRef.current = onSelectRoute
@@ -120,7 +139,8 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
     // Without a listener MapLibre only logs to the console and the map stays blank.
     map.on('error', (e) => {
       console.error(e.error)
-      if (errorDismissed.current) return
+      // The live weather layers report their own failures, in their badge
+      if (errorDismissed.current || ('sourceId' in e && isLiveWeatherSource(e.sourceId))) return
       setMapError(
         'sourceId' in e
           ? "Some map tiles didn't load. Check your connection."
@@ -279,8 +299,18 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-    map.setLayoutProperty(HEAT_LAYER, 'visibility', showHeat ? 'visible' : 'none')
-  }, [showHeat, ready])
+    map.setLayoutProperty(HEAT_LAYER, 'visibility', showHeat && riskShown ? 'visible' : 'none')
+  }, [showHeat, riskShown, ready])
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (seen || !el) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) setSeen(true)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [seen])
 
   // Stable, so slider ticks never re-render the map component.
   const onHourChange = useCallback((hour: number) => {
@@ -288,6 +318,11 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
     if (map?.getLayer(HEAT_LAYER)) showHeatmapHour(map, hour)
   }, [])
   const toggleHeat = useCallback(() => setShowHeat((v) => !v), [])
+  const chooseWeather = useCallback((choice: MapWeather) => {
+    setMapWeather(choice)
+    if (choice === 'off') setShowHeat(true) // "Route risk" brings the shading back
+  }, [])
+  const retryLive = useCallback(() => setLiveRetry((n) => n + 1), [])
 
   // Fit the routes into the part of the map nothing floats over, and again whenever the map
   // changes size (a window resize, a phone turned sideways)
@@ -297,7 +332,10 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
     const bounds = new LngLatBounds()
     plan.routes.forEach((r) => r.geometry.forEach((c) => bounds.extend(c)))
     const fit = (duration: number) =>
-      map.fitBounds(bounds, { padding: fitPadding(map, [panelRef.current, coverRef?.current]), duration })
+      map.fitBounds(bounds, {
+        padding: fitPadding(map, [panelRef.current, stackRef.current, coverRef?.current]),
+        duration,
+      })
     fit(600)
 
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -319,30 +357,43 @@ export function MapView({ plan, loading, selectedRouteId, onSelectRoute, heatmap
   return (
     <div className={stale ? 'map-wrap stale' : 'map-wrap'}>
       <div ref={containerRef} className="map" />
-      {mapError && (
-        <div className="map-notice" role="status">
-          <span>{mapError}</span>
-          <button
-            type="button"
-            aria-label="Dismiss"
-            onClick={() => {
-              errorDismissed.current = true
-              setMapError(null)
-            }}
-          >
-            ×
-          </button>
-        </div>
-      )}
-      <HeatmapSlider
-        ref={panelRef}
-        state={heatmap}
-        timeZone={plan?.input.timezone}
-        inert={stale}
-        visible={showHeat}
-        onToggle={toggleHeat}
-        onHourChange={onHourChange}
-      />
+      <div ref={stackRef} className="map-stack">
+        <LiveWeather
+          choice={mapWeather}
+          onChoose={chooseWeather}
+          hasPlan={plan !== null}
+          status={liveStatus}
+          timeZone={plan?.input.timezone}
+          onRetry={retryLive}
+        />
+        {mapError && (
+          <div className="map-notice" role="status">
+            <span>{mapError}</span>
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={() => {
+                errorDismissed.current = true
+                setMapError(null)
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
+      </div>
+      {/* Hidden, not removed, under a live layer, so the chosen forecast hour survives */}
+      <div className="heat-holder" hidden={!riskShown}>
+        <HeatmapSlider
+          ref={panelRef}
+          state={heatmap}
+          timeZone={plan?.input.timezone}
+          inert={stale}
+          visible={showHeat}
+          onToggle={toggleHeat}
+          onHourChange={onHourChange}
+        />
+      </div>
     </div>
   )
 }
