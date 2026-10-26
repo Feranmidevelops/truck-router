@@ -45,6 +45,7 @@ interface KeyProps {
 // A live layer's badge (what it is and when it was observed) and a key to its colours
 export function LiveKey({ layer, status, timeZone, hasPlan, onRetry }: KeyProps) {
   const live = status.state === 'live'
+  const failed = status.state === 'unavailable'
   const { name, staleMs } = LIVE_LAYERS[layer]
   const observed = live && status.observed ? Date.parse(status.observed) : null
   const now = useClock(observed !== null, observed)
@@ -81,13 +82,14 @@ export function LiveKey({ layer, status, timeZone, hasPlan, onRetry }: KeyProps)
         <span role="status">{headline}</span>
         {observed !== null && <span className="live-age">({Math.round(ageMs / MINUTE)} min ago)</span>}
       </p>
-      {status.state === 'unavailable' && (
+      {failed && (
         <button type="button" className="live-retry" onClick={onRetry}>
           Try again
         </button>
       )}
-      {live && <Legend layer={layer} />}
-      {live && hasPlan && (
+      {/* Shown while loading too, so the card keeps its height and the map's fit around it holds */}
+      {!failed && <Legend layer={layer} />}
+      {!failed && hasPlan && (
         <p className="live-note">Weather now, not when you get there. The route dots still show risk at your ETA.</p>
       )}
     </div>

@@ -125,7 +125,8 @@ export function useLiveWeather(
     }
   }, [mapRef, active, layer, retry])
 
-  if (!layer || !active) return null
+  if (!layer) return null
+  // Picked but still waiting for the map counts as loading, so its key is there from the start
   return reports[layer] ?? { state: 'loading' }
 }
 
