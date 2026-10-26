@@ -45,24 +45,7 @@ def upstream_failed(service: str, exc: Exception, message: str) -> Response:
 
 class HealthView(APIView):
     def get(self, request):
-        body = {"ok": True, "fixtures": settings.USE_FIXTURES}
-        # Temporary: one Open-Meteo request from this server, to see why weather fails on Render
-        if request.query_params.get("upstream") == "1":
-            import httpx
-
-            try:
-                n = max(1, min(50, int(request.query_params.get("n", "1"))))
-                lats = ",".join(f"{30 + i * 0.2:.1f}" for i in range(n))
-                lons = ",".join(f"{-100 + i * 0.1:.1f}" for i in range(n))
-                r = httpx.get(
-                    weather.BASE_URL,
-                    params={"latitude": lats, "longitude": lons, "hourly": ",".join(weather.HOURLY_VARS), "forecast_days": 2},
-                    timeout=20,
-                )
-                body["open_meteo"] = {"status": r.status_code, "body": r.text[:300]}
-            except httpx.HTTPError as exc:
-                body["open_meteo"] = {"error": repr(exc)[:300]}
-        return Response(body)
+        return Response({"ok": True, "fixtures": settings.USE_FIXTURES})
 
 
 class GeocodeView(APIView):
