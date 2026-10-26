@@ -14,13 +14,13 @@ interface LiveLayerInfo {
   attribution: string
 }
 
-// GOES-East makes a new image every 10 minutes and GIBS has it about 25 minutes later.
-// The radar mosaic updates every few minutes.
+// GOES-East makes a new image every 10 minutes and the one shown is 30 to 40 minutes old (see
+// SATELLITE_SETTLE_MS). The radar mosaic updates every few minutes.
 export const LIVE_LAYERS: Record<LiveLayer, LiveLayerInfo> = {
   satellite: {
     name: 'satellite',
-    refreshMs: 10 * MINUTE,
-    staleMs: 45 * MINUTE,
+    refreshMs: 5 * MINUTE,
+    staleMs: 60 * MINUTE,
     attribution: 'Imagery: NASA GIBS (ESDIS), GOES-East ABI',
   },
   radar: {
@@ -42,8 +42,12 @@ export function satelliteTiles(time: string | null) {
   return `${GIBS}/${GIBS_LAYER}/default/${time ?? 'default'}/${GIBS_MATRIX}/{z}/{y}/{x}.png`
 }
 
-// GIBS lists the image times it has in a window as ranges, "start/end/PT10M", oldest first.
-// The end of the last range is the newest image.
+// GIBS lists an image's time about 25 minutes after it was taken, but its tiles keep arriving
+// for several minutes more and 404 until then, which the map draws as holes. So the image used
+// is the newest one at least this old, by which time all its tiles are there.
+const SATELLITE_SETTLE_MS = 30 * MINUTE
+
+// The newest complete image's time
 export async function latestSatelliteTime(signal: AbortSignal) {
   const end = new Date()
   const start = new Date(end.getTime() - 6 * 60 * MINUTE)
@@ -51,9 +55,28 @@ export async function latestSatelliteTime(signal: AbortSignal) {
     `${GIBS}/1.0.0/${GIBS_LAYER}/default/${GIBS_MATRIX}/all/${isoSeconds(start)}--${isoSeconds(end)}.xml`,
     signal,
   )
-  const ranges = doc.getElementsByTagName('Domain')[0]?.textContent ?? ''
-  const last = ranges.split(',').pop()?.trim().split('/') ?? []
-  return checkedTime(last.length === 3 ? last[1] : last[0])
+  const ranges = (doc.getElementsByTagName('Domain')[0]?.textContent ?? '').split(',')
+  return checkedTime(newestListedBy(ranges, end.getTime() - SATELLITE_SETTLE_MS))
+}
+
+// GIBS lists the image times it has as ranges, "start/end/PT10M", or single times, oldest
+// first. This finds the newest listed time no later than `by`.
+function newestListedBy(ranges: string[], by: number) {
+  for (const range of [...ranges].reverse()) {
+    const [first, last = first, period] = range.trim().split('/')
+    const from = Date.parse(first)
+    let time = Date.parse(last)
+    const step = period ? durationMs(period) : 0
+    if (time > by && step > 0) time -= Math.ceil((time - by) / step) * step
+    if (time <= by && time >= from) return isoSeconds(new Date(time))
+  }
+  return null
+}
+
+// "PT10M", "PT1H"
+function durationMs(period: string) {
+  const match = /^PT(?:(\d+)H)?(?:(\d+)M)?$/.exec(period)
+  return match ? (Number(match[1] ?? 0) * 60 + Number(match[2] ?? 0)) * MINUTE : 0
 }
 
 // Radar: the NWS base reflectivity mosaic for the lower 48, from NOAA nowCOAST.

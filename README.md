@@ -217,17 +217,22 @@ so Route A is always the recommended one.
 - **Labelled "now".** They show the weather as it is; the route risk is the forecast for when
   the truck reaches each stretch. The badge says when the image was observed ("LIVE RADAR ·
   observed 2:31 PM (8 min ago)"), on the plan's clock once there is one, and turns to "delayed"
-  after 20 minutes for radar or 45 for the satellite (GIBS runs about 25 minutes behind).
+  after 20 minutes for radar or an hour for the satellite (its image is normally 30 to 40
+  minutes old, see below).
 - **Never shown with the risk shading.** Radar green is light rain; risk green is Low. Picking a
   live layer hides the risk shading and the forecast panel, and its key takes the panel's place;
   "Route risk" brings them back. Routes and checkpoint dots stay on top either way, and the live
   layers sit under the basemap's labels. A new plan opens on its route risk.
 - **Explore before planning.** With no plan the map opens on the satellite, and "See the weather
   map" in the hero goes straight to it. Nothing loads until the map is first on screen.
-- **Kept current.** The radar's newest time comes from its WMS capabilities every 5 minutes and
-  the satellite's from GIBS's list of image times every 10, only while the tab is visible. Tiles
-  are swapped only when the time changes. The radar is always asked for a specific time, so no
+- **Kept current.** Every 5 minutes while the tab is visible, the radar's newest time is read
+  from its WMS capabilities and the satellite's from GIBS's list of image times. Tiles are
+  swapped only when the time changes. The radar is always asked for a specific time, so no
   cache along the way can hand back an old frame.
+- **Only complete satellite images.** GIBS lists a new image about 25 minutes after it's taken,
+  but its tiles keep arriving for several minutes more and 404 until then, which the map would
+  draw as holes. So the app uses the newest listed image that's at least 30 minutes old, and the
+  badge shows that image's time.
 - **Failures.** If the radar's time can't be read, or three tiles of one image fail, the layer is
   removed and the badge says "Live radar unavailable" with Try again. A failed refresh keeps the
   last image, and its badge ages into "delayed".
