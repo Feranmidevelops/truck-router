@@ -1,6 +1,7 @@
 import type { Plan } from '../api/types'
 import type { Channel } from '../lib/channel'
 import { AlongRoute } from './AlongRoute'
+import { PlaceWeather } from './PlaceWeather'
 import { RiskBar, RouteFigures, RouteList } from './RouteList'
 
 interface Props {
@@ -14,8 +15,9 @@ interface Props {
   hoverChannel?: Channel<string | null> // the checkpoint hovered in the list, for the map
 }
 
-// The results panel (the bottom sheet on phones): loading and error states, route cards,
-// checkpoints. Each part is a section with its own heading, so more can slot in.
+// The results panel (the bottom sheet on phones): loading and error states, the weather at
+// each end, route cards, checkpoints. Each part is a section with its own heading, so more
+// can slot in.
 export function PlanResults({
   plan,
   loading,
@@ -41,6 +43,7 @@ export function PlanResults({
       {plan && (
         // The previous plan stays on screen, dimmed and inert, until the new one arrives
         <div className={loading ? 'results-body stale' : 'results-body'} inert={loading}>
+          {selectedRoute && <PlaceWeather route={selectedRoute} timeZone={plan.input.timezone} />}
           <RouteList plan={plan} selectedRouteId={selectedRouteId} onSelect={onSelect} />
           {selectedRoute && (
             <AlongRoute
