@@ -60,7 +60,7 @@ any API keys.
 | --- | --- | --- |
 | `TOMTOM_API_KEY` | backend | Routing and geocoding |
 | `USE_FIXTURES` | backend | `true` serves canned data |
-| `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS` | backend | Django |
+| `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS` | backend | Django (debug is off unless `DJANGO_DEBUG=true`, as in `.env.example`) |
 | `CORS_ALLOWED_ORIGINS` | backend | Frontend origin(s), comma-separated |
 | `NUM_PROXIES` | backend | Proxies that append to `X-Forwarded-For` (0 locally, 3 on Render) |
 | `GEOCODE_COUNTRY_SET` | backend | Countries for place search (default `US`) |

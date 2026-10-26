@@ -25,7 +25,9 @@ def env_int(name: str, default: int) -> int:
 
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-insecure-key")
-DEBUG = env_bool("DJANGO_DEBUG", True)
+# Off unless asked for: a debug error page lists the failing code's local variables, the TomTom key
+# among them. backend/.env.example turns it on for local work.
+DEBUG = env_bool("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 
 INSTALLED_APPS = [
