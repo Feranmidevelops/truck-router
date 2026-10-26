@@ -245,6 +245,15 @@ def test_forecasts_that_are_not_the_ones_asked_for_are_a_400(api, monkeypatch, c
 
 
 @override_settings(USE_FIXTURES=False)
+def test_a_rejected_forecast_logs_only_the_start_of_what_was_sent(api, monkeypatch, caplog):
+    monkeypatch.setattr(planner, "finish_plan", raise_(weather.WeatherError("Bad hour " + "x" * 1_000_000)))
+    assert post_forecasts(api).status_code == 400
+    [record] = [r for r in caplog.records if r.name == "routing.views"]
+    assert record.getMessage().startswith(f"Forecasts for {PLAN_ID} rejected: Bad hour xxx")
+    assert len(record.getMessage()) < 400
+
+
+@override_settings(USE_FIXTURES=False)
 @pytest.mark.parametrize("path, finish", FINISHERS)
 def test_forecasts_go_to_the_plan_they_were_listed_for(api, monkeypatch, path, finish):
     seen = []

@@ -94,7 +94,8 @@ def with_forecasts(request, finish) -> Response:
     except planner.PlanNotFound:
         return Response({"detail": PLAN_GONE}, status=404)
     except weather.WeatherError as exc:
-        log.warning("Forecasts for %s rejected: %s", plan_id, exc)
+        # The reason can quote whatever was sent, so only its start is kept
+        log.warning("Forecasts for %s rejected: %.300s", plan_id, exc)
         return Response({"detail": BAD_FORECASTS}, status=400)
 
 
