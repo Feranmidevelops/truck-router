@@ -275,6 +275,51 @@ def test_a_plan_can_be_finished_again_with_the_same_answer(faked):
     assert planner.finish_plan(started["plan_id"], replies) == first
 
 
+def test_a_finished_plan_is_not_worked_out_again_from_other_forecasts(faked, monkeypatch):
+    # Made-up replies sent again and again must not mean more place-name lookups each time
+    started = planner.start_plan(
+        origin=fakes.DALLAS,
+        destination=fakes.NORTH,
+        departure_time=T0,
+        timezone="America/Chicago",
+        load_weight_lb=20_000,
+        interval_miles=25,
+    )
+    lookups, reads = [], []
+
+    def place_names(positions, *args, **kwargs):
+        lookups.append(positions)
+        return [None] * len(positions)
+
+    monkeypatch.setattr(tomtom, "place_names", place_names)
+    read = weather.read_forecasts
+    monkeypatch.setattr(weather, "read_forecasts", lambda *a, **k: reads.append(1) or read(*a, **k))
+    first = planner.finish_plan(started["plan_id"], [{}] * len(started["forecast_urls"]))
+    assert planner.finish_plan(started["plan_id"], ["made up"]) == first
+    assert (len(lookups), len(reads)) == (1, 1)
+
+
+def test_a_failed_finish_can_be_tried_again(faked, monkeypatch):
+    started = planner.start_plan(
+        origin=fakes.DALLAS,
+        destination=fakes.NORTH,
+        departure_time=T0,
+        timezone="America/Chicago",
+        load_weight_lb=20_000,
+        interval_miles=25,
+    )
+    read = weather.read_forecasts
+
+    def refuse(*args, **kwargs):
+        raise weather.WeatherError("Expected 1 forecast replies, got 0")
+
+    monkeypatch.setattr(weather, "read_forecasts", refuse)
+    with pytest.raises(weather.WeatherError):
+        planner.finish_plan(started["plan_id"], [])
+    monkeypatch.setattr(weather, "read_forecasts", read)
+    assert planner.finish_plan(started["plan_id"], [{}] * len(started["forecast_urls"]))["routes"]
+
+
 def test_response_lines_are_simplified(faked):
     data = plan()
     by_id = {r.id: r for r in faked}
