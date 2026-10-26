@@ -97,12 +97,16 @@ export function SnowIcon(props: IconProps) {
   )
 }
 
-// The sky at a place, from its WMO weather code: sun, cloud, fog, rain, snow or a storm.
-// Nothing for an unknown code; the words next to it still say what the forecast is.
-export function SkyIcon({ code, ...props }: IconProps & { code: number | null }) {
+// The sky at a place, from its WMO weather code: sun (a moon on a clear night), cloud, fog,
+// rain, snow or a storm. Nothing for an unknown code; the words next to it still say what
+// the forecast is.
+export function SkyIcon({ code, night = false, ...props }: IconProps & { code: number | null; night?: boolean }) {
   const sky = skyFromCode(code)
-  return sky ? <Svg {...props}>{SKY_SHAPES[sky]}</Svg> : null
+  if (!sky) return null
+  return <Svg {...props}>{sky === 'clear' && night ? MOON : SKY_SHAPES[sky]}</Svg>
 }
+
+const MOON = <path d="M20.5 13.5A8.5 8.5 0 1 1 10.5 3.5a7 7 0 0 0 10 10Z" />
 
 // A full cloud, and a smaller one higher up to leave room for what falls from it
 const CLOUD = 'M6 18a4 4 0 0 1 0-8 6 6 0 0 1 11.3-1.9A5 5 0 0 1 17 18Z'

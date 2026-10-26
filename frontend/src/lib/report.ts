@@ -17,6 +17,25 @@ export function skyFromCode(code: number | null): Sky | null {
   return null
 }
 
+// After sunset and before sunrise at a place, for a moon in place of the sun on a clear night.
+// The sun's height from the low-precision solar position formulas, good to about a degree;
+// -0.833° is where it sets once refraction and its own size are allowed for.
+export function isNight(lat: number, lon: number, iso: string) {
+  const rad = Math.PI / 180
+  const d = (Date.parse(iso) - Date.UTC(2000, 0, 1, 12)) / 86_400_000 // days since J2000
+  const g = (357.529 + 0.98560028 * d) * rad // mean anomaly
+  const q = 280.459 + 0.98564736 * d // mean longitude, degrees
+  const ecliptic = (q + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) * rad
+  const tilt = (23.439 - 0.00000036 * d) * rad
+  const rightAscension = Math.atan2(Math.cos(tilt) * Math.sin(ecliptic), Math.cos(ecliptic))
+  const declination = Math.asin(Math.sin(tilt) * Math.sin(ecliptic))
+  const siderealDeg = (18.697374558 + 24.06570982441908 * d) * 15
+  const hourAngle = (siderealDeg + lon) * rad - rightAscension
+  const sinHeight =
+    Math.sin(lat * rad) * Math.sin(declination) + Math.cos(lat * rad) * Math.cos(declination) * Math.cos(hourAngle)
+  return Math.asin(sinHeight) / rad < -0.833
+}
+
 export function formatTemp(tempF: number | null) {
   return tempF === null ? '—' : `${Math.round(tempF)}°F`
 }
