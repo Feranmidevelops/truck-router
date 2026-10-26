@@ -11,7 +11,7 @@
   --live-font-small: var(--text-xs);
   --live-font-tag: var(--text-2xs);
   --live-gap: var(--space-2);
-  --live-card-width: 336px;
+  --live-card-width: 360px;
   --live-bar: 8px;
   --live-dot: 6px;
 
@@ -106,7 +106,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-1) var(--space-2);
   font-variant-numeric: tabular-nums;
 }
 
@@ -139,9 +139,12 @@
   }
 }
 
+.live-when {
+  white-space: nowrap;
+}
+
 .live-age {
   color: var(--live-muted);
-  white-space: nowrap;
 }
 
 /* Older than it should be: the tag turns to an outline and stops pulsing */

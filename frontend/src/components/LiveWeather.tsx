@@ -55,32 +55,33 @@ export function LiveKey({ layer, status, timeZone, hasPlan, onRetry }: KeyProps)
   let headline
   if (status.state === 'loading') headline = `Loading live ${name}…`
   else if (status.state === 'unavailable') headline = `Live ${name} unavailable`
-  else {
-    const kind = stale ? `${capitalize(name)} delayed` : `Live ${name}`
-    const at =
-      observed === null
-        ? 'latest image'
-        : `${layer === 'radar' ? 'observed ' : ''}${clockTime(observed, timeZone)}`
+  else
     headline = (
-      <>
-        <span className="live-kind">
-          <span className="live-dot" aria-hidden />
-          {kind}
-        </span>{' '}
-        <span className="live-sep" aria-hidden>
-          ·
-        </span>{' '}
-        {at}
-      </>
+      <span className="live-kind">
+        <span className="live-dot" aria-hidden />
+        {stale ? `${capitalize(name)} delayed` : `Live ${name}`}
+      </span>
     )
-  }
 
   return (
     <div className={`live-card${stale ? ' stale' : ''}`}>
       <p className="live-badge">
-        {/* Announced when the layer loads or fails, not every minute as its age ticks up */}
+        {/* Announced when the layer loads, fails or falls behind, not each time its age ticks up */}
         <span role="status">{headline}</span>
-        {observed !== null && <span className="live-age">({Math.round(ageMs / MINUTE)} min ago)</span>}
+        {/* The time and its age wrap to a second line together, never apart */}
+        {live && (
+          <span className="live-when">
+            {observed === null ? (
+              'latest image'
+            ) : (
+              <>
+                {layer === 'radar' && 'observed '}
+                {clockTime(observed, timeZone)}{' '}
+                <span className="live-age">({Math.round(ageMs / MINUTE)} min ago)</span>
+              </>
+            )}
+          </span>
+        )}
       </p>
       {failed && (
         <button type="button" className="live-retry" onClick={onRetry}>

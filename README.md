@@ -215,10 +215,10 @@ so Route A is always the recommended one.
   by cloud-top temperature. Radar is NOAA nowCOAST's NWS base reflectivity mosaic (MRMS) for the
   lower 48. Neither needs a key and both allow requests from the browser, so there's no proxy.
 - **Labelled "now".** They show the weather as it is; the route risk is the forecast for when
-  the truck reaches each stretch. The badge says when the image was observed ("LIVE RADAR ·
-  observed 2:31 PM (8 min ago)"), on the plan's clock once there is one, and turns to "delayed"
-  after 20 minutes for radar or an hour for the satellite (its image is normally 30 to 40
-  minutes old, see below).
+  the truck reaches each stretch. The badge says when the image was observed ("LIVE RADAR
+  observed 2:31 PM (8 min ago)"), on the plan's clock once there is one, and turns to
+  "delayed" after 20 minutes for radar or an hour for the satellite (its image is normally 30
+  to 40 minutes old, see below).
 - **Never shown with the risk shading.** Radar green is light rain; risk green is Low. Picking a
   live layer hides the risk shading and the forecast panel, and its key takes the panel's place;
   "Route risk" brings them back. Routes and checkpoint dots stay on top either way, and the live
