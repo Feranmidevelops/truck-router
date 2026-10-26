@@ -3,7 +3,7 @@
 Plan a truck trip and pick the safest of three routes, based on the weather the truck will meet
 at each point along the way, the load weight and the travel time.
 
-- **Live app:** TODO
+- **Live app:** https://truck-router.netlify.app (API: https://truck-routing-api-w0d2.onrender.com/api/health)
 - **Loom walkthrough:** TODO
 
 ## What it does
