@@ -36,14 +36,15 @@ Backend (Python 3.11+):
 ```bash
 cd backend
 python -m venv .venv
-.venv\Scripts\activate          # Windows; on mac/linux: source .venv/bin/activate
+source .venv/Scripts/activate   # Windows Git Bash; cmd/PowerShell: .venv\Scripts\activate
+                                # mac/linux: source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env            # add TOMTOM_API_KEY, set USE_FIXTURES=false for live data
 python manage.py runserver
 pytest
 ```
 
-Frontend (Node 20+):
+Frontend (Node 20.19+ or 22.12+):
 
 ```bash
 cd frontend
