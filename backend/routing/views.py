@@ -51,9 +51,12 @@ class HealthView(APIView):
             import httpx
 
             try:
+                n = max(1, min(50, int(request.query_params.get("n", "1"))))
+                lats = ",".join(f"{30 + i * 0.2:.1f}" for i in range(n))
+                lons = ",".join(f"{-100 + i * 0.1:.1f}" for i in range(n))
                 r = httpx.get(
                     weather.BASE_URL,
-                    params={"latitude": "32.8", "longitude": "-96.8", "hourly": "wind_speed_10m", "forecast_days": 1},
+                    params={"latitude": lats, "longitude": lons, "hourly": ",".join(weather.HOURLY_VARS), "forecast_days": 2},
                     timeout=20,
                 )
                 body["open_meteo"] = {"status": r.status_code, "body": r.text[:300]}
