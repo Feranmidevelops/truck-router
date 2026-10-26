@@ -311,7 +311,7 @@ def test_each_ip_has_its_own_plan_limit(api):
     assert post_plan(api, REMOTE_ADDR="203.0.113.2").status_code == 200
 
 
-@override_settings(USE_FIXTURES=True)
+@override_settings(USE_FIXTURES=True, REST_FRAMEWORK={**settings.REST_FRAMEWORK, "NUM_PROXIES": 0})
 def test_without_a_proxy_forwarded_for_is_ignored(api):
     for i in range(10):
         post_plan(api, REMOTE_ADDR="203.0.113.1", HTTP_X_FORWARDED_FOR=f"1.2.3.{i}")
