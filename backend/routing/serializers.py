@@ -24,6 +24,14 @@ class LocalDateTimeField(serializers.DateTimeField):
         return value
 
 
+class ForecastRepliesSerializer(serializers.Serializer):
+    """Open-Meteo's replies to the forecast_urls a plan or heatmap listed, in the same order."""
+
+    plan_id = serializers.RegexField(r"^[0-9a-f]{32}$")
+    # A plan lists at most 7 URLs and a heatmap 5; planner.finish_plan checks the exact number
+    forecasts = serializers.ListField(child=serializers.JSONField(), max_length=20)
+
+
 class PlanRequestSerializer(serializers.Serializer):
     origin = PlaceSerializer()
     destination = PlaceSerializer()

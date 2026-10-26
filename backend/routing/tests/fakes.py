@@ -5,7 +5,8 @@ Two levels:
   and the weather functions. What still runs is the planner's own glue.
 - FakeUpstream answers HTTP requests the way TomTom and Open-Meteo do, so the real clients,
   route fallbacks, weather sampling and heatmap grid run too. install_fake_http sends every
-  httpx.Client through it and makes any other real request fail.
+  httpx.Client through it and makes any other real request fail. The browser fetches the
+  forecasts, so tests do that part with fetch_like_the_browser.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -56,10 +57,10 @@ def wind_at(p: LatLon) -> float:
     return WIND_BY_ROUTE[min(2, max(0, round((-97.0 - p.lon) / 0.5)))]
 
 
-def fake_fetch_hourly(positions, start, end, **kwargs):
-    first = weather.floor_hour(start)
-    hours = int((weather.ceil_hour(end) - first) / timedelta(hours=1)) + 1
-    times = [first + timedelta(hours=h) for h in range(hours)]
+def fake_read_forecasts(requests, replies):
+    """Made-up forecasts for every position asked about, whatever the replies were."""
+    hours = requests.hours
+    times = [requests.start + timedelta(hours=h) for h in range(hours)]
     return [
         weather.HourlySeries(
             position=p,
@@ -71,7 +72,7 @@ def fake_fetch_hourly(positions, start, end, **kwargs):
             temp_f=[60.0] * hours,
             weather_code=[2] * hours,
         )
-        for p in positions
+        for p in requests.positions
     ]
 
 
@@ -95,7 +96,7 @@ def install_service_fakes(monkeypatch, routes: list[RouteOption]) -> None:
     monkeypatch.setattr(tomtom, "calculate_routes", lambda *a, **k: list(routes))
     monkeypatch.setattr(tomtom, "ensure_three_routes", lambda found, *a, **k: found)
     monkeypatch.setattr(tomtom, "place_names", fake_place_names)
-    monkeypatch.setattr(weather, "fetch_hourly", fake_fetch_hourly)
+    monkeypatch.setattr(weather, "read_forecasts", fake_read_forecasts)
     monkeypatch.setattr(weather, "sample_at", fake_sample_at)
     monkeypatch.setattr(corridor, "build_grid", lambda lines: [line[0] for line in lines])
 
@@ -110,7 +111,14 @@ def plan(**overrides) -> dict:
         "interval_miles": 25,
     }
     kwargs.update(overrides)
-    return planner.build_plan(**kwargs)
+    started = planner.start_plan(**kwargs)
+    # With install_service_fakes the replies aren't read, so any will do
+    return planner.finish_plan(started["plan_id"], [{}] * len(started["forecast_urls"]))
+
+
+def heatmap(plan_id: str) -> dict:
+    started = planner.heatmap_request(plan_id)
+    return planner.build_heatmap(plan_id, [{}] * len(started["forecast_urls"]))
 
 
 ROAD_SPEED_MPS = 55 * METERS_PER_MILE / 3600
@@ -273,6 +281,17 @@ class FakeUpstream:
                 }
             )
         return httpx.Response(200, json=items if len(items) > 1 else items[0])
+
+
+def fetch_like_the_browser(urls: list[str]) -> list:
+    """What the frontend sends back for a list of forecast_urls: each URL's JSON, in order."""
+    open_meteo = FakeUpstream()
+    replies = []
+    for url in urls:
+        response = open_meteo(httpx.Request("GET", url))
+        assert response.status_code == 200, url
+        replies.append(response.json())
+    return replies
 
 
 def no_route_found() -> httpx.Response:

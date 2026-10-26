@@ -1,5 +1,6 @@
-"""A whole trip through the API: the real TomTom and Open-Meteo clients, route fallbacks,
-checkpoints, weather sampling, risk, ranking and the heatmap grid, talking to fake servers."""
+"""A whole trip through the API: the real TomTom client, route fallbacks, checkpoints, the
+Open-Meteo requests and replies, weather sampling, risk, ranking and the heatmap grid, with
+fake servers. The forecasts are fetched the way the browser does it, between the two steps."""
 
 from datetime import datetime, timedelta
 import json
@@ -9,12 +10,14 @@ from zoneinfo import ZoneInfo
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
+import httpx
 import pytest
 
-from routing.services import recommend, risk, tomtom, weather
+from routing.services import planner, recommend, risk, tomtom, weather
 from routing.services.types import Level, RouteSummary
 from routing.tests.fakes import (
     FakeUpstream,
+    fetch_like_the_browser,
     install_fake_http,
     upstream_rain_in_hr,
     upstream_temp_f,
@@ -51,6 +54,19 @@ def post_plan(api, departure: str):
     return api.post("/api/plan", body, format="json")
 
 
+def with_forecasts(api, path: str, started: dict):
+    """The second step: fetch the listed forecasts like the browser, and post them back."""
+    assert set(started) == {"plan_id", "forecast_urls"}, started
+    body = {"plan_id": started["plan_id"], "forecasts": fetch_like_the_browser(started["forecast_urls"])}
+    return api.post(path, body, format="json")
+
+
+def plan_trip(api, departure: str):
+    res = post_plan(api, departure)
+    assert res.status_code == 200, res.json()
+    return with_forecasts(api, "/api/plan/forecasts", res.json())
+
+
 def route_requests(upstream: FakeUpstream) -> list:
     return [c for c in upstream.calls("api.tomtom.com") if c.url.path.startswith("/routing/")]
 
@@ -81,7 +97,7 @@ def tomorrow_in_dallas() -> datetime:
 @override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")
 def test_dallas_to_denver_plan_and_heatmap(api, upstream):
     leave = tomorrow_in_dallas()
-    res = post_plan(api, leave.strftime("%Y-%m-%dT%H:%M"))  # local time, no offset
+    res = plan_trip(api, leave.strftime("%Y-%m-%dT%H:%M"))  # local time, no offset
     assert res.status_code == 200, res.json()
     plan = res.json()
 
@@ -173,6 +189,8 @@ def test_dallas_to_denver_plan_and_heatmap(api, upstream):
 
     res = api.get(f"/api/heatmap?plan_id={plan['plan_id']}")
     assert res.status_code == 200, res.json()
+    res = with_forecasts(api, "/api/heatmap/forecasts", res.json())
+    assert res.status_code == 200, res.json()
     heatmap = res.json()
     assert heatmap["plan_id"] == plan["plan_id"]
     assert heatmap["hours"] == 48
@@ -183,17 +201,44 @@ def test_dallas_to_denver_plan_and_heatmap(api, upstream):
         assert len(set(p["v"])) == 1  # the fake weather is the same every hour
         assert p["v"][0] in {int(level) for level in levels_near(p["lat"], p["lon"])}
 
-    # Every request went to one of the two fakes; anything else would have raised
-    assert {r.url.host for r in upstream.requests} == {"api.tomtom.com", "api.open-meteo.com"}
+    # The server only talked to TomTom; anything else would have raised. The forecasts came
+    # from the browser.
+    assert {r.url.host for r in upstream.requests} == {"api.tomtom.com"}
+
+
+@override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")
+def test_the_forecasts_listed_cover_every_checkpoint_and_the_heatmap_grid(api, upstream):
+    started = post_plan(api, tomorrow_in_dallas().strftime("%Y-%m-%dT%H:%M")).json()
+    urls = started["forecast_urls"]
+    plan = with_forecasts(api, "/api/plan/forecasts", started).json()
+
+    def locations(urls):
+        return [
+            (float(lat), float(lon))
+            for url in urls
+            for lat, lon in zip(
+                httpx.URL(url).params["latitude"].split(","), httpx.URL(url).params["longitude"].split(",")
+            )
+        ]
+
+    asked = locations(urls)
+    assert len(asked) == len(set(asked)) <= planner.PLAN_WEATHER_CELLS
+    cells = {(round(lat, 1), round(lon, 1)) for lat, lon in asked}
+    for route in plan["routes"]:
+        for cp in route["checkpoints"]:
+            assert (round(cp["lat"], 1), round(cp["lon"], 1)) in cells
+    grid = api.get(f"/api/heatmap?plan_id={plan['plan_id']}").json()
+    assert grid["plan_id"] == plan["plan_id"]
+    assert 0 < len(locations(grid["forecast_urls"])) <= 250
 
 
 @override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")
 def test_a_second_plan_takes_its_place_names_from_the_cache(api, upstream):
     leave = tomorrow_in_dallas().strftime("%Y-%m-%dT%H:%M")
-    first = post_plan(api, leave).json()
+    first = plan_trip(api, leave).json()
     asked = len(place_requests(upstream))
     assert asked > 0
-    second = post_plan(api, leave).json()
+    second = plan_trip(api, leave).json()
     assert len(place_requests(upstream)) == asked
     names = [[s["where"] for s in r["report"]["stretches"]] for r in first["routes"]]
     assert [[s["where"] for s in r["report"]["stretches"]] for r in second["routes"]] == names
@@ -203,7 +248,7 @@ def test_a_second_plan_takes_its_place_names_from_the_cache(api, upstream):
 @override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")
 def test_the_plan_still_works_when_place_names_fail(api, upstream):
     upstream.no_place_names = True
-    res = post_plan(api, tomorrow_in_dallas().strftime("%Y-%m-%dT%H:%M"))
+    res = plan_trip(api, tomorrow_in_dallas().strftime("%Y-%m-%dT%H:%M"))
     assert res.status_code == 200, res.json()
     assert place_requests(upstream)
     stretches = [s for route in res.json()["routes"] for s in route["report"]["stretches"]]

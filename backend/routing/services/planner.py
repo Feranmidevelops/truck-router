@@ -1,5 +1,12 @@
 """Orchestration: routes -> checkpoints -> weather -> risk -> recommendation.
 
+A plan and its heatmap are made in two steps each, because the browser fetches the forecasts.
+Open-Meteo's free limit is per IP address, and a free Render server shares its address with
+other apps, which used the day's limit up. So start_plan finds the routes and checkpoints and
+lists the Open-Meteo URLs that cover them; the browser fetches them and sends the replies to
+finish_plan, which reads, samples, scores and ranks them. heatmap_request and build_heatmap
+do the same for the heatmap grid. The server never calls Open-Meteo itself.
+
 This is the only service module that touches Django (settings, cache).
 The response shape here must match frontend/src/api/types.ts.
 """
@@ -19,6 +26,8 @@ from . import conditions, corridor, geometry, recommend, report, risk, tomtom, w
 from .types import Checkpoint, LatLon, Level, RouteOption, RouteSummary, Stretch, WeatherSample
 
 PLAN_TTL_S = 60 * 60
+# Between listing a plan's forecasts and getting them back; the browser takes a few seconds
+PENDING_TTL_S = 15 * 60
 HEATMAP_HOURS = 48
 # Open-Meteo allows 600 locations a minute, and the heatmap that follows a plan asks for up to 250,
 # so a plan's checkpoints ask for 340 at most. Seattle -> Miami at a 10-mile interval needs about
@@ -41,7 +50,7 @@ class NoRouteFound(Exception):
     """TomTom answered, but has no truck route between the two places."""
 
 
-def build_plan(
+def start_plan(
     *,
     origin: dict,
     destination: dict,
@@ -50,7 +59,11 @@ def build_plan(
     load_weight_lb: int,
     interval_miles: int,
 ) -> dict:
-    """`departure_time` is aware, with the origin's offset; `timezone` is the origin's IANA zone."""
+    """The routes and their checkpoints, kept for finish_plan, and the forecasts to fetch for them.
+
+    Returns {"plan_id", "forecast_urls"}. `departure_time` is aware, with the origin's offset;
+    `timezone` is the origin's IANA zone.
+    """
     o = LatLon(origin["lat"], origin["lon"])
     d = LatLon(destination["lat"], destination["lon"])
     key = settings.TOMTOM_API_KEY
@@ -87,13 +100,61 @@ def build_plan(
     }
     flat = [cp for cps in checkpoints.values() for cp in cps]
     clock.lap("checkpoints")
-    series = weather.fetch_hourly(
+    # Checkpoints above were sampled on the full line; the map and the heatmap only need its shape
+    shapes = {r.id: geometry.simplify(r.points, SIMPLIFY_TOLERANCE_M) for r in routes}
+    clock.lap("simplify")
+    forecasts = weather.forecast_requests(
         [cp.position for cp in flat],
         min(cp.eta for cp in flat),
         max(cp.eta for cp in flat),
         max_cells=PLAN_WEATHER_CELLS,
-        cache=cache,
     )
+
+    plan_id = uuid.uuid4().hex
+    log.info(
+        "Plan %s started: %d routes, %d checkpoints, %d forecast locations, %s",
+        plan_id, len(routes), len(flat), len(set(forecasts.cells)), clock,
+    )
+    cache.set(
+        f"pending:{plan_id}",
+        {
+            "input": {
+                "origin": origin,
+                "destination": destination,
+                "departure_time": departure.isoformat(),
+                "timezone": timezone,
+                "load_weight_lb": load_weight_lb,
+                "interval_miles": interval_miles,
+            },
+            "departure_time": departure,
+            # The full lines are done with: the checkpoints are sampled and the shapes made
+            "routes": [replace(r, points=[], timing=[]) for r in routes],
+            "shapes": shapes,
+            "checkpoints": checkpoints,
+            "forecasts": forecasts,
+        },
+        PENDING_TTL_S,
+    )
+    return {"plan_id": plan_id, "forecast_urls": forecasts.urls()}
+
+
+def finish_plan(plan_id: str, replies: list) -> dict:
+    """The plan, from Open-Meteo's replies to the forecast_urls start_plan listed, in that order.
+
+    Raises PlanNotFound when there's no started plan with this id, and weather.WeatherError when
+    the replies aren't the forecasts that were asked for.
+    """
+    pending = cache.get(f"pending:{plan_id}")
+    if pending is None:
+        raise PlanNotFound(plan_id)
+    routes: list[RouteOption] = pending["routes"]
+    checkpoints: dict[str, list[Checkpoint]] = pending["checkpoints"]
+    shapes: dict[str, list[LatLon]] = pending["shapes"]
+    load_weight_lb = pending["input"]["load_weight_lb"]
+    clock = _Stopwatch()
+
+    flat = [cp for cps in checkpoints.values() for cp in cps]
+    series = weather.read_forecasts(pending["forecasts"], replies)
     clock.lap("weather")
     for cp, s in zip(flat, series):
         cp.weather = weather.sample_at(s, cp.eta)
@@ -110,26 +171,22 @@ def build_plan(
 
     # In rank order, so when there are more places than lookups allowed, the best routes keep their names
     starts = [s.start for rid in order for s in stretches[rid]]
-    names = dict(zip(starts, tomtom.place_names(starts, key, cache=cache)))
+    names = dict(zip(starts, tomtom.place_names(starts, settings.TOMTOM_API_KEY, cache=cache)))
     clock.lap("place names")
 
-    # Checkpoints above were sampled on the full line; the map and the heatmap only need its shape
-    shapes = {r.id: geometry.simplify(r.points, SIMPLIFY_TOLERANCE_M) for r in routes}
-    clock.lap("simplify")
-
-    plan_id = uuid.uuid4().hex
     log.info("Plan %s: %d routes, %d checkpoints, %s", plan_id, len(routes), len(flat), clock)
     cache.set(
         f"plan:{plan_id}",
         {
             "routes": [shapes[r.id] for r in routes],
-            "departure_time": departure,
+            "departure_time": pending["departure_time"],
             "load_weight_lb": load_weight_lb,
         },
         PLAN_TTL_S,
     )
 
     by_id = {r.id: r for r in routes}
+    origin, destination = pending["input"]["origin"], pending["input"]["destination"]
     # Lettered in the order shown, so Route A is always the recommended one
     labels = {rid: f"Route {chr(65 + i)}" for i, rid in enumerate(order)}
     reports = {
@@ -138,14 +195,7 @@ def build_plan(
     }
     return {
         "plan_id": plan_id,
-        "input": {
-            "origin": origin,
-            "destination": destination,
-            "departure_time": departure.isoformat(),
-            "timezone": timezone,
-            "load_weight_lb": load_weight_lb,
-            "interval_miles": interval_miles,
-        },
+        "input": pending["input"],
         "recommended_route_id": order[0],
         "recommendation_reason": reason,
         "routes": [
@@ -157,16 +207,20 @@ def build_plan(
     }
 
 
-def build_heatmap(plan_id: str) -> dict:
-    stored = cache.get(f"plan:{plan_id}")
-    if stored is None:
-        raise PlanNotFound(plan_id)
+def heatmap_request(plan_id: str) -> dict:
+    """The forecasts to fetch for a finished plan's heatmap: {"plan_id", "forecast_urls"}."""
+    stored = _stored_plan(plan_id)
+    return {"plan_id": plan_id, "forecast_urls": _heatmap_forecasts(stored).urls()}
+
+
+def build_heatmap(plan_id: str, replies: list) -> dict:
+    """Risk levels per grid point and hour, from Open-Meteo's replies to heatmap_request's URLs."""
+    stored = _stored_plan(plan_id)
     clock = _Stopwatch()
-    grid = corridor.build_grid(stored["routes"])
+    forecasts = _heatmap_forecasts(stored)
     clock.lap("grid")
-    start = weather.floor_hour(stored["departure_time"])
-    end = start + timedelta(hours=HEATMAP_HOURS)
-    series = weather.fetch_hourly(grid, start, end, cache=cache)
+    start = forecasts.start
+    series = weather.read_forecasts(forecasts, replies)
     clock.lap("weather")
     load = stored["load_weight_lb"]
     points = []
@@ -184,6 +238,20 @@ def build_heatmap(plan_id: str) -> dict:
         "hours": HEATMAP_HOURS,
         "points": points,
     }
+
+
+def _stored_plan(plan_id: str) -> dict:
+    stored = cache.get(f"plan:{plan_id}")
+    if stored is None:
+        raise PlanNotFound(plan_id)
+    return stored
+
+
+def _heatmap_forecasts(stored: dict) -> weather.ForecastRequests:
+    """The same every time for the same plan, so the URLs listed and the replies read agree."""
+    grid = corridor.build_grid(stored["routes"])
+    start = weather.floor_hour(stored["departure_time"])
+    return weather.forecast_requests(grid, start, start + timedelta(hours=HEATMAP_HOURS))
 
 
 def _route_json(

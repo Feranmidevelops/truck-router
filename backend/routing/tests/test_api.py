@@ -88,11 +88,11 @@ def test_plan_rejects_bad_input(api, overrides):
 def test_plan_reads_a_departure_without_offset_as_local_time_at_the_origin(api, monkeypatch):
     seen = {}
 
-    def fake_build_plan(**kwargs):
+    def fake_start_plan(**kwargs):
         seen.update(kwargs)
         return {}
 
-    monkeypatch.setattr(planner, "build_plan", fake_build_plan)
+    monkeypatch.setattr(planner, "start_plan", fake_start_plan)
     local = (timezone.now() + timedelta(hours=2)).astimezone(ZoneInfo("America/Chicago"))
     local = local.replace(second=0, microsecond=0)
     res = api.post("/api/plan", plan_body(departure_time=local.strftime("%Y-%m-%dT%H:%M")), format="json")
@@ -168,29 +168,16 @@ def raise_(exc):
 
 
 @override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="sekrit-key")
-@pytest.mark.parametrize(
-    "exc, message, logged",
-    [
-        (
-            tomtom.RoutingError("TomTom request failed: timed out for ...?key=sekrit-key"),
-            "Couldn't get routes from TomTom right now. Try again in a minute.",
-            "TomTom routing failed: TomTom request failed: timed out for ...?key=<TOMTOM_API_KEY>",
-        ),
-        (
-            weather.WeatherError("Open-Meteo 500: upstream timeout"),
-            "Couldn't get the weather forecast right now. Try again in a minute.",
-            "Open-Meteo forecast failed: Open-Meteo 500: upstream timeout",
-        ),
-    ],
-    ids=["tomtom", "open-meteo"],
-)
-def test_plan_upstream_failure_is_a_friendly_502(api, monkeypatch, caplog, exc, message, logged):
-    monkeypatch.setattr(planner, "build_plan", raise_(exc))
+def test_plan_routing_failure_is_a_friendly_502(api, monkeypatch, caplog):
+    exc = tomtom.RoutingError("TomTom request failed: timed out for ...?key=sekrit-key")
+    monkeypatch.setattr(planner, "start_plan", raise_(exc))
     res = post_plan(api)
     assert res.status_code == 502
-    assert res.json() == {"detail": message}
+    assert res.json() == {"detail": "Couldn't get routes from TomTom right now. Try again in a minute."}
     errors = [r for r in caplog.records if r.name == "routing.views" and r.levelname == "ERROR"]
-    assert [r.getMessage() for r in errors] == [logged]
+    assert [r.getMessage() for r in errors] == [
+        "TomTom routing failed: TomTom request failed: timed out for ...?key=<TOMTOM_API_KEY>"
+    ]
     assert "sekrit-key" not in caplog.text
 
 
@@ -222,13 +209,84 @@ def test_geocode_upstream_failure_is_a_friendly_502(api, monkeypatch, caplog):
     assert "TomTom search failed: TomTom 429: Too Many Requests" in caplog.text
 
 
+PLAN_ID = "0123456789abcdef" * 2
+FORECASTS_PATHS = ["/api/plan/forecasts", "/api/heatmap/forecasts"]
+# Each second step and the planner function it hands the forecasts to
+FINISHERS = [("/api/plan/forecasts", "finish_plan"), ("/api/heatmap/forecasts", "build_heatmap")]
+
+
+def post_forecasts(api, path="/api/plan/forecasts", **body):
+    return api.post(path, {"plan_id": PLAN_ID, "forecasts": [{}], **body}, format="json")
+
+
 @override_settings(USE_FIXTURES=False)
-def test_heatmap_upstream_failure_is_a_friendly_502(api, monkeypatch, caplog):
-    monkeypatch.setattr(planner, "build_heatmap", raise_(weather.WeatherError("Open-Meteo 503: down")))
-    res = api.get("/api/heatmap?plan_id=abc")
-    assert res.status_code == 502
-    assert res.json() == {"detail": "Couldn't get the weather forecast right now. Try again in a minute."}
-    assert "Open-Meteo heatmap forecast failed: Open-Meteo 503: down" in caplog.text
+@pytest.mark.parametrize("path", FORECASTS_PATHS)
+def test_forecasts_for_a_plan_that_has_expired_are_a_404(api, path):
+    res = post_forecasts(api, path)
+    assert res.status_code == 404
+    assert res.json() == {"detail": "Plan expired or not found. Plan the trip again."}
+
+
+@override_settings(USE_FIXTURES=False)
+def test_a_heatmap_for_a_plan_that_has_expired_is_a_404(api):
+    res = api.get(f"/api/heatmap?plan_id={PLAN_ID}")
+    assert res.status_code == 404
+    assert res.json() == {"detail": "Plan expired or not found. Plan the trip again."}
+
+
+@override_settings(USE_FIXTURES=False)
+@pytest.mark.parametrize("path, finish", FINISHERS)
+def test_forecasts_that_are_not_the_ones_asked_for_are_a_400(api, monkeypatch, caplog, path, finish):
+    monkeypatch.setattr(planner, finish, raise_(weather.WeatherError("Expected 7 forecast replies, got 1")))
+    res = post_forecasts(api, path)
+    assert res.status_code == 400
+    assert res.json() == {"detail": "Those aren't the forecasts this plan asked for. Plan the trip again."}
+    assert f"Forecasts for {PLAN_ID} rejected: Expected 7 forecast replies, got 1" in caplog.text
+
+
+@override_settings(USE_FIXTURES=False)
+@pytest.mark.parametrize("path, finish", FINISHERS)
+def test_forecasts_go_to_the_plan_they_were_listed_for(api, monkeypatch, path, finish):
+    seen = []
+
+    def finish_it(plan_id, replies):
+        seen.append((plan_id, replies))
+        return {"ok": 1}
+
+    monkeypatch.setattr(planner, finish, finish_it)
+    replies = [[{"hourly": {"time": []}}, {"hourly": {"time": []}}], {"hourly": {"time": []}}]
+    res = post_forecasts(api, path, forecasts=replies)
+    assert res.status_code == 200
+    assert res.json() == {"ok": 1}
+    assert seen == [(PLAN_ID, replies)]
+
+
+@override_settings(USE_FIXTURES=False)
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"plan_id": "../../etc/passwd"},
+        {"plan_id": PLAN_ID.upper()},
+        {"forecasts": {"0": {}}},
+        {"forecasts": [{}] * 21},
+        {"forecasts": None},
+    ],
+    ids=["path in the id", "not lowercase hex", "not a list", "too many", "null"],
+)
+def test_forecasts_with_a_bad_id_or_list_are_a_400(api, monkeypatch, body):
+    monkeypatch.setattr(planner, "finish_plan", raise_(AssertionError("the planner was called")))
+    res = post_forecasts(api, **body)
+    assert res.status_code == 400
+    assert set(res.json()) <= {"plan_id", "forecasts"}
+
+
+@override_settings(USE_FIXTURES=False)
+def test_more_forecast_data_than_a_plan_needs_is_a_413(api, monkeypatch):
+    monkeypatch.setattr(planner, "finish_plan", raise_(AssertionError("the planner was called")))
+    huge = [{"hourly": {"time": ["2026-10-24T12:00"] * 250_000}}]
+    res = post_forecasts(api, forecasts=huge)
+    assert res.status_code == 413
+    assert res.json() == {"detail": "That's more forecast data than a plan needs."}
 
 
 @override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="")
@@ -301,6 +359,17 @@ def test_limit_frees_up_a_minute_after_the_first_request(api, clock, send, limit
     assert send(api).status_code == 429
     clock.now += 1.5
     assert send(api).status_code == 200
+
+
+@override_settings(USE_FIXTURES=False)
+def test_forecasts_have_their_own_limit_with_room_for_every_plan_and_heatmap(api, clock):
+    # Both second steps share one limit of 40 a minute: 10 plans and 30 heatmaps
+    for i in range(40):
+        assert post_forecasts(api, FORECASTS_PATHS[i % 2]).status_code == 404
+    res = post_forecasts(api)
+    assert res.status_code == 429
+    assert res["Retry-After"] == "60"
+    assert post_plan(api).status_code != 429  # the first steps keep their own limits
 
 
 @override_settings(USE_FIXTURES=True)

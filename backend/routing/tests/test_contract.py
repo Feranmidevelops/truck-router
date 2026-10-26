@@ -15,7 +15,8 @@ from rest_framework.test import APIClient
 import pytest
 
 from routing.services import planner, tomtom
-from routing.tests.fakes import install_service_fakes, plan, wiggly_route
+from routing.tests import fakes
+from routing.tests.fakes import heatmap, install_service_fakes, plan, wiggly_route
 from routing.views import load_fixture
 
 TYPES_TS = Path(settings.BASE_DIR).parent / "frontend" / "src" / "api" / "types.ts"
@@ -138,7 +139,7 @@ def faked(monkeypatch):
 
 
 def test_types_ts_is_read(contract):
-    expected = {"Place", "PlanRequest", "Plan", "Route", "Checkpoint", "Heatmap"}
+    expected = {"Place", "PlanRequest", "Plan", "Route", "Checkpoint", "Heatmap", "ForecastRequest"}
     assert expected | {"JourneyReport", "ReportStretch", "ReportStop"} <= set(contract.interfaces)
     assert all(contract.interfaces.values())
 
@@ -151,9 +152,24 @@ def test_plan_from_the_planner_matches_types_ts(contract, faked):
 
 
 def test_heatmap_from_the_planner_matches_types_ts(contract, faked):
-    data = planner.build_heatmap(plan()["plan_id"])
+    data = heatmap(plan()["plan_id"])
     assert contract.errors(data, "Heatmap") == []
     assert data["points"], "nothing to check in the points"
+
+
+def test_the_forecasts_to_fetch_match_types_ts(contract, faked):
+    started = planner.start_plan(
+        origin=fakes.DALLAS,
+        destination=fakes.NORTH,
+        departure_time=fakes.T0,
+        timezone="America/Chicago",
+        load_weight_lb=20_000,
+        interval_miles=25,
+    )
+    assert contract.errors(started, "ForecastRequest") == []
+    assert started["forecast_urls"], "nothing to check in the URLs"
+    planner.finish_plan(started["plan_id"], [{}] * len(started["forecast_urls"]))
+    assert contract.errors(planner.heatmap_request(started["plan_id"]), "ForecastRequest") == []
 
 
 @override_settings(USE_FIXTURES=False, TOMTOM_API_KEY="test-key")

@@ -82,7 +82,13 @@ REST_FRAMEWORK = {
     # NUM_PROXIES > 0 the X-Forwarded-For entry that many places from the end.
     "NUM_PROXIES": env_int("NUM_PROXIES", 0),
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
-    "DEFAULT_THROTTLE_RATES": {"plan": "10/min", "geocode": "120/min", "heatmap": "30/min"},
+    "DEFAULT_THROTTLE_RATES": {
+        "plan": "10/min",
+        "geocode": "120/min",
+        "heatmap": "30/min",
+        # The second step of each plan and heatmap, so 10 plans and 30 heatmaps a minute still fit
+        "forecasts": "40/min",
+    },
 }
 
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:5173")

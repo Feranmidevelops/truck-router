@@ -2,11 +2,13 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 import re
 
+import httpx
 import pytest
 
 from routing.services import corridor, geometry, planner, tomtom, weather
 from routing.services.types import LatLon
-from routing.tests.fakes import T0, install_service_fakes, plan, wiggly_route, wind_at
+from routing.tests import fakes
+from routing.tests.fakes import T0, heatmap, install_service_fakes, plan, wiggly_route, wind_at
 
 
 @pytest.fixture
@@ -60,8 +62,8 @@ def test_a_past_departure_starts_the_whole_plan_now(faked, monkeypatch):
         assert datetime.fromisoformat(route["departure_time"]) == start
         assert datetime.fromisoformat(route["checkpoints"][0]["eta"]) == start
         assert route["arrival_time"] == route["checkpoints"][-1]["eta"]
-    heatmap = planner.build_heatmap(data["plan_id"])
-    assert datetime.fromisoformat(heatmap["start_time"]) == weather.floor_hour(start)
+    grid = heatmap(data["plan_id"])
+    assert datetime.fromisoformat(grid["start_time"]) == weather.floor_hour(start)
 
 
 def test_a_future_departure_is_used_as_given(faked, monkeypatch):
@@ -76,8 +78,7 @@ def test_a_future_departure_is_used_as_given(faked, monkeypatch):
         assert route["checkpoints"][0]["eta"] == asked.isoformat()
         arrival = datetime.fromisoformat(route["arrival_time"])
         assert abs(arrival - (asked + timedelta(seconds=route["duration_s"]))) < timedelta(seconds=1)
-    heatmap = planner.build_heatmap(data["plan_id"])
-    assert datetime.fromisoformat(heatmap["start_time"]) == T0
+    assert datetime.fromisoformat(heatmap(data["plan_id"])["start_time"]) == T0
 
 
 def test_the_first_and_last_checkpoints_are_the_two_places_when_the_truck_is_there(faked):
@@ -95,14 +96,14 @@ def test_the_first_and_last_checkpoints_are_the_two_places_when_the_truck_is_the
 
 def every_hour_shows(monkeypatch, temp_f, weather_code):
     """The faked forecast, with this temperature and weather code every hour."""
-    fetch = weather.fetch_hourly
+    read = weather.read_forecasts
 
-    def fetch_hourly(*args, **kwargs):
-        series = fetch(*args, **kwargs)
+    def read_forecasts(*args, **kwargs):
+        series = read(*args, **kwargs)
         hours = len(series[0].times)
         return [replace(s, temp_f=[temp_f] * hours, weather_code=[weather_code] * hours) for s in series]
 
-    monkeypatch.setattr(weather, "fetch_hourly", fetch_hourly)
+    monkeypatch.setattr(weather, "read_forecasts", read_forecasts)
 
 
 def test_a_missing_temperature_and_weather_code_are_sent_as_null_and_unknown(faked, monkeypatch):
@@ -188,26 +189,90 @@ def test_place_names_are_asked_for_once_per_plan_in_rank_order(faked, monkeypatc
         ]
 
 
+def timings(*steps: str) -> str:
+    return ", ".join(rf"{re.escape(step)} \d+\.\d\d s" for step in steps)
+
+
 def test_plan_and_heatmap_log_how_long_each_step_took(faked, caplog):
     data = plan()
-    planner.build_heatmap(data["plan_id"])
+    heatmap(data["plan_id"])
     lines = [r.getMessage() for r in caplog.records if r.name == "routing.services.planner"]
-    assert len(lines) == 2
-    plan_line, heatmap_line = lines
-    assert plan_line.startswith(f"Plan {data['plan_id']}: 3 routes, ")
-    steps = (
-        "routing",
-        "fallback routes",
-        "checkpoints",
-        "weather",
-        "risk + ranking",
-        "place names",
-        "simplify",
+    assert len(lines) == 3
+    started_line, plan_line, heatmap_line = lines
+    assert re.fullmatch(
+        rf"Plan {data['plan_id']} started: 3 routes, \d+ checkpoints, \d+ forecast locations, "
+        rf"\d+\.\d\d s total \({timings('routing', 'fallback routes', 'checkpoints', 'simplify')}\)",
+        started_line,
     )
-    timings = ", ".join(rf"{re.escape(step)} \d+\.\d\d s" for step in steps)
-    assert re.search(rf" s total \({timings}\)$", plan_line)
+    assert plan_line.startswith(f"Plan {data['plan_id']}: 3 routes, ")
+    assert re.search(rf" s total \({timings('weather', 'risk + ranking', 'place names')}\)$", plan_line)
     assert heatmap_line.startswith(f"Heatmap {data['plan_id']}: 3 points, ")
-    assert re.search(r" s total \(grid \d+\.\d\d s, weather \d+\.\d\d s, risk \d+\.\d\d s\)$", heatmap_line)
+    assert re.search(rf" s total \({timings('grid', 'weather', 'risk')}\)$", heatmap_line)
+
+
+def test_a_started_plan_lists_one_open_meteo_url_per_chunk_of_its_checkpoint_cells(faked):
+    started = planner.start_plan(
+        origin=fakes.DALLAS,
+        destination=fakes.NORTH,
+        departure_time=T0,
+        timezone="America/Chicago",
+        load_weight_lb=20_000,
+        interval_miles=10,
+    )
+    assert set(started) == {"plan_id", "forecast_urls"}
+    asked = [
+        (lat, lon)
+        for url in started["forecast_urls"]
+        for lat, lon in zip(
+            httpx.URL(url).params["latitude"].split(","), httpx.URL(url).params["longitude"].split(",")
+        )
+    ]
+    assert all(url.startswith(weather.BASE_URL + "?") for url in started["forecast_urls"])
+    assert len(started["forecast_urls"]) == -(-len(asked) // weather.CHUNK_SIZE)
+    assert len(asked) == len(set(asked))
+    # Every checkpoint of the finished plan is within half a cell of a location asked for
+    data = planner.finish_plan(started["plan_id"], [{}] * len(started["forecast_urls"]))
+    for route in data["routes"]:
+        for cp in route["checkpoints"]:
+            assert any(
+                abs(float(lat) - cp["lat"]) <= 0.05 + 1e-6 and abs(float(lon) - cp["lon"]) <= 0.05 + 1e-6
+                for lat, lon in asked
+            )
+
+
+def test_finishing_or_mapping_a_plan_nobody_started_is_plan_not_found(faked):
+    with pytest.raises(planner.PlanNotFound):
+        planner.finish_plan("0" * 32, [])
+    with pytest.raises(planner.PlanNotFound):
+        planner.heatmap_request("0" * 32)
+    with pytest.raises(planner.PlanNotFound):
+        planner.build_heatmap("0" * 32, [])
+    # A started plan has no heatmap until it's finished
+    started = planner.start_plan(
+        origin=fakes.DALLAS,
+        destination=fakes.NORTH,
+        departure_time=T0,
+        timezone="America/Chicago",
+        load_weight_lb=20_000,
+        interval_miles=25,
+    )
+    with pytest.raises(planner.PlanNotFound):
+        planner.heatmap_request(started["plan_id"])
+
+
+def test_a_plan_can_be_finished_again_with_the_same_answer(faked):
+    # e.g. the browser's first post was cut off and it tries again
+    started = planner.start_plan(
+        origin=fakes.DALLAS,
+        destination=fakes.NORTH,
+        departure_time=T0,
+        timezone="America/Chicago",
+        load_weight_lb=20_000,
+        interval_miles=25,
+    )
+    replies = [{}] * len(started["forecast_urls"])
+    first = planner.finish_plan(started["plan_id"], replies)
+    assert planner.finish_plan(started["plan_id"], replies) == first
 
 
 def test_response_lines_are_simplified(faked):
@@ -242,20 +307,20 @@ def test_heatmap_grid_is_built_from_the_simplified_lines(faked, monkeypatch):
         return [lines[0][0]]
 
     monkeypatch.setattr(corridor, "build_grid", fake_grid)
-    planner.build_heatmap(data["plan_id"])
+    planner.heatmap_request(data["plan_id"])
     assert seen == [geometry.simplify(r.points, planner.SIMPLIFY_TOLERANCE_M) for r in faked]
 
 
 def test_a_plan_and_its_heatmap_fit_open_meteos_minute_together(faked, monkeypatch):
     asked = []
-    fetch = weather.fetch_hourly
+    list_requests = weather.forecast_requests
 
-    def fetch_hourly(positions, start, end, **kwargs):
+    def forecast_requests(positions, start, end, **kwargs):
         asked.append(kwargs.get("max_cells"))
-        return fetch(positions, start, end, **kwargs)
+        return list_requests(positions, start, end, **kwargs)
 
-    monkeypatch.setattr(weather, "fetch_hourly", fetch_hourly)
-    planner.build_heatmap(plan()["plan_id"])
+    monkeypatch.setattr(weather, "forecast_requests", forecast_requests)
+    planner.heatmap_request(plan()["plan_id"])
     # The heatmap's grid is capped at 250 points by corridor.build_grid itself
     assert asked == [planner.PLAN_WEATHER_CELLS, None]
     assert planner.PLAN_WEATHER_CELLS + 250 <= 600
