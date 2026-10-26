@@ -45,18 +45,7 @@ def upstream_failed(service: str, exc: Exception, message: str) -> Response:
 
 class HealthView(APIView):
     def get(self, request):
-        body = {"ok": True, "fixtures": settings.USE_FIXTURES}
-        # Temporary: shows the caller their own forwarding headers, to count the proxy hops on Render
-        if request.query_params.get("hops") == "1":
-            meta = request.META
-            body["hops"] = {
-                "x_forwarded_for": meta.get("HTTP_X_FORWARDED_FOR"),
-                "remote_addr": meta.get("REMOTE_ADDR"),
-                "cf_connecting_ip": meta.get("HTTP_CF_CONNECTING_IP"),
-                "true_client_ip": meta.get("HTTP_TRUE_CLIENT_IP"),
-                "x_real_ip": meta.get("HTTP_X_REAL_IP"),
-            }
-        return Response(body)
+        return Response({"ok": True, "fixtures": settings.USE_FIXTURES})
 
 
 class GeocodeView(APIView):
