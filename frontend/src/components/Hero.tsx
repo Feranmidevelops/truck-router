@@ -47,10 +47,16 @@ export function Hero({ cardId, children }: Props) {
             Compare three truck routes by the wind, rain and snow forecast for the hour you reach each stretch of
             road.
           </p>
-          <a className="hero-link" href="#how-it-works">
-            How it works
-            <ArrowDown size={16} />
-          </a>
+          <div className="hero-links">
+            <a className="hero-link" href="#workspace">
+              See the weather map
+              <ArrowDown size={16} />
+            </a>
+            <a className="hero-link" href="#how-it-works">
+              How it works
+              <ArrowDown size={16} />
+            </a>
+          </div>
         </div>
         <div className="hero-card" id={cardId}>
           <h2 className="hero-card-title">Plan a trip</h2>

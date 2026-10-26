@@ -78,11 +78,17 @@
   color: var(--on-dark-muted);
 }
 
+.hero-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-8);
+  margin-top: var(--space-8);
+}
+
 .hero-link {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  margin-top: var(--space-8);
   font-weight: var(--weight-semibold);
   text-decoration: none;
   color: inherit;
@@ -165,8 +171,8 @@
   }
 
   /* Where the text lands on the photo depends on the screen, so the wash follows the text box:
-     dark from the top of the hero down to the lede, a patch behind the How it works link, and
-     clear below the link, where the truck shows between the text and the card. */
+     dark from the top of the hero down to the lede, a patch behind the links, and clear below
+     them, where the truck shows between the text and the card. */
   .hero-copy::before {
     content: '';
     position: absolute;
@@ -175,19 +181,28 @@
     right: calc(-1 * var(--page-gutter));
     bottom: -40px;
     left: calc(-1 * var(--page-gutter));
-    background:
-      radial-gradient(
-        ellipse 220px 52px at 0 calc(100% - 52px),
-        rgb(10 10 11 / 0.66) 50%,
-        rgb(10 10 11 / 0) 100%
-      ),
-      linear-gradient(
-        0deg,
-        rgb(10 10 11 / 0) 40px,
-        rgb(10 10 11 / 0.68) 88px,
-        rgb(10 10 11 / 0.68) 280px,
-        rgb(10 10 11 / 0.56) 420px
-      );
+    background: linear-gradient(
+      0deg,
+      rgb(10 10 11 / 0) 40px,
+      rgb(10 10 11 / 0.68) 88px,
+      rgb(10 10 11 / 0.68) 280px,
+      rgb(10 10 11 / 0.56) 420px
+    );
+  }
+
+  /* The patch is sized to the links, not the screen, so it covers both however wide they run */
+  .hero-links {
+    position: relative;
+    width: fit-content;
+  }
+
+  .hero-links::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: -14px -16px;
+    background: rgb(10 10 11 / 0.66);
+    filter: blur(14px);
   }
 
   .hero-inner {
@@ -229,7 +244,7 @@
     margin-top: var(--space-4);
   }
 
-  .hero-link {
+  .hero-links {
     margin-top: var(--space-6);
   }
 

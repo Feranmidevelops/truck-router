@@ -11,6 +11,8 @@
   --map-ui-warn-border: var(--ink);
   --map-ui-stale-opacity: var(--stale-opacity);
   --map-ui-fade: var(--duration);
+  /* The map credits' row along the bottom (24 px, 10 px up), which the panels clear */
+  --map-credits-clear: 26px;
 }
 
 /* While a new plan loads, the old one's routes, shading and forecast panel fade like the
@@ -25,12 +27,27 @@
   opacity: var(--map-ui-stale-opacity);
 }
 
-.map-notice {
+/* The map weather switch and any map error, one under the other. Clear of the results panel
+   on the left and the zoom buttons on the right. */
+.map-stack {
   position: absolute;
   z-index: 2;
   top: var(--map-ui-inset);
   left: var(--map-left-inset, var(--map-ui-inset));
-  max-width: min(360px, calc(100% - 4 * var(--map-ui-inset) - 30px));
+  right: calc(var(--map-ui-inset) + 40px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--map-ui-gap);
+  pointer-events: none; /* the map still pans between and beside them */
+}
+
+.map-stack > * {
+  pointer-events: auto;
+}
+
+.map-notice {
+  max-width: min(360px, 100%);
   display: flex;
   align-items: flex-start;
   gap: var(--map-ui-gap);
@@ -53,10 +70,38 @@
   cursor: pointer;
 }
 
-/* The weather panel takes the top of the map on narrow screens, the results sheet the bottom */
+.heat-holder[hidden] {
+  display: none;
+}
+
+/* A live layer's key sits where the forecast panel does, which it replaces: along the bottom,
+   above the map credits, on wide screens */
+.live-key {
+  position: absolute;
+  z-index: 2;
+  left: var(--map-left-inset, var(--map-ui-inset));
+  bottom: calc(var(--map-ui-inset) + var(--map-credits-clear));
+  max-width: calc(100% - var(--map-left-inset, var(--map-ui-inset)) - var(--map-ui-inset));
+}
+
+/* Narrow screens: the forecast panel, and so the live key, take the top of the map and the
+   results sheet the bottom. The switch sits just above the sheet, in easy reach of a thumb. */
 @media (max-width: 899px) {
-  .map-notice {
+  .map-stack {
     top: auto;
+    right: var(--map-ui-inset);
     bottom: calc(var(--sheet-peek) + var(--map-ui-inset));
+  }
+
+  .live-key {
+    top: var(--map-ui-inset);
+    right: calc(var(--map-ui-inset) + 40px);
+    bottom: auto;
+    left: var(--map-ui-inset);
+    max-width: none;
+  }
+
+  .live-key .live-card {
+    width: auto;
   }
 }
