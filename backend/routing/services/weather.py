@@ -128,9 +128,10 @@ def read_forecasts(requests: ForecastRequests, replies: list) -> list[HourlySeri
         for cell, item in zip(chunk, items):
             try:
                 series = parse_location(item, cell)
-            except (KeyError, TypeError, ValueError, AttributeError) as exc:
+                _check_hours(series, requests)
+            # OverflowError: an integer too big for a float, e.g. a wind of 10**400
+            except (KeyError, TypeError, ValueError, AttributeError, OverflowError) as exc:
                 raise WeatherError(f"A forecast is in an unexpected shape: {exc!r}") from exc
-            _check_hours(series, requests)
             by_cell[cell] = series
     return [replace(by_cell[cell], position=p) for cell, p in zip(requests.cells, requests.positions)]
 
