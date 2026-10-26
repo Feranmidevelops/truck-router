@@ -12,10 +12,25 @@
   letter-spacing: -0.01em;
 }
 
+.journey-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 .journey-meta {
   margin: 2px 0 0;
   font-size: var(--text-sm);
   color: var(--muted);
+}
+
+/* A smaller pill than the page's buttons, beside the heading */
+.journey-copy {
+  flex: none;
+  min-height: 32px;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
 }
 
 /* A rail down the left with a node for every line: rings for the two stops, dots in the
@@ -35,8 +50,18 @@
 
 .journey-item {
   --node-top: 3px; /* level with the first line of text */
+  --next-node-top: 3px; /* the same for the item below, where this item's rail ends */
 
   position: relative;
+}
+
+/* A stretch's node sits lower, level with the badge inside its box */
+.journey-stretch {
+  --node-top: 16px;
+}
+
+.journey-item:has(+ .journey-stretch) {
+  --next-node-top: 16px;
 }
 
 .journey-item p {
@@ -50,6 +75,7 @@
 }
 
 .journey-item::before {
+  box-sizing: border-box;
   top: var(--node-top);
   left: calc(var(--rail-x) - var(--space-6) - var(--node) / 2);
   width: var(--node);
@@ -57,10 +83,10 @@
   border-radius: 50%;
 }
 
-/* The rail, from this node down into the next item, where that item's node covers its end */
+/* The rail, from this node's centre down to the next one's */
 .journey-item::after {
   top: calc(var(--node-top) + var(--node) / 2);
-  bottom: calc(-1 * var(--gap) - var(--node));
+  bottom: calc(-1 * (var(--gap) + var(--next-node-top) + var(--node) / 2));
   left: calc(var(--rail-x) - var(--space-6) - 1px);
   width: 2px;
   background: var(--line-strong);
@@ -76,14 +102,7 @@
   background: var(--surface);
 }
 
-.journey-stretch,
 .journey-calm {
-  --node-top: 16px;
-}
-
-.journey-calm {
-  --node-top: 3px;
-
   font-size: var(--text-md);
 }
 
@@ -171,19 +190,4 @@
   margin: 0;
   font-size: var(--text-xs);
   color: var(--muted);
-}
-
-.journey-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-/* A smaller pill than the page's buttons, beside the heading */
-.journey-copy {
-  flex: none;
-  min-height: 32px;
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-sm);
 }
