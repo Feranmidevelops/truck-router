@@ -245,6 +245,21 @@ def test_forecasts_that_are_not_the_ones_asked_for_are_a_400(api, monkeypatch, c
 
 
 @override_settings(USE_FIXTURES=False)
+@pytest.mark.parametrize("path", ["/api/plan", *FORECASTS_PATHS])
+def test_json_nested_too_deeply_to_read_is_a_400(api, path):
+    deep = "[" * 100_000 + "]" * 100_000  # far past Python's recursion limit, whatever it is
+    res = api.post(path, '{"forecasts": ' + deep + "}", content_type="application/json")
+    assert res.status_code == 400
+    assert res.json() == {"detail": "JSON parse error - nested too deeply."}
+
+
+@override_settings(USE_FIXTURES=False)
+def test_a_body_that_is_not_json_is_refused(api):
+    res = api.post("/api/plan", "origin=Dallas", content_type="application/x-www-form-urlencoded")
+    assert res.status_code == 415
+
+
+@override_settings(USE_FIXTURES=False)
 def test_a_rejected_forecast_logs_only_the_start_of_what_was_sent(api, monkeypatch, caplog):
     monkeypatch.setattr(planner, "finish_plan", raise_(weather.WeatherError("Bad hour " + "x" * 1_000_000)))
     assert post_forecasts(api).status_code == 400

@@ -77,6 +77,8 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "UNAUTHENTICATED_USER": None,
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    # JSON only, and a body nested too deeply is a 400 rather than a RecursionError
+    "DEFAULT_PARSER_CLASSES": ["routing.parsers.JSONParser"],
     # Limits per client IP, for views that set throttle_scope (health doesn't). History lives in
     # the shared cache so all gunicorn workers count together. The IP is REMOTE_ADDR, or with
     # NUM_PROXIES > 0 the X-Forwarded-For entry that many places from the end.
