@@ -6,7 +6,6 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.cache import cache
-from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -27,10 +26,6 @@ log = logging.getLogger(__name__)
 @lru_cache(maxsize=None)
 def load_fixture(name: str):
     return json.loads((FIXTURES / name).read_text())
-
-
-def not_ready(exc: NotImplementedError) -> Response:
-    return Response({"detail": f"Not implemented yet: {exc}"}, status=status.HTTP_501_NOT_IMPLEMENTED)
 
 
 def upstream_failed(service: str, exc: Exception, message: str) -> Response:
@@ -107,8 +102,6 @@ class PlanView(APIView):
             return Response(load_fixture("plan.json"))
         try:
             plan = planner.build_plan(**serializer.validated_data)
-        except NotImplementedError as exc:
-            return not_ready(exc)
         except planner.NoRouteFound as exc:
             data = serializer.validated_data
             log.info("No route: %s -> %s", data["origin"]["label"], data["destination"]["label"])
@@ -131,8 +124,6 @@ class HeatmapView(APIView):
             data = planner.build_heatmap(plan_id)
         except planner.PlanNotFound:
             return Response({"detail": "Plan expired or not found. Plan the trip again."}, status=404)
-        except NotImplementedError as exc:
-            return not_ready(exc)
         except weather.WeatherError as exc:
             return upstream_failed("Open-Meteo heatmap forecast", exc, WEATHER_DOWN)
         return Response(data)
