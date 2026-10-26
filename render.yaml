@@ -22,8 +22,8 @@ services:
         sync: false
       - key: USE_FIXTURES
         value: "false"
-      # Render puts Cloudflare in front of its own proxy and both append to X-Forwarded-For
-      # ("<client-sent...>, <client>, <Cloudflare edge>"), so the visitor is 2 from the end.
-      # 1 would key every limit on a Cloudflare address shared by strangers.
+      # A live request on Render arrives with X-Forwarded-For "<client-sent...>, <visitor>,
+      # <Cloudflare edge>, <Render load balancer>", so the visitor is 3 from the end. 2 would key
+      # every limit on a Cloudflare edge address, which changes between requests and is shared.
       - key: NUM_PROXIES
-        value: "2"
+        value: "3"

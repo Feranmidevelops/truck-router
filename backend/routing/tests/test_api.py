@@ -309,18 +309,19 @@ def test_without_a_proxy_forwarded_for_is_ignored(api):
     assert res.status_code == 429
 
 
-@override_settings(USE_FIXTURES=True, REST_FRAMEWORK={**settings.REST_FRAMEWORK, "NUM_PROXIES": 2})
+@override_settings(USE_FIXTURES=True, REST_FRAMEWORK={**settings.REST_FRAMEWORK, "NUM_PROXIES": 3})
 def test_behind_render_the_limit_follows_the_visitor_not_cloudflare(api):
-    # On Render the header reads "<client-sent...>, <visitor>, <Cloudflare edge>". The visitor
-    # is 2 from the end; anything further left is whatever the client chose to send.
+    # A live request on Render read "<client-sent...>, <visitor>, <Cloudflare edge>,
+    # <Render load balancer>", with the edge and balancer changing between requests. The visitor
+    # is 3 from the end; anything further left is whatever the client chose to send.
     def via_render(forwarded_for):
-        return post_plan(api, REMOTE_ADDR="10.0.0.5", HTTP_X_FORWARDED_FOR=forwarded_for)
+        return post_plan(api, REMOTE_ADDR="127.0.0.1", HTTP_X_FORWARDED_FOR=forwarded_for)
 
     for i in range(10):
-        via_render(f"1.2.3.{i}, 198.51.100.7, 172.70.{i % 3}.10")
-    assert via_render("9.9.9.9, 198.51.100.7, 172.70.0.10").status_code == 429
-    # A different visitor through the same Cloudflare edge has a limit of their own.
-    assert via_render("198.51.100.8, 172.70.0.10").status_code == 200
+        via_render(f"1.2.3.{i}, 198.51.100.7, 172.71.146.{i % 3}, 10.29.97.{i % 2}")
+    assert via_render("9.9.9.9, 198.51.100.7, 104.22.76.134, 10.26.61.133").status_code == 429
+    # A different visitor through the same edge and balancer has a limit of their own.
+    assert via_render("198.51.100.8, 172.71.146.0, 10.29.97.0").status_code == 200
 
 
 @override_settings(USE_FIXTURES=True)
