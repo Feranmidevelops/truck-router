@@ -28,3 +28,11 @@ export function createChannel<T>(initial: T): Channel<T> {
 export function checkpointKey(routeId: string, index: number) {
   return `${routeId}:${index}`
 }
+
+// Checkpoints first..last of one route, both included: a stretch picked in the journey
+// report, for the map to ring and frame
+export interface CheckpointRun {
+  routeId: string
+  first: number
+  last: number
+}

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { skyFromCode, type Sky } from '../lib/report'
 
 // Small line icons, drawn in the text colour. All are decorative: the text next to them
 // carries the meaning, so they're hidden from screen readers.
@@ -94,4 +95,33 @@ export function SnowIcon(props: IconProps) {
       <path d="M12 2v20M3.3 7l17.4 10M20.7 7 3.3 17M9 4l3 2 3-2M9 20l3-2 3 2" />
     </Svg>
   )
+}
+
+// The sky at a place, from its WMO weather code: sun (a moon on a clear night), cloud, fog,
+// rain, snow or a storm. Nothing for an unknown code; the words next to it still say what
+// the forecast is.
+export function SkyIcon({ code, night = false, ...props }: IconProps & { code: number | null; night?: boolean }) {
+  const sky = skyFromCode(code)
+  if (!sky) return null
+  return <Svg {...props}>{sky === 'clear' && night ? MOON : SKY_SHAPES[sky]}</Svg>
+}
+
+const MOON = <path d="M20.5 13.5A8.5 8.5 0 1 1 10.5 3.5a7 7 0 0 0 10 10Z" />
+
+// A full cloud, and a smaller one higher up to leave room for what falls from it
+const CLOUD = 'M6 18a4 4 0 0 1 0-8 6 6 0 0 1 11.3-1.9A5 5 0 0 1 17 18Z'
+const HIGH_CLOUD = 'M7 14a3 3 0 0 1 0-6 4.6 4.6 0 0 1 9-1 3.6 3.6 0 0 1 .5 7Z'
+
+const SKY_SHAPES: Record<Sky, ReactNode> = {
+  clear: (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </>
+  ),
+  cloud: <path d={CLOUD} />,
+  fog: <path d="M4 7h16M3 11h18M5 15h14M8 19h8" />,
+  rain: <path d={`${HIGH_CLOUD}M8 17l-1 3M12 17l-1 3M16 17l-1 3`} />,
+  snow: <path d={`${HIGH_CLOUD}M8 18h.01M12 18h.01M16 18h.01M10 21h.01M14 21h.01`} />,
+  storm: <path d={`${HIGH_CLOUD}M12.5 15.5l-2 3.5h3l-2 3.5`} />,
 }

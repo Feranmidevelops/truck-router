@@ -1,11 +1,11 @@
-import { useId, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
+import { useId, useLayoutEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import './BottomSheet.css'
 
 interface Props {
   label: string // what the sheet holds, for the handle's name: "route details"
   peek: ReactNode // shown while the sheet is down
   children: ReactNode // the whole content, shown when the sheet is up
-  resetKey?: string // when this changes (a new plan), the sheet drops back down
+  resetKey?: string // when this changes (a new plan, a stretch to see on the map), the sheet drops back down
 }
 
 // How far the finger has to travel before a press on the handle counts as a drag, not a tap
@@ -27,6 +27,14 @@ export function BottomSheet({ label, peek, children, resetKey }: Props) {
   }
 
   const sheetRef = useRef<HTMLDivElement>(null)
+  const handleRef = useRef<HTMLButtonElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  // Dropping the sheet with focus inside it (a stretch picked from the keyboard) would leave
+  // focus on nothing once the body goes inert: hand it to the handle. Before paint, while
+  // the focused element is still the one inside.
+  useLayoutEffect(() => {
+    if (!open && bodyRef.current?.contains(document.activeElement)) handleRef.current?.focus()
+  }, [open])
   const drag = useRef<{ startY: number; moved: boolean } | null>(null)
   const dragged = useRef(false) // the click that ends a drag shouldn't also toggle
 
@@ -88,7 +96,14 @@ export function BottomSheet({ label, peek, children, resetKey }: Props) {
         onPointerUp={onPointerEnd}
         onPointerCancel={onPointerEnd}
       >
-        <button type="button" className="sheet-handle" aria-expanded={open} aria-controls={bodyId} onClick={toggle}>
+        <button
+          ref={handleRef}
+          type="button"
+          className="sheet-handle"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={toggle}
+        >
           <span className="sheet-grip" aria-hidden />
           <span className="visually-hidden">
             {open ? 'Hide' : 'Show'} {label}
@@ -101,7 +116,7 @@ export function BottomSheet({ label, peek, children, resetKey }: Props) {
         )}
       </div>
       {/* Inert while down: its contents sit off-screen and mustn't take focus */}
-      <div id={bodyId} className="sheet-body" inert={!open}>
+      <div ref={bodyRef} id={bodyId} className="sheet-body" inert={!open}>
         {children}
       </div>
     </div>
