@@ -60,12 +60,9 @@ export function hasPrecip(inPerHour: number) {
   return inPerHour >= 0.005
 }
 
-const FACTOR_WORD = { wind: 'wind', rain: 'rain', snow: 'snow' } as const
-
 // What made the stretch risky, and where: "Snow and wind near Raton, NM"
 export function stretchCause(stretch: ReportStretch) {
-  const words = stretch.drivers.map((d) => FACTOR_WORD[d])
-  const what = words.length ? words.join(' and ') : 'weather'
+  const what = stretch.drivers.length ? stretch.drivers.join(' and ') : 'weather'
   return `${what[0].toUpperCase()}${what.slice(1)} ${stretch.where}`
 }
 
