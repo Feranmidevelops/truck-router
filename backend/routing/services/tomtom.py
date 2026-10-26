@@ -244,7 +244,10 @@ def calculate_routes(
     }
     body = {"avoidAreas": {"rectangles": [b.to_tomtom() for b in avoid]}} if avoid else None
     payload = _request(url, params, client, timeout, body)
-    routes = parse_routes(payload, departure, source="tomtom", id_prefix=id_prefix)
+    try:
+        routes = parse_routes(payload, departure, source="tomtom", id_prefix=id_prefix)
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        raise RoutingError(f"TomTom sent routes in an unexpected shape: {exc!r}") from exc
     if not routes:
         raise NoRouteError(NO_ROUTE_MESSAGE)
     return routes
@@ -388,7 +391,7 @@ def _fallback(
             origin, destination, departure, load_lb, api_key, avoid=avoid, max_alternatives=missing - 1,
             id_prefix=f"around{3 - missing}-", timeout=FALLBACK_TIMEOUT_S, client=client,
         )
-    except (RoutingError, KeyError, ValueError):
+    except RoutingError:
         return []  # e.g. no road round the boxes, or a reply we can't read
 
 

@@ -768,8 +768,9 @@ BAD_TIME = {"lengthInMeters": 1000, "travelTimeInSeconds": 60, "departureTime": 
         httpx.Response(200, text="<html>Bad gateway</html>"),
         httpx.Response(200, json={"routes": [{"legs": []}]}),  # no summary
         httpx.Response(200, json={"routes": [{"summary": BAD_TIME, "legs": []}]}),
+        httpx.Response(200, json={"routes": [None]}),
     ],
-    ids=["no-route", "same-road", "too-slow", "doubles-back", "not-json", "no-summary", "bad-time"],
+    ids=["no-route", "same-road", "too-slow", "doubles-back", "not-json", "no-summary", "bad-time", "null-route"],
 )
 def test_the_top_up_stops_at_a_request_that_adds_no_route(reply):
     fake = FakeTomTom(lambda boxes, alternatives: reply)
@@ -813,6 +814,24 @@ def test_a_reply_that_is_not_json_is_a_routing_error():
     client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, text="<html>")))
     with pytest.raises(tomtom.RoutingError, match="not JSON"):
         tomtom.calculate_routes(WEST, EAST, T0, 20_000, "test-key", client=client)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"routes": [{"legs": []}]},
+        {"routes": [{"summary": BAD_TIME, "legs": []}]},
+        {"routes": [{"summary": {"lengthInMeters": "far", "travelTimeInSeconds": 60}}]},
+        {"routes": [None]},
+        [{"routes": []}],
+    ],
+    ids=["no-summary", "bad-time", "bad-length", "null-route", "list"],
+)
+def test_a_200_reply_in_an_unexpected_shape_is_a_routing_error(body):
+    client = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, json=body)))
+    with pytest.raises(tomtom.RoutingError, match="unexpected shape") as exc_info:
+        tomtom.calculate_routes(WEST, EAST, T0, 20_000, "test-key", client=client)
+    assert not isinstance(exc_info.value, tomtom.NoRouteError)
 
 
 @pytest.mark.parametrize("body", [{"routes": []}, {}])
