@@ -84,11 +84,17 @@ function RouteCard({ route, tag, reason, selected, timeZone, onSelect }: CardPro
         ) : (
           <LevelBadge level="LOW">Low all the way</LevelBadge>
         )}
-        <span className="route-avg">Avg risk {avg_risk.toFixed(2)}</span>
+        <span className="route-avg">Avg risk {formatAvgRisk(avg_risk)}</span>
       </span>
       {reason && <span className="route-reason">{reason}</span>}
     </button>
   )
+}
+
+// Routes are ranked on the exact average, so a little Moderate on a long trip still shows as more
+// than none, the way the reason under Route A puts it
+function formatAvgRisk(avg: number) {
+  return avg > 0 && avg < 0.005 ? 'under 0.01' : avg.toFixed(2)
 }
 
 // Drive time and distance, big. The units say which is which, so there are no labels and

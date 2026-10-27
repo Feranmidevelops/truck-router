@@ -137,8 +137,10 @@ Routes are sorted on these keys, in order:
    beat one without. If every route has some, the least bad is still recommended and the UI warns.
 1. **Fewest Severe miles**, then 2. **fewest High miles** (both compared to 0.1 mile).
 3. **Lowest average risk**: the distance-weighted mean of the level scores (Low 0 to No Travel 4).
-   Compared at 2 decimals only to remove floating-point noise, so a lower average wins even when
-   it is slower. That keeps the brief's order exactly.
+   A lower average wins even when it is slower, which keeps the brief's order exactly. It is
+   compared to 6 decimals, which only removes floating-point noise: 10 Moderate miles on a
+   3,500-mile trip (an average of 0.003) still lose to a route that's Low all the way. An earlier
+   version compared 2 decimals, which let that route win on being one minute faster.
 4. **Shortest travel time**, which only decides true ties.
 
 The reason shown under the recommended route names the first key that separates it from the

@@ -4,13 +4,12 @@ Ranking order (the brief, plus the decisions in the README):
   0. Fewest NO_TRAVEL miles (not in the brief; a route you can't drive can't win)
   1. Fewest SEVERE miles
   2. Fewest HIGH miles
-  3. Lowest average risk (distance-weighted, compared rounded to 2 decimals;
-     averages that round the same count as equal, otherwise the lower one wins
-     even when slower)
+  3. Lowest average risk (distance-weighted; the lower one wins even when slower)
   4. Shortest travel time (decides only true ties)
-Miles are compared rounded to 0.1. Rounding hides float noise such as
-0.1 + 0.2 == 0.30000000000000004, except for a value sitting right on a
-halfway point like 0.805, which can still round either way.
+Miles are compared rounded to 0.1, and the average to 6 decimals. Rounding hides
+float noise such as 0.1 + 0.2 == 0.30000000000000004, except for a value sitting
+right on a halfway point, which can still round either way. 6 decimals still tells
+a tenth of a Moderate mile on a 3,500-mile route (an average of 0.00003) from none.
 """
 
 from .types import Checkpoint, Level, RouteSummary
@@ -18,7 +17,8 @@ from .types import Checkpoint, Level, RouteSummary
 METERS_PER_MILE = 1609.344
 # Used both to compare routes and to print the reason, so the two can't drift apart
 MILES_DECIMALS = 1
-AVG_RISK_DECIMALS = 2
+AVG_RISK_DECIMALS = 6
+AVG_RISK_SHOWN_DECIMALS = 2  # in the reason, unless more are needed to tell the two apart
 
 
 def summarize_route(
@@ -80,8 +80,17 @@ def _miles(value: float) -> str:
     return f"{value:.{MILES_DECIMALS}f}"
 
 
-def _avg_risk(value: float) -> str:
-    return f"{value:.{AVG_RISK_DECIMALS}f}"
+def _avg_risks(ours: float, theirs: float) -> tuple[str, str]:
+    """Both averages, with as many decimals as it takes to tell them apart (at least 2)."""
+    for decimals in range(AVG_RISK_SHOWN_DECIMALS, AVG_RISK_DECIMALS + 1):
+        shown = f"{ours:.{decimals}f}", f"{theirs:.{decimals}f}"
+        if shown[0] != shown[1]:
+            break
+    return shown
+
+
+def _each(fmt):
+    return lambda ours, theirs: (fmt(ours), fmt(theirs))
 
 
 def _duration(seconds: float) -> str:
@@ -92,20 +101,21 @@ def _duration(seconds: float) -> str:
 
 # One entry per ranking_key position, in the same order
 _REASONS = (
-    ("Fewest no-travel miles", _miles),
-    ("Fewest severe miles", _miles),
-    ("Fewest high-risk miles", _miles),
-    ("Lower average risk", _avg_risk),
-    ("Shorter travel time", _duration),
+    ("Fewest no-travel miles", _each(_miles)),
+    ("Fewest severe miles", _each(_miles)),
+    ("Fewest high-risk miles", _each(_miles)),
+    ("Lower average risk", _avg_risks),
+    ("Shorter travel time", _each(_duration)),
 )
 
 
 def _reason(best: tuple, runner_up: tuple) -> str:
-    for (label, fmt), ours, theirs in zip(_REASONS, best, runner_up, strict=True):
+    for (label, show), ours, theirs in zip(_REASONS, best, runner_up, strict=True):
         if ours != theirs:
-            if fmt(ours) == fmt(theirs):
-                # the risk keys print at the precision they were rounded to, so only
+            shown_ours, shown_theirs = show(ours, theirs)
+            if shown_ours == shown_theirs:
+                # the risk keys print at up to the precision they were rounded to, so only
                 # travel time (raw seconds) can get here: both round to the same minute
                 return f"{label} by under a minute"
-            return f"{label} ({fmt(ours)} vs {fmt(theirs)})"
+            return f"{label} ({shown_ours} vs {shown_theirs})"
     return "Tied with the next route on risk and travel time"

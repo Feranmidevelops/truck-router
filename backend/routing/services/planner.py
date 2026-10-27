@@ -283,7 +283,8 @@ def _route_json(
         "geometry": [[round(p.lon, 5), round(p.lat, 5)] for p in shape],
         "summary": {
             "miles_by_level": {lvl.name: round(summary.miles_by_level.get(lvl, 0.0), 1) for lvl in Level},
-            "avg_risk": round(summary.avg_risk, 2),
+            # As compared, so the order can be checked from the response
+            "avg_risk": round(summary.avg_risk, recommend.AVG_RISK_DECIMALS),
             "max_level": summary.max_level.name,
         },
         "checkpoints": [_checkpoint_json(cp) for cp in checkpoints],

@@ -105,8 +105,8 @@ def test_summarize_route_all_low():
 
 
 def test_ranking_key_order():
-    s = summary("a", nt=1.24, severe=2.26, high=3.0, avg=1.234, duration=9000)
-    assert ranking_key(s) == (1.2, 2.3, 3.0, 1.23, 9000)
+    s = summary("a", nt=1.24, severe=2.26, high=3.0, avg=1.23456789, duration=9000)
+    assert ranking_key(s) == (1.2, 2.3, 3.0, 1.234568, 9000)
 
 
 def test_ranking_key_treats_missing_levels_as_zero():
@@ -156,20 +156,49 @@ def test_average_risk_ignores_float_noise():
 
 
 @pytest.mark.parametrize(
-    ("fast_avg", "expected_order", "expected_reason"),
+    ("fast_avg", "expected_reason"),
     [
-        # 0.804 rounds to 0.80, ties with the slow route, so time decides
-        (0.804, ["fast", "slow"], "Shorter travel time (8 h 20 min vs 11 h 7 min)"),
-        # 0.806 rounds to 0.81, so the slow route's lower average wins
-        (0.806, ["slow", "fast"], "Lower average risk (0.80 vs 0.81)"),
+        (0.806, "Lower average risk (0.80 vs 0.81)"),
+        # Equal to 2 decimals, so the reason shows the third
+        (0.804, "Lower average risk (0.800 vs 0.804)"),
     ],
-    ids=["same-at-2-decimals", "apart-at-2-decimals"],
 )
-def test_average_risk_is_compared_at_two_decimals(fast_avg, expected_order, expected_reason):
+def test_a_lower_average_wins_however_small_the_gap(fast_avg, expected_reason):
     order, reason = rank_routes(
         [summary("slow", avg=0.80, duration=40_000), summary("fast", avg=fast_avg, duration=30_000)]
     )
-    assert order == expected_order
+    assert order == ["slow", "fast"]
+    assert reason == expected_reason
+
+
+def long_route(rid: str, miles: float, moderate_miles: float, duration: float) -> RouteSummary:
+    """A route checked every 10 miles, all Low but for `moderate_miles` of Moderate."""
+    low = miles - moderate_miles
+    cps = [cp(i, 10.0, Level.LOW) for i in range(int(low // 10))]
+    cps.append(cp(len(cps), low - 10.0 * len(cps), Level.LOW))
+    if moderate_miles:
+        cps.append(cp(len(cps), moderate_miles, Level.MODERATE))
+    return summarize_route(rid, miles * 1609.344, duration, cps)
+
+
+@pytest.mark.parametrize(
+    ("miles", "moderate", "slower_by_s", "expected_reason"),
+    [
+        # Seattle -> Miami on the live site: 10 Moderate miles, 1 minute faster
+        (3_500, 10.0, 60, "Lower average risk (0.000 vs 0.003)"),
+        # Moderate for one checkpoint on a 2,100-mile trip, 2 hours faster
+        (2_100, 10.0, 7_200, "Lower average risk (0.000 vs 0.005)"),
+        # A tenth of a mile still counts
+        (3_500, 0.1, 60, "Lower average risk (0.00000 vs 0.00003)"),
+    ],
+    ids=["seattle-miami", "one-checkpoint", "tenth-of-a-mile"],
+)
+def test_any_moderate_miles_lose_to_a_route_low_all_the_way(miles, moderate, slower_by_s, expected_reason):
+    fast = long_route("moderate", miles, moderate, duration=180_000)
+    slow = long_route("all-low", miles, 0.0, duration=180_000 + slower_by_s)
+    assert fast.avg_risk > 0 and slow.avg_risk == 0
+    order, reason = rank_routes([fast, slow])
+    assert order == ["all-low", "moderate"]
     assert reason == expected_reason
 
 
